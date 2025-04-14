@@ -1,0 +1,626 @@
+import torch
+import torchvision
+from torch import nn 
+from torch import optim
+from torch.nn import functional as F
+from opts import OPT as opt
+import pickle
+from tqdm import tqdm
+from utils import accuracy
+import time
+from copy import deepcopy
+from error_propagation import Complex
+import os 
+import csv
+
+
+n_model = opt.n_model
+ 
+    
+def AUS(a_t, a_or, a_f):
+    aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
+    return aus
+
+def choose_method(name):
+    if name=='FineTuning':
+        return FineTuning
+    elif name=='NegativeGradient':
+        return NegativeGradient
+    elif name=='RandomLabels':
+        return RandomLabels
+    elif name=='SCAR':
+        return SCAR
+    elif name == 'BoundaryShrink':
+        return BoundaryShrink
+    elif name == 'BoundaryExpanding':
+        return BoundaryExpanding
+    else:
+        raise ValueError(f"[choose_method] Unknown method: {name}")
+    
+        
+def calculate_accuracy(net, dataloader, use_fc_only=False):
+    net.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+            if use_fc_only:
+                outputs = net.fc(inputs)  # Only use the FC layer
+            else:
+                outputs = net(inputs)     # Full model
+            _, predicted = torch.max(outputs, 1)
+            total += targets.size(0)
+            correct += (predicted == targets).sum().item()
+    return correct / total
+
+                    
+def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
+    os.makedirs(f'results_synth/{mode}/epoch_logs_m{n_model}', exist_ok=True)
+
+    if isinstance(class_to_remove, list):
+        class_name = '_'.join(map(str, class_to_remove))
+    else:
+        class_name = class_to_remove if class_to_remove is not None else 'all'
+
+    csv_path = f'results_synth/{mode}/epoch_logs_m{n_model}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    file_exists = os.path.isfile(csv_path)
+
+    with open(csv_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        if not file_exists:
+            writer.writerow(['epoch', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'])
+        writer.writerow([epoch, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS])
+
+def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
+    os.makedirs('results_synth', exist_ok=True)
+    summary_path = f'results_synth/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}.csv'
+    file_exists = os.path.isfile(summary_path)
+
+    if isinstance(class_to_remove, list):
+        class_name = '_'.join(map(str, class_to_remove))
+    else:
+        class_name = class_to_remove if class_to_remove is not None else 'all'
+
+    with open(summary_path, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        if not file_exists:
+            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'])
+        writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS])
+
+        
+class BaseMethod:
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real):
+        self.net = net
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+
+        
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optim.SGD(self.net.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        self.epochs = opt.epochs_unlearn
+        self.target_accuracy = opt.target_accuracy
+        self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
+
+    def loss_f(self, net, inputs, targets):
+        return None
+
+    def run(self):
+        self.net.train()
+        best_model_state = None
+        best_aus = -float('inf')
+        best_epoch = -1
+        patience_counter = 0
+        patience = opt.patience
+
+        zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+
+        aus_history = []
+        results = []
+    
+        for epoch in tqdm(range(self.epochs)):
+            for inputs, targets in self.loader:
+                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+                self.optimizer.zero_grad()
+                loss = self.loss_f(inputs, targets)
+                loss.backward()
+                self.optimizer.step()
+
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
+                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+
+                self.net.train()
+                
+                a_t = Complex(acc_test_val_ret, 0.0)
+                a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = opt.a_or[opt.dataset][1]  # assuming this is a Complex object
+                aus_result = AUS(a_t, a_or, a_f)
+                aus_value = aus_result.value
+                aus_error = aus_result.error
+
+                aus_history.append(aus_value)
+
+
+                print(f"Train Retain Acc: {acc_train_ret:.3f},"
+                      f"Train Forget Acc: {acc_train_fgt:.3f},"
+                      f"Val Retain Test Acc: {acc_test_val_ret:.3f},"
+                      f"Val Forget Test Acc: {acc_test_val_fgt:.3f},"
+                      f"Val Retain Full Acc: {acc_full_val_ret:.3f},"
+                      f"Val Forget Full Acc: {acc_full_val_fgt:.3f},"
+                      f"target Acc: {self.target_accuracy:.3f},"
+                      f"AUS: {aus_value:.3f}±{aus_error:.4f}")
+                
+                if aus_value > best_aus:
+                    best_aus = aus_value
+                    best_model_state = deepcopy(self.net.state_dict())
+                    best_epoch = epoch
+
+                    best_acc_train_ret = acc_train_ret
+                    best_acc_train_fgt = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+                    
+
+                if acc_test_val_fgt == 0.0:
+                    zero_acc_fgt_counter += 1
+                else:
+                    zero_acc_fgt_counter = 0
+
+                if zero_acc_fgt_counter >= zero_acc_patience:
+                    print(f"[Early Stopping] acc_test_fgt was 0 for {zero_acc_patience} consecutive epochs. Stopping...")
+                    break
+    
+                if len(aus_history) > patience:
+                    recent_trend_aus = aus_history[-patience:]
+
+                    # Condition 1: AUS is decreasing
+                    decreasing_aus = all(recent_trend_aus[i] > recent_trend_aus[i+1] for i in range(patience - 1))
+
+                    # Condition 2: AUS has not changed significantly
+                    no_change_aus = all(abs(recent_trend_aus[i] - recent_trend_aus[i+1]) < 1e-4 for i in range(patience - 1))
+
+                    # Condition 3: AUS is above the minimum threshold
+                    #aus_high_enough = aus_value >= 70
+
+                    if (decreasing_aus or no_change_aus):# and aus_high_enough:
+                        print(f"[Early Stopping] Triggered at epoch {epoch+1} due to AUS trend.")
+                        break
+
+                # Additional early stopping: AUS < 0.4 for more than 20 epochs
+                low_aus_threshold = 0.4
+                low_aus_patience = 20
+
+                low_aus_count = sum(a < low_aus_threshold for a in aus_history[-low_aus_patience:])
+                if low_aus_count >= low_aus_patience:
+                    print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
+                    break
+
+                
+                ## Early stopping condition
+                #if acc_test_fgt <= self.target_accuracy:
+                #    patience_counter += 1
+                #    if patience_counter >= patience_limit:
+                #        print("[Early Stopping Triggered]")
+                #        break
+#
+                
+                # Save a summary across all unlearning runs
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus_value, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed)
+
+            self.scheduler.step()
+            #print('Accuracy: ',self.evalNet())
+
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed) 
+
+        self.net.eval()
+        return self.net
+    
+    def evalNet(self):
+        #compute model accuracy on self.loader
+
+        self.net.eval()
+        with torch.no_grad():
+            correct = 0
+            total = 0
+            for inputs, targets in self.train_retain_loader:
+                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+                outputs = self.net(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += targets.size(0)
+                correct += (predicted == targets).sum().item()
+
+            correct2 = 0
+            total2 = 0
+            for inputs, targets in self.train_fgt_loader:
+                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+                outputs = self.net(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total2 += targets.size(0)
+                correct2+= (predicted == targets).sum().item()
+
+            if not(self.test is None):
+                correct3 = 0
+                total3 = 0
+                for inputs, targets in self.test:
+                    inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+                    outputs = self.net(inputs)
+                    _, predicted = torch.max(outputs.data, 1)
+                    total3 += targets.size(0)
+                    correct3+= (predicted == targets).sum().item()
+        self.net.train()
+        if self.test is None:
+            return correct/total,correct2/total2
+        else:
+            return correct/total,correct2/total2,correct3/total3
+    
+class FineTuning(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.loader = self.train_retain_loader
+        self.target_accuracy=0.0
+        self.class_to_remove = class_to_remove
+
+    def loss_f(self, inputs, targets,test=None):
+        outputs = self.net.fc(inputs)
+        loss = self.criterion(outputs, targets)
+        return loss
+
+class RandomLabels(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.loader = self.train_fgt_loader
+        self.class_to_remove = class_to_remove
+
+        if opt.mode == "CR":
+            self.random_possible = torch.tensor([i for i in range(opt.num_classes) if i not in self.class_to_remove]).to(opt.device).to(torch.float32)
+
+    def loss_f(self, inputs, targets):
+        outputs = self.net.fc(inputs)
+        #create a random label tensor of the same shape as the outputs chosing values from self.possible_labels
+        random_labels = self.random_possible[torch.randint(low=0, high=self.random_possible.shape[0], size=targets.shape)].to(torch.int64).to(opt.device)
+        loss = self.criterion(outputs, random_labels)
+        return loss
+
+class NegativeGradient(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.loader = self.train_fgt_loader
+        self.class_to_remove = class_to_remove
+
+    def loss_f(self, inputs, targets):
+        outputs = self.net.fc(inputs)
+        loss = self.criterion(outputs, targets) * (-1)
+        return loss
+
+
+class SCAR(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.class_to_remove = class_to_remove
+        
+    def cov_mat_shrinkage(self,cov_mat,gamma1=opt.gamma1,gamma2=opt.gamma2):
+        I = torch.eye(cov_mat.shape[0]).to(opt.device)
+        V1 = torch.mean(torch.diagonal(cov_mat))
+        off_diag = cov_mat.clone()
+        off_diag.fill_diagonal_(0.0)
+        mask = off_diag != 0.0
+        V2 = (off_diag*mask).sum() / mask.sum()
+        cov_mat_shrinked = cov_mat + gamma1*I*V1 + gamma2*(1-I)*V2
+        #epsilon = 1e-5
+        #cov_mat_shrinked += epsilon * I  
+
+        return cov_mat_shrinked
+    
+    def normalize_cov(self,cov_mat):
+        sigma = torch.sqrt(torch.diagonal(cov_mat))  # standard deviations of the variables
+        cov_mat = cov_mat/(torch.matmul(sigma.unsqueeze(1),sigma.unsqueeze(0)))
+        return cov_mat
+
+
+    def mahalanobis_dist(self, samples,samples_lab, mean,S_inv):
+        #mean = mean + 1e-8
+        #print(mean)
+        #print(mean.shape)
+        #print(F.normalize(self.tuckey_transf(samples), p=2, dim=-1)[:,None,:])
+        #print(F.normalize(self.tuckey_transf(samples), p=2, dim=-1)[:,None,:].shape)
+        #print(F.normalize(mean, p=2, dim=-1))
+        #print(F.normalize(mean, p=2, dim=-1).shape)
+        #print(samples.shape)
+
+        #check optimized version
+        diff = F.normalize(self.tuckey_transf(samples), p=2, dim=-1)[:,None,:] - F.normalize(mean, p=2, dim=-1)
+        
+        right_term = torch.matmul(diff.permute(1,0,2), S_inv)
+        mahalanobis = torch.diagonal(torch.matmul(right_term, diff.permute(1,2,0)),dim1=1,dim2=2)
+        return mahalanobis
+
+    def distill(self, outputs_ret, outputs_original):
+
+        soft_log_old = torch.nn.functional.log_softmax(outputs_original+10e-5, dim=1)
+        soft_log_new = torch.nn.functional.log_softmax(outputs_ret+10e-5, dim=1)
+        kl_div = torch.nn.functional.kl_div(soft_log_new+10e-5, soft_log_old+10e-5, reduction='batchmean', log_target=True)
+
+        return kl_div
+
+    def tuckey_transf(self,vectors,delta=opt.delta):
+        return torch.pow(vectors,delta)
+    
+    def pairwise_cos_dist(self, x, y):
+        """Compute pairwise cosine distance between two tensors"""
+        x_norm = torch.norm(x, dim=1).unsqueeze(1)
+        y_norm = torch.norm(y, dim=1).unsqueeze(1)
+        x = x / x_norm
+        y = y / y_norm
+        return 1 - torch.mm(x, y.transpose(0, 1))
+    
+    def L2(self,embs_fgt,mu_distribs):
+        embs_fgt = embs_fgt.unsqueeze(1)
+        mu_distribs = mu_distribs.unsqueeze(0)
+        dists=torch.norm((embs_fgt-mu_distribs),dim=2)
+        return dists
+ 
+    def run(self):
+        """compute embeddings"""
+        #if opt.model!='ViT':
+        #    bbone = torch.nn.Sequential(*(list(self.net.children())[:-1] + [nn.Flatten()]))
+        #    if opt.model == 'AllCNN':
+        #        fc = self.net.classifier
+        #    else:
+        #        fc = self.net.fc
+        #else:
+        self.net.eval()
+        fc_layer = self.net.fc
+
+        for param in self.net.parameters():
+            param.requires_grad = False
+        for param in self.net.fc.parameters():
+            param.requires_grad = True
+            
+        original_fc = deepcopy(fc_layer) # self.net
+        original_fc.eval()
+ 
+        # embeddings of retain set
+        with torch.no_grad():
+             ret_embs=[]
+             labs=[]
+             cnt=0
+             for emb_ret, lab_ret in self.train_retain_loader:
+                 emb_ret, lab_ret = emb_ret.to(opt.device), lab_ret.to(opt.device)
+               
+                 ret_embs.append(emb_ret)
+                 labs.append(lab_ret)
+                 cnt+=1
+             ret_embs=torch.cat(ret_embs)
+             labs=torch.cat(labs)
+        
+
+            #print(ret_embs.shape)
+            #print(labs.shape)
+            
+        # compute distribs from embeddings
+        distribs=[]
+        cov_matrix_inv =[]
+        for i in range(opt.num_classes):
+            if type(self.class_to_remove) is list:
+                if i not in self.class_to_remove:
+                    print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
+                    samples = self.tuckey_transf(ret_embs[labs==i])
+                    distribs.append(samples.mean(0))
+                    cov = torch.cov(samples.T)
+                    cov_shrinked = self.cov_mat_shrinkage(self.cov_mat_shrinkage(cov))
+                    cov_shrinked = self.normalize_cov(cov_shrinked)
+                    cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
+            else:
+                print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
+                samples = self.tuckey_transf(ret_embs[labs==i])
+                distribs.append(samples.mean(0))
+                cov = torch.cov(samples.T)
+                cov_shrinked = self.cov_mat_shrinkage(self.cov_mat_shrinkage(cov))
+                cov_shrinked = self.normalize_cov(cov_shrinked)
+                cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
+
+        distribs=torch.stack(distribs)
+        #print('distribs.shape',distribs.shape)
+        cov_matrix_inv=torch.stack(cov_matrix_inv)
+        
+        fc_layer.train()
+
+        optimizer = optim.Adam(fc_layer.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
+
+        init = True
+        flag_exit = False
+        all_closest_class = []
+       
+        vec_forg=None
+        if 'tiny' in opt.dataset:
+            th = .4
+            
+        else:
+            th = .8
+            
+
+        #print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.synthetic_retain_emb_loader))
+
+        for epoch in tqdm(range(opt.epochs_unlearn)):
+            for n_batch, (embs_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
+                for n_batch_ret, all_batch in enumerate(self.train_retain_loader):
+
+                    if opt.mode == 'CR':
+                        embs_ret, lab_ret = all_batch
+                    
+                    embs_ret, lab_ret,embs_fgt, lab_fgt  = embs_ret.to(opt.device), lab_ret.to(opt.device),embs_fgt.to(opt.device), lab_fgt.to(opt.device)
+                    optimizer.zero_grad()
+
+                    # compute Mahalanobis distance between embeddings and cluster
+                    dists = self.mahalanobis_dist(embs_fgt,lab_fgt,distribs,cov_matrix_inv).T  
+
+                    if init and n_batch_ret==0:
+                        closest_class = torch.argsort(dists, dim=1)
+                        tmp = closest_class[:, 0]
+                        closest_class = torch.where(tmp == lab_fgt, closest_class[:, 1], tmp)
+                        all_closest_class.append(closest_class)
+                        closest_class = all_closest_class[-1]
+                    else:
+                        closest_class = all_closest_class[n_batch]
+
+                    dists = dists[torch.arange(dists.shape[0]), closest_class[:dists.shape[0]]]
+
+
+
+                    loss_fgt = torch.mean(dists) * opt.lambda_1
+                    
+                    # if opt.model=='ViT':
+                    #     outputs_ret = fc(bbone.forward_encoder(img_ret))
+                    # else:
+                    #     outputs_ret = fc(bbone(img_ret))
+                    if opt.model == 'ViT':
+                        outputs_ret = fc_layer(ret_embs)  
+                    else:
+                        outputs_ret = fc_layer(ret_embs)  
+                    
+
+                    if opt.mode =='CR':
+                        with torch.no_grad():
+                            #outputs_original = original_model(img_ret)
+                            if opt.model == 'ViT':
+                                outputs_original = original_fc(ret_embs)  
+                            else:
+                                outputs_original = original_fc(ret_embs) 
+
+                            label_out = torch.argmax(outputs_original,dim=1)
+                            outputs_original = outputs_original[label_out!=self.class_to_remove[0],:]
+                            outputs_original[:,torch.tensor(self.class_to_remove,dtype=torch.int64)] = torch.min(outputs_original)
+                        
+                        outputs_ret = outputs_ret[label_out!=self.class_to_remove[0],:]
+                    
+                    loss_ret = self.distill(outputs_ret, outputs_original/opt.temperature)*opt.lambda_2
+                    loss=loss_ret+loss_fgt
+                    
+                    if n_batch_ret>opt.num_retain_samp:
+                        del loss,loss_ret,loss_fgt, embs_fgt,dists
+                        break
+                    
+                    print(f'n_batch_ret:{n_batch_ret} ,loss FGT:{loss_fgt}, loss RET:{loss_ret}')
+                    loss.backward()
+                    optimizer.step()
+
+                    with torch.no_grad():
+                        self.net.eval()
+                        if opt.mode=='CR':
+                            curr_acc = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                        self.net.train()
+                        if curr_acc <= opt.target_accuracy and epoch>1:
+                            flag_exit = True
+
+                    if flag_exit:
+                        break
+                if flag_exit:
+                    break
+
+            # evaluate accuracy on forget set every batch
+            with torch.no_grad():
+                self.net.eval()
+                curr_acc = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                #test_acc=calculate_accuracy(self.net, self.test)
+                self.net.train()
+                print(f"AAcc forget: {curr_acc:.3f}, target is {opt.target_accuracy:.3f}")
+                if curr_acc <= opt.target_accuracy and epoch>1:
+                    flag_exit = True
+
+            if flag_exit:
+                break
+
+            init = False
+            #scheduler.step()
+
+
+        self.net.eval()
+        return self.net
+
+class BoundaryShrink(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.loader = self.train_fgt_loader
+        self.class_to_remove = class_to_remove
+
+    def loss_f(self, inputs, targets):
+        with torch.no_grad():
+            logits = self.net.fc(inputs)
+            top2 = torch.topk(logits, k=2, dim=1)
+            pred = top2.indices[:, 1]  # second-best prediction (nearest incorrect)
+        outputs = self.net.fc(inputs)
+        loss = self.criterion(outputs, pred)
+        return loss
+
+
+class BoundaryExpanding(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.loader = self.train_fgt_loader
+        self.class_to_remove = class_to_remove
+
+        # Expand FC layer to add one shadow neuron
+        fc = self.net.fc
+        in_features = fc.in_features
+        out_features = fc.out_features
+        new_fc = nn.Linear(in_features, out_features + 1)
+        new_fc.weight.data[:out_features] = fc.weight.data
+        new_fc.bias.data[:out_features] = fc.bias.data
+        self.net.fc = new_fc.to(opt.device)
+
+    def loss_f(self, inputs, targets):
+        shadow_label = torch.full_like(targets, fill_value=opt.num_classes)
+        outputs = self.net.fc(inputs)
+        loss = self.criterion(outputs, shadow_label)
+        return loss
+
+    def run(self):
+        trained_model = super().run()
+
+        # Prune shadow neuron
+        old_fc = self.net.fc
+        pruned_fc = nn.Linear(old_fc.in_features, opt.num_classes)
+        pruned_fc.weight.data = old_fc.weight.data[:opt.num_classes]
+        pruned_fc.bias.data = old_fc.bias.data[:opt.num_classes]
+        self.net.fc = pruned_fc.to(opt.device)
+
+        return self.net
