@@ -133,8 +133,8 @@ class BaseMethod:
                 acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
                 acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
                 acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
-                acc_full_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-                acc_full_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
