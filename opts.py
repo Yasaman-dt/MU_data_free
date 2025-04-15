@@ -146,16 +146,16 @@ class OPT:
                 RT_model_weights_path = root_folder+f'weights/chks_cifar10/retrained/best_checkpoint_without_{class_to_remove}.pth'
 
         elif dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_tinyImagenet/original/best_checkpoint_resnet18_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_resnet18_m{n_model}.pth'
             if mode == "CR":
-                RT_model_weights_path = root_folder+f'weights/chks_tinyImagenet/retrained/best_checkpoint_without_{class_to_remove}.pth'
+                RT_model_weights_path = root_folder+f'weights/chks_TinyImageNet/retrained/best_checkpoint_without_{class_to_remove}.pth'
             
      
     elif model == 'resnet50':
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_resnet50_m{n_model}.pth'
         if dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_tinyImagenet/original/new_model_resnet50_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/new_model_resnet50_m{n_model}.pth'
     
     elif model == 'resnet34':
         if dataset== 'cifar100':
@@ -171,7 +171,7 @@ class OPT:
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_AllCNN_m{n_model}.pth'
         if dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_tinyImagenet/original/best_model_tiny_AllCNN_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_model_tiny_AllCNN_m{n_model}.pth'
     else:
         raise NotImplementedError
     
