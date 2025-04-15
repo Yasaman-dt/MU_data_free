@@ -182,9 +182,30 @@ class OPT:
 #
     #}
 
+    #a_or = {
+    #    "cifar10" : [Complex(0, 0)/100.,Complex(86.95, 0)/100.], #[0] HR, [1] CR 
+    #    "cifar100" : [Complex(0, 0)/100., Complex(79.55, 0)/100.],
+    #    "TinyImageNet" : [Complex(0, 0)/100.,Complex(71.62, 0)/100.],
+#
+    #}
+    
     a_or = {
-        "cifar10" : [Complex(0, 0)/100.,Complex(86.95, 0)/100.], #[0] HR, [1] CR 
-        "cifar100" : [Complex(0, 0)/100., Complex(79.55, 0)/100.],
-        "TinyImageNet" : [Complex(0, 0)/100.,Complex(71.62, 0)/100.],
-
+        "cifar10" : [Complex(0, 0)/100.,Complex(0, 0)/100.], #[0] HR, [1] CR 
+        "cifar100" : [Complex(0, 0)/100., Complex(0, 0)/100.],
+        "TinyImageNet" : [Complex(0, 0)/100.,Complex(0, 0)/100.],
+    
     }
+    
+accuracies_cr = {
+"cifar10": {1: 86.95, 2: 85.99, 3: 86.4, 4: 86.56, 5: 86.99},
+"cifar100": {1: 79.56, 2: 76.77, 3: 77.48, 4: 77.76, 5: 79.26},
+"TinyImageNet": {1: 71.62, 2: 71.5, 3: 71.2, 4: 71.37, 5: 70.8},
+}
+
+if OPT.mode == "CR":
+    ds = OPT.dataset.lower()
+    if ds in accuracies_cr and OPT.n_model in accuracies_cr[ds]:
+        acc = accuracies_cr[ds][OPT.n_model]
+        OPT.a_or[ds][1] = Complex(acc, 0) / 100.
+
+
