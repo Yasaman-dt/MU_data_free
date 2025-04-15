@@ -203,7 +203,7 @@ accuracies_cr = {
 }
 
 if OPT.mode == "CR":
-    ds = OPT.dataset()
+    ds = OPT.dataset
     if ds in accuracies_cr and OPT.n_model in accuracies_cr[ds]:
         acc = accuracies_cr[ds][OPT.n_model]
         OPT.a_or[ds][1] = Complex(acc, 0) / 100.
