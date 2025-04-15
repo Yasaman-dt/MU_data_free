@@ -161,7 +161,7 @@ class OPT:
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_resnet34_m{n_model}.pth'
         if dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_tinyImagenet/original/best_checkpoint_resnet34_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_resnet34_m{n_model}.pth'
     
     elif model == 'ViT':
         if dataset== 'cifar100':
