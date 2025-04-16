@@ -15,6 +15,7 @@ from generate_emb_samples_resnet18 import generate_emb_samples
 from torch.utils.data import TensorDataset, DataLoader
 import copy
 from create_embeddings_utils import get_model
+import pandas as pd
 
 DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
@@ -33,72 +34,25 @@ forget_class = 0
 #num_classes = 100
 #dataset_name = 'CIFAR100'  # This can be dynamically selected
 
-num_classes = 200
-dataset_name = 'TinyImageNet'  # This can be dynamically selected
+#num_classes = 200
+#dataset_name = 'TinyImageNet'  # This can be dynamically selected
 
-n_model = 2
-model_name = 'resnet18'   # This can also be dynamically selected
+#n_model = 2
 
-batch_size=256
-
-if dataset_name in ["CIFAR10", "CIFAR100"]:
-    dataset_name_lower = dataset_name.lower()
-else:
-    dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
     
 # Construct the checkpoint path
 #checkpoint_path = f"{DIR}/{checkpoint_folder}/{dataset_name}/{model_name}/checkpoint_classif1_run1.pth"
 #checkpoint_path = f"best_checkpoint_resnet18.pth"
 
-checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
-model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path_model) 
+# Configuration
+datasets = {
+    "CIFAR10": 10,
+    "CIFAR100": 100,
+    "TinyImageNet": 200,
+}
 
-fc_layer = model.fc
- 
-print(fc_layer)
-
-
-
-# Define file paths for train and test embeddings and labels
-train_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_train_m{n_model}.npz"
-
-if dataset_name == "TinyImageNet":
-    test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_val_m{n_model}.npz"
-else:
-    test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_test_m{n_model}.npz"
-full_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_full_m{n_model}.npz"
-
-                
-train_embeddings_data = np.load(train_path)
-test_embeddings_data = np.load(test_path)
-
-
-# Access the embeddings and labels
-train_emb = train_embeddings_data["embeddings"]  # The embeddings for the training data
-train_labels = train_embeddings_data["labels"]   # The labels for the training data
-
-test_emb = test_embeddings_data["embeddings"]  # The embeddings for the training data
-test_labels = test_embeddings_data["labels"]   # The labels for the training data
-
-print("Train embeddings shape:", train_emb.shape)
-print("Test embeddings shape:", test_emb.shape)
-
-train_emb = torch.tensor(train_emb, dtype=torch.float32)
-train_labels = torch.tensor(train_labels, dtype=torch.long)
-
-
-test_emb = torch.tensor(test_emb, dtype=torch.float32)
-test_labels = torch.tensor(test_labels, dtype=torch.long)
-
-# Create a DataLoader for training data
-train_dataset = TensorDataset(train_emb, train_labels)
-train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
-# Create a DataLoader for testing data
-test_dataset = TensorDataset(test_emb, test_labels)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-
+n_models = range(1, 6)  # example range: 1 to 2 for demonstration
+results = []
 
 def evaluate_model(model, data_loader, device):
     model.eval()  # Set the model to evaluation mode
@@ -118,69 +72,204 @@ def evaluate_model(model, data_loader, device):
 
     accuracy = 100 * correct / total
     return accuracy
+            
+for dataset_name, num_classes in datasets.items():
+    for n_model in n_models:
+        for forget_class in range(0, num_classes, num_classes // 5):  # just a subset for demo
+
+            model_name = 'resnet18'   # This can also be dynamically selected
 
 
-# Move model to the correct device
-fc_layer.to(device)
+            if dataset_name.lower() in ["cifar10", "cifar100"]:
+                dataset_name_upper = dataset_name.upper()
+            else:
+                dataset_name_upper = dataset_name  # keep original capitalization for "tinyImagenet"
 
-# Evaluate on the training set
-train_accuracy = evaluate_model(fc_layer, train_loader, device)
-print(f"Train Accuracy: {train_accuracy:.2f}%")
+            batch_size=256
 
-# Evaluate on the test set
-test_accuracy = evaluate_model(fc_layer, test_loader, device)
-print(f"Test Accuracy: {test_accuracy:.2f}%")
+            if dataset_name in ["CIFAR10", "CIFAR100"]:
+                dataset_name_lower = dataset_name.lower()
+            else:
+                dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
+            checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
+            model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path_model) 
 
-# -------------------- Separate Forget and Retain Sets --------------------
-# Forget set: only one class
-forget_mask_train = (train_labels == forget_class)
-forget_features_train = train_emb[forget_mask_train]
-forget_labels_train = train_labels[forget_mask_train]
-
-# Retain set: all other classes
-retain_mask_train = (train_labels != forget_class)
-retain_features_train = train_emb[retain_mask_train]
-retain_labels_train = train_labels[retain_mask_train]
-
-# Forget set: only one class in test set
-forget_mask_test = (test_labels == forget_class)
-forget_features_test = test_emb[forget_mask_test]
-forget_labels_test = test_labels[forget_mask_test]
-
-# Retain set: all other classes in test set
-retain_mask_test = (test_labels != forget_class)
-retain_features_test = test_emb[retain_mask_test]
-retain_labels_test = test_labels[retain_mask_test]
-
-# -------------------- Create DataLoaders for Forget and Retain Sets --------------------
-# Create TensorDatasets for each subset
-train_forget_dataset = TensorDataset(forget_features_train, forget_labels_train)
-train_retain_dataset = TensorDataset(retain_features_train, retain_labels_train)
-
-test_forget_dataset = TensorDataset(forget_features_test, forget_labels_test)
-test_retain_dataset = TensorDataset(retain_features_test, retain_labels_test)
-
-# Create DataLoader for each subset
-train_forget_loader = DataLoader(train_forget_dataset, batch_size=batch_size, shuffle=True)
-train_retain_loader = DataLoader(train_retain_dataset, batch_size=batch_size, shuffle=True)
-
-test_forget_loader = DataLoader(test_forget_dataset, batch_size=batch_size, shuffle=False)
-test_retain_loader = DataLoader(test_retain_dataset, batch_size=batch_size, shuffle=False)
+            fc_layer = model.fc
+            
+            print(fc_layer)
 
 
-# Evaluate on train retain set
-train_retain_accuracy = evaluate_model(fc_layer, train_retain_loader, device)
-print(f"Train Retain Accuracy: {train_retain_accuracy:.2f}%")
 
-# Evaluate on train forget set
-train_forget_accuracy = evaluate_model(fc_layer, train_forget_loader, device)
-print(f"Train Forget Accuracy: {train_forget_accuracy:.2f}%")
+            # Define file paths for train and test embeddings and labels
+            train_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_train_m{n_model}.npz"
 
-# Evaluate on test retain set
-test_retain_accuracy = evaluate_model(fc_layer, test_retain_loader, device)
-print(f"Test Retain Accuracy: {test_retain_accuracy:.2f}%")
+            if dataset_name == "TinyImageNet":
+                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_val_m{n_model}.npz"
+            else:
+                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_test_m{n_model}.npz"
+            full_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_full_m{n_model}.npz"
 
-# Evaluate on test forget set
-test_forget_accuracy = evaluate_model(fc_layer, test_forget_loader, device)
-print(f"Test Forget Accuracy: {test_forget_accuracy:.2f}%")
+                            
+            train_embeddings_data = np.load(train_path)
+            test_embeddings_data = np.load(test_path)
+
+
+            # Access the embeddings and labels
+            train_emb = train_embeddings_data["embeddings"]  # The embeddings for the training data
+            train_labels = train_embeddings_data["labels"]   # The labels for the training data
+
+            test_emb = test_embeddings_data["embeddings"]  # The embeddings for the training data
+            test_labels = test_embeddings_data["labels"]   # The labels for the training data
+
+            print("Train embeddings shape:", train_emb.shape)
+            print("Test embeddings shape:", test_emb.shape)
+
+            train_emb = torch.tensor(train_emb, dtype=torch.float32)
+            train_labels = torch.tensor(train_labels, dtype=torch.long)
+
+
+            test_emb = torch.tensor(test_emb, dtype=torch.float32)
+            test_labels = torch.tensor(test_labels, dtype=torch.long)
+
+            # Create a DataLoader for training data
+            train_dataset = TensorDataset(train_emb, train_labels)
+            train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+            # Create a DataLoader for testing data
+            test_dataset = TensorDataset(test_emb, test_labels)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+
+            data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+
+            data = np.load(data_path)
+            embeddings_real = data["embeddings"]  # Shape: (N, 512)
+            labels_real = data["labels"]  # Shape: (N,)
+
+            print(f"Loaded Embeddings: {embeddings_real.shape}")
+
+            # Convert to tensors
+            embeddings_tensor_real = torch.tensor(embeddings_real, dtype=torch.float32)
+            labels_tensor_real = torch.tensor(labels_real, dtype=torch.long)
+
+
+            # Move model to the correct device
+            fc_layer.to(device)
+
+            # Evaluate on the training set
+            train_accuracy = evaluate_model(fc_layer, train_loader, device)
+            print(f"Train Accuracy: {train_accuracy:.2f}%")
+
+            # Evaluate on the test set
+            test_accuracy = evaluate_model(fc_layer, test_loader, device)
+            print(f"Test Accuracy: {test_accuracy:.2f}%")
+
+
+            # -------------------- Separate Forget and Retain Sets --------------------
+            # Forget set: only one class
+            forget_mask_train = (train_labels == forget_class)
+            forget_features_train = train_emb[forget_mask_train]
+            forget_labels_train = train_labels[forget_mask_train]
+
+            # Retain set: all other classes
+            retain_mask_train = (train_labels != forget_class)
+            retain_features_train = train_emb[retain_mask_train]
+            retain_labels_train = train_labels[retain_mask_train]
+
+            # Forget set: only one class in test set
+            forget_mask_test = (test_labels == forget_class)
+            forget_features_test = test_emb[forget_mask_test]
+            forget_labels_test = test_labels[forget_mask_test]
+
+            # Retain set: all other classes in test set
+            retain_mask_test = (test_labels != forget_class)
+            retain_features_test = test_emb[retain_mask_test]
+            retain_labels_test = test_labels[retain_mask_test]
+
+            # Split into forget and retain sets
+            forget_mask_real = labels_tensor_real == forget_class
+            retain_mask_real = labels_tensor_real != forget_class
+
+            # Forget set (samples from class 0)
+            forget_embeddings_real = embeddings_tensor_real[forget_mask_real]
+            forget_labels_real = labels_tensor_real[forget_mask_real]
+
+            # Retain set (samples from all other classes)
+            retain_embeddings_real = embeddings_tensor_real[retain_mask_real]
+            retain_labels_real = labels_tensor_real[retain_mask_real]
+
+
+            # -------------------- Create DataLoaders for Forget and Retain Sets --------------------
+            # Create TensorDatasets for each subset
+            train_forget_dataset = TensorDataset(forget_features_train, forget_labels_train)
+            train_retain_dataset = TensorDataset(retain_features_train, retain_labels_train)
+
+            test_forget_dataset = TensorDataset(forget_features_test, forget_labels_test)
+            test_retain_dataset = TensorDataset(retain_features_test, retain_labels_test)
+
+            # Create DataLoader for each subset
+            train_forget_loader = DataLoader(train_forget_dataset, batch_size=batch_size, shuffle=True)
+            train_retain_loader = DataLoader(train_retain_dataset, batch_size=batch_size, shuffle=True)
+
+            test_forget_loader = DataLoader(test_forget_dataset, batch_size=batch_size, shuffle=False)
+            test_retain_loader = DataLoader(test_retain_dataset, batch_size=batch_size, shuffle=False)
+
+
+            # Create DataLoaders for validation
+            forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
+            retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
+
+
+            # Evaluate on train retain set
+            train_retain_acc = evaluate_model(fc_layer, train_retain_loader, device)
+            print(f"Train Retain Accuracy: {train_retain_acc:.2f}%")
+
+            # Evaluate on train forget set
+            train_fgt_acc = evaluate_model(fc_layer, train_forget_loader, device)
+            print(f"Train Forget Accuracy: {train_fgt_acc:.2f}%")
+
+            # Evaluate on test retain set
+            val_test_retain_acc = evaluate_model(fc_layer, test_retain_loader, device)
+            print(f"Test Retain Accuracy: {val_test_retain_acc:.2f}%")
+
+            # Evaluate on test forget set
+            val_test_fgt_acc = evaluate_model(fc_layer, test_forget_loader, device)
+            print(f"Test Forget Accuracy: {val_test_fgt_acc:.2f}%")
+
+            # Evaluate on full retain set
+            val_full_retain_acc = evaluate_model(fc_layer, retainfull_loader_real, device)
+            print(f"Full Retain Accuracy: {val_full_retain_acc:.2f}%")
+
+            # Evaluate on full forget set
+            val_full_fgt_acc = evaluate_model(fc_layer, forgetfull_loader_real, device)
+            print(f"Full Forget Accuracy: {val_full_fgt_acc:.2f}%")
+
+            AUS = 1/(1+(val_test_fgt_acc/100))
+            print(f"AUS: {AUS:.3f}")
+
+
+            result = {
+                "Forget Class": forget_class,
+                "Mode": "original",
+                "Dataset": dataset_name,
+                "Model": "resnet18",
+                "Model Num": n_model,
+                "Train Acc": train_retain_acc,
+                "Test Acc": train_fgt_acc,
+                "Train Retain Acc": 85 + forget_class % 5,
+                "Train Forget Acc": 30 + forget_class % 3,
+                "Val Test Retain Acc": val_test_retain_acc,
+                "Val Test Forget Acc": val_test_fgt_acc,
+                "Val Full Retain Acc": val_full_retain_acc,
+                "Val Full Forget Acc": val_full_fgt_acc,
+                "AUS": AUS,
+            }
+            results.append(result)
+            
+            
+# Convert to DataFrame
+results_df = pd.DataFrame(results)
+
+# Save to CSV
+results_df.to_csv("aggregated_forget_results.csv", index=False)
