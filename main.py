@@ -57,7 +57,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
     if opt.run_original:
         if opt.mode =="CR":
              # df_or_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
-             df_or_model = get_MIA_SVC(train_loader=None, test_loader=None,model=original_model.fc,opt=opt,fgt_loader=train_fgt_loader,fgt_loader_t=test_fgt_loader)
+             df_or_model = get_MIA_SVC(train_loader=None, test_loader=None,model=original_model,opt=opt,fgt_loader=train_fgt_loader,fgt_loader_t=test_fgt_loader)
              df_or_model["forget_test_accuracy"] = calculate_accuracy(original_model, test_fgt_loader, use_fc_only=True)
              df_or_model["retain_test_accuracy"] = calculate_accuracy(original_model, test_retain_loader, use_fc_only=True)
 
@@ -160,7 +160,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
-                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
 
             unlearned_model = get_trained_model().to(opt.device)
             unlearned_model.load_state_dict(unlearned_model_dict)
@@ -172,7 +172,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
         #save model
         if opt.save_model:
             if opt.mode == "CR":
-                torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
 
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
@@ -222,7 +222,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
     if opt.run_unlearn:
         if opt.save_df:
             if opt.mode == "CR":
-                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
     return v_orig, v_unlearn, v_rt
 
 if __name__ == "__main__":
@@ -231,12 +231,12 @@ if __name__ == "__main__":
     df_orig_total=[]
     
     #create output folders
-    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/models"):
+    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
         #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/models")
-        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/models")
-    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/dfs"):
+        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
+    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
         #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/dfs")
-        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/dfs")
+        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
 
     for i in opt.seed:
         set_seed(i)
