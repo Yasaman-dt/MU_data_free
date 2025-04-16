@@ -25,8 +25,6 @@ embeddings_folder = "embeddings"
 # -------------------- Configuration --------------------
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-forget_class = 0  
-
 # Parameters for generated samples
 #num_classes = 10
 #dataset_name = 'CIFAR10'  # This can be dynamically selected
@@ -75,7 +73,7 @@ def evaluate_model(model, data_loader, device):
             
 for dataset_name, num_classes in datasets.items():
     for n_model in n_models:
-        for forget_class in range(0, num_classes, num_classes // 5):  # just a subset for demo
+        for forget_class in range(0, num_classes):  # just a subset for demo
 
             model_name = 'resnet18'   # This can also be dynamically selected
 
