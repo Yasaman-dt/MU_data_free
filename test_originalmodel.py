@@ -253,10 +253,10 @@ for dataset_name, num_classes in datasets.items():
                 "Dataset": dataset_name,
                 "Model": "resnet18",
                 "Model Num": n_model,
-                "Train Acc": train_retain_acc,
-                "Test Acc": train_fgt_acc,
-                "Train Retain Acc": 85 + forget_class % 5,
-                "Train Forget Acc": 30 + forget_class % 3,
+                "Train Acc": train_accuracy,
+                "Test Acc": test_accuracy,
+                "Train Retain Acc": train_retain_acc,
+                "Train Forget Acc": train_fgt_acc,
                 "Val Test Retain Acc": val_test_retain_acc,
                 "Val Test Forget Acc": val_test_fgt_acc,
                 "Val Full Retain Acc": val_full_retain_acc,
@@ -270,4 +270,4 @@ for dataset_name, num_classes in datasets.items():
 results_df = pd.DataFrame(results)
 
 # Save to CSV
-results_df.to_csv("aggregated_forget_results.csv", index=False)
+results_df.to_csv("original_results.csv", index=False)
