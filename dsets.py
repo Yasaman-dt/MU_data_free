@@ -6,6 +6,7 @@ import torchvision
 from torchvision import transforms
 from opts import OPT as opt
 import copy
+from torch.utils.data import ConcatDataset
 
 
 def split_retain_forget(dataset, class_to_remove, trns_fgt=None):
@@ -103,6 +104,81 @@ def get_dsets_remove_class(class_to_remove):
     return all_train_loader,all_test_loader, train_fgt_loader, train_retain_loader, test_fgt_loader, test_retain_loader
 
 
+def get_dsets_remove_class_withfull(class_to_remove):
+    mean = {
+            'cifar10': (0.4914, 0.4822, 0.4465),
+            'cifar100': (0.5071, 0.4867, 0.4408),
+            'tinyImagenet': (0.485, 0.456, 0.406),
+            }
+
+    std = {
+            'cifar10': (0.2023, 0.1994, 0.2010),
+            'cifar100': (0.2675, 0.2565, 0.2761),
+            'tinyImagenet': (0.229, 0.224, 0.225),
+            }
+
+    # download and pre-process CIFAR10
+
+    transform_list = [
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean[opt.dataset],std[opt.dataset]),
+        ]
+
+    transform_list_test = [
+            transforms.ToTensor(),
+            transforms.Normalize(mean[opt.dataset],std[opt.dataset]),
+        ]
+
+    if opt.model =='ViT':
+        transform_list.insert(0,transforms.RandomCrop(224, padding=28))
+        transform_list.insert(0,transforms.Resize(224, antialias=True))
+        transform_list_test.insert(0,transforms.Resize(224, antialias=True))
+    else:
+        transform_list.insert(0,transforms.RandomCrop(64, padding=8) if opt.dataset == 'tinyImagenet' else transforms.RandomCrop(32, padding=4))
+
+        
+
+
+    transform_dset = transforms.Compose(transform_list)
+    transform_test= transforms.Compose(transform_list_test)
+
+    # we split held out - train
+    if opt.dataset == 'cifar10':
+        train_set = torchvision.datasets.CIFAR10(root=opt.data_path, train=True, download=True, transform=transform_dset)
+        test_set = torchvision.datasets.CIFAR10(root=opt.data_path, train=False, download=True, transform=transform_test)
+    elif opt.dataset == 'cifar100':
+        train_set = torchvision.datasets.CIFAR100(root=opt.data_path, train=True, download=True, transform=transform_dset)
+        test_set = torchvision.datasets.CIFAR100(root=opt.data_path, train=False, download=True, transform=transform_test)
+        
+    elif opt.dataset == 'tinyImagenet':
+        train_set = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/train',transform=transform_dset)
+        #test_set = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/val/images',transform=transform_test)
+        test_set = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/val',transform=transform_test)
+        
+    test_forget_set, test_retain_set = split_retain_forget(test_set, class_to_remove)
+    forget_set, retain_set = split_retain_forget(train_set, class_to_remove, transform_test)
+
+    # validation set and its subsets 
+    all_test_loader = DataLoader(test_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    test_fgt_loader = DataLoader(test_forget_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    test_retain_loader = DataLoader(test_retain_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    
+    # all train and its subsets
+    all_train_loader = DataLoader(train_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    train_fgt_loader = DataLoader(forget_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    train_retain_loader = DataLoader(retain_set, batch_size=opt.batch_size, shuffle=True, num_workers=opt.num_workers)
+
+    full_set = ConcatDataset([train_set, test_set])
+
+    forget_set, retain_set = split_retain_forget(full_set, class_to_remove, transform_test)
+
+    full_loader = DataLoader(full_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    forget_loader = DataLoader(forget_set, batch_size=opt.batch_size, shuffle=False, num_workers=opt.num_workers)
+    retain_loader = DataLoader(retain_set, batch_size=opt.batch_size, shuffle=True, num_workers=opt.num_workers)
+
+
+    return all_train_loader,all_test_loader, train_fgt_loader, train_retain_loader, test_fgt_loader, test_retain_loader, full_loader, forget_loader, retain_loader
 
 
 def get_dsets(file_fgt=None):
