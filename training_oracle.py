@@ -69,7 +69,7 @@ def log_epoch_to_csv(epoch, train_acc, train_loss, val_acc, val_loss, mode, data
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'mode', 'class_removed', 'seed', 'train_acc', 'train_loss', 'val_acc', 'val_loss'])
+            writer.writerow(['epoch', 'mode', 'Forget Class', 'seed', 'train_acc', 'train_loss', 'val_acc', 'val_loss'])
         writer.writerow([epoch, mode, class_name, seed, train_acc, train_loss, val_acc, val_loss])
 
 def log_summary_across_classes(best_epoch, train_acc, train_loss, best_acc, val_loss, mode, dataset, model, class_to_remove, seed):
@@ -85,7 +85,7 @@ def log_summary_across_classes(best_epoch, train_acc, train_loss, best_acc, val_
     with open(summary_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'class_removed', 'seed', 'mode', 'dataset', 'model', 'train_acc', 'train_loss', 'best_val_acc', 'val_loss'])
+            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_acc', 'train_loss', 'best_val_acc', 'val_loss'])
         writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_acc, train_loss, best_acc, val_loss])
 
         
