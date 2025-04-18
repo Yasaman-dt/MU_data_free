@@ -10,7 +10,6 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Subset
-from SCRUB_data_free import SCRUB_data_free
 from generate_emb_samples_resnet18 import generate_emb_samples
 from torch.utils.data import TensorDataset, DataLoader
 import copy

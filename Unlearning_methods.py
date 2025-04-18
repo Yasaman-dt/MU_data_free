@@ -12,8 +12,9 @@ from copy import deepcopy
 from error_propagation import Complex
 import os 
 import csv
-from SCRUB_data_free import SCRUB_data_free
 import pandas as pd
+from torch.utils.data import TensorDataset, DataLoader
+
 
 n_model = opt.n_model
  
@@ -57,7 +58,22 @@ def calculate_accuracy(net, dataloader, use_fc_only=False):
             correct += (predicted == targets).sum().item()
     return correct / total
 
-                    
+def evaluate_embedding_accuracy(model, dataloader, device):
+    """Compute accuracy on real CIFAR-10 embeddings (not images)."""
+    correct, total = 0, 0
+    model.eval()  # Ensure model is in eval mode
+    with torch.no_grad():
+        for features, labels in dataloader:
+            features, labels = features.to(device), labels.to(device)
+            outputs = model(features)  # Pass embeddings through model
+            predictions = torch.argmax(outputs, dim=1)
+            correct += (predictions == labels).sum().item()
+            total += labels.size(0)
+
+    return 100 * correct / total if total > 0 else 0
+
+
+
 def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
     os.makedirs(f'results_synth/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
@@ -641,7 +657,47 @@ class SCRUB(BaseMethod):
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
 
+
+
+
     def run(self):
+        def normalize(logit):
+            mean = logit.mean(dim=-1, keepdims=True)
+            stdv = logit.std(dim=-1, keepdims=True)
+            return (logit - mean) / (1e-7 + stdv)
+
+        def kd_loss(logits_student_in, logits_teacher_in, temperature = 2, logit_stand = False):
+            logits_student = normalize(logits_student_in) if logit_stand else logits_student_in
+            logits_teacher = normalize(logits_teacher_in) if logit_stand else logits_teacher_in
+            log_pred_student = F.log_softmax(logits_student / temperature, dim=1)
+            pred_teacher = F.softmax(logits_teacher / temperature, dim=1)
+            loss_kd = F.kl_div(log_pred_student, pred_teacher, reduction="none").sum(1).mean()
+            loss_kd *= temperature**2
+            return loss_kd
+
+        def calculate_AUS(A_test_forget, A_test_retain, Aor):
+            A_test_forget = A_test_forget / 100
+            A_test_retain = A_test_retain / 100
+            Aor = Aor / 100
+            """
+            Calculate the AUS based on the given accuracy values.
+
+            Args:
+                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
+                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
+                Aor (float): Constant value for A_or (default is 84.72).
+
+            Returns:
+                float: The calculated AUS value.
+            """
+            # Calculate Delta
+            delta = abs(0 - A_test_forget)
+            
+            # Calculate AUS
+            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
+            
+            return AUS
+    
         # Compute Aor from original model (accuracy on retain test set)
         Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True) * 100
 
@@ -656,63 +712,234 @@ class SCRUB(BaseMethod):
         retain_features_train, retain_labels_train = flatten_loader(self.train_retain_loader)
         forget_features_train, forget_labels_train = flatten_loader(self.train_fgt_loader)
 
-        best_results, results, trained_student = SCRUB_data_free(
-            teacher=self.teacher.fc,
-            student=self.student.fc,
-            retain_synth_features_train=retain_features_train,
-            retain_synth_labels_train=retain_labels_train,
-            forget_synth_features_train=forget_features_train,
-            forget_synth_labels_train=forget_labels_train,
-            retainfull_loader_val=self.retainfull_loader_real,
-            forgetfull_loader_val=self.forgetfull_loader_real,
-            retaintest_loader_val=self.test_retain_loader,
-            forgettest_loader_val=self.test_fgt_loader,
-            Aor=Aor,
-            alpha=0.45,
-            gamma=0.45,
-            betha=0.1,
-            lr=opt.lr_unlearn,
-            epochs=opt.epochs_unlearn,
-            temperature=opt.temperature,
-            device=opt.device,
-            patience=opt.patience,
-            batch_size=opt.batch_size
-        )
+        teacher_fc=self.teacher.fc
+        student_fc=self.student.fc
+        retain_synth_features_train=retain_features_train
+        retain_synth_labels_train=retain_labels_train
+        forget_synth_features_train=forget_features_train
+        forget_synth_labels_train=forget_labels_train
+        retainfull_loader_val=self.retainfull_loader_real
+        forgetfull_loader_val=self.forgetfull_loader_real
+        retaintest_loader_val=self.test_retain_loader
+        forgettest_loader_val=self.test_fgt_loader
+        alpha=0.45
+        gamma=0.45
+        betha=0.1
 
     
-        # Log best metrics to CSV like other methods
-        for r in results:
+        retain_synth_loader_train = DataLoader(TensorDataset(retain_synth_features_train, retain_synth_labels_train), batch_size=opt.batch_size, shuffle=True)
+        forget_synth_loader_train = DataLoader(TensorDataset(forget_synth_features_train, forget_synth_labels_train), batch_size=opt.batch_size, shuffle=True)
+
+
+        student_fc.to(opt.device)
+        teacher_fc.to(opt.device)
+        optimizer = optim.Adam(student_fc.parameters(), lr=opt.lr_unlearn)
+        loss_ce = nn.CrossEntropyLoss()
+        for param in teacher_fc.parameters():
+            param.requires_grad = False
+        
+        for param in student_fc.parameters():
+            param.requires_grad = True
+            
+        for name, param in teacher_fc.named_parameters():
+            print(f"Teacher {name}: requires_grad={param.requires_grad}")
+
+        for name, param in student_fc.named_parameters():
+            print(f"student {name}: requires_grad={param.requires_grad}")
+        
+        results = []
+        aus_history = []  
+
+        best_results = None
+        best_aus = float('-inf')  # Maximum AUS
+        best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
+        best_forget_acc = float('inf')  # Minimum forgettest_val_acc
+
+        # Evaluate student model before training (Epoch 0)
+        student_fc.eval()
+
+        retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
+        forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+
+        retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
+        forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
+
+        retaintest_val_acc = evaluate_embedding_accuracy(student_fc, retaintest_loader_val, opt.device)
+        forgettest_val_acc = evaluate_embedding_accuracy(student_fc, forgettest_loader_val, opt.device)
+
+        AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)
+
+        print(f"Epoch 0 (Before Training) | "
+            f"Train Retain Acc: {retain_accuracy:.2f}% | Train Forget Acc: {forget_accuracy:.2f}% | "
+            f"Val Retain Full Acc: {retainfull_val_acc:.2f}% | Val Forget Full Acc: {forgetfull_val_acc:.2f}% | "
+            f"Val Retain Test Acc: {retaintest_val_acc:.2f}% | Val Forget Test Acc: {forgettest_val_acc:.2f}% | "
+            f"AUS: {AUS:.2f}"
+        )
+
+        # Save initial results
+        results.append({
+            "Epoch": 0,
+            "Loss": None,  # No training yet
+            "Unlearning Retain CE Loss": None,
+            "Unlearning Forget CE Loss": None,
+            "Unlearning Retain KD Loss": None,
+            "Unlearning Forget KD Loss": None,
+            "Unlearning Train Retain Acc": round(retain_accuracy, 4),
+            "Unlearning Train Forget Acc": round(forget_accuracy, 4),
+            "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
+            "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
+            "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
+            "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
+            "AUS": round(AUS, 4)
+        })
+
+
+
+        for epoch in range(opt.epochs_unlearn):
+            student_fc.train()
+            optimizer.zero_grad()
+
+            retain_logits_student = student_fc(retain_synth_features_train)
+            forget_logits_student = student_fc(forget_synth_features_train) 
+            
+            with torch.no_grad():
+                retain_logits_teacher = teacher_fc(retain_synth_features_train) 
+                forget_logits_teacher = teacher_fc(forget_synth_features_train)
+            
+
+            # Compute Losses
+            loss_kd_retain = kd_loss(retain_logits_student, retain_logits_teacher)
+
+            loss_kd_forget = -kd_loss(forget_logits_student, forget_logits_teacher)
+
+            loss_ce_retain = loss_ce(retain_logits_student, retain_synth_labels_train)
+            loss_ce_forget = loss_ce(forget_logits_student, forget_synth_labels_train)
+
+            # Total loss
+            loss = (alpha * loss_kd_retain) + (gamma * loss_ce_retain) + (betha * loss_kd_forget)
+
+            # Backpropagation
+            loss.backward()
+            optimizer.step()
+        
+            
+            student_fc.eval()
+            
+            retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
+            forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+
+            retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
+            forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
+
+            retaintest_val_acc = evaluate_embedding_accuracy(student_fc, retaintest_loader_val, opt.device)
+            forgettest_val_acc = evaluate_embedding_accuracy(student_fc, forgettest_loader_val, opt.device)
+            
+
+            AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)  # Calculate AUS using the accuracies
+
+            # wandb.log({"retainfull_val_acc": retainfull_val_acc, "forgetfull_val_acc": forgetfull_val_acc,
+            #            "retaintest_val_acc": retaintest_val_acc, "forgettest_val_acc": forgettest_val_acc, "AUS": AUS})
+
+            aus_history.append(AUS)
+
+            print(f"Epoch {epoch+1}/{opt.epochs_unlearn} | "
+                f"Loss: {loss.item():.4f} | "
+                f"Retain CE Loss: {loss_ce_retain.item():.4f} | Forget CE Loss: {loss_ce_forget.item():.4f} | "
+                f"Retain KD Loss: {loss_kd_retain.item():.4f} | Forget KD Loss: {loss_kd_forget.item():.4f} | "
+                f"Train Retain Acc: {retain_accuracy:.2f}% | Train Forget Acc: {forget_accuracy:.2f}% | "
+                f"Val Retain full Acc: {retainfull_val_acc:.2f}% | Val Forget full Acc: {forgetfull_val_acc:.2f}%  | "
+                f"Val Retain Test Acc: {retaintest_val_acc:.2f}% | Val Forget Test Acc: {forgettest_val_acc:.2f}% | "
+                f"AUS: {AUS:.2f}"
+                )
+
+            # Update the best result
+            if AUS > best_aus or retaintest_val_acc > best_retain_acc or forgettest_val_acc < best_forget_acc:
+                best_aus = max(best_aus, AUS)
+                best_retain_acc = max(best_retain_acc, retaintest_val_acc)
+                best_forget_acc = min(best_forget_acc, forgettest_val_acc)
+                
+                best_results = {
+                    "Epoch": epoch + 1,
+                    "Loss": round(loss.item(), 4),
+                    "Unlearning Retain CE Loss": round(loss_ce_retain.item(), 4),
+                    "Unlearning Forget CE Loss": round(loss_ce_forget.item(), 4),
+                    "Unlearning Retain KD Loss": round(loss_kd_retain.item(), 4),
+                    "Unlearning Forget KD Loss": round(loss_kd_forget.item(), 4),
+                    "Unlearning Train Retain Acc": round(retain_accuracy, 4),
+                    "Unlearning Train Forget Acc": round(forget_accuracy, 4),
+                    "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
+                    "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
+                    "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
+                    "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
+                    "AUS": round(AUS, 4)
+                }
+                
+            if len(aus_history) > opt.patience:
+                recent_trend_aus = aus_history[-opt.patience:]
+
+                # Condition 1: AUS is decreasing for 'patience' epochs
+                decreasing_aus = all(recent_trend_aus[i] > recent_trend_aus[i+1] for i in range(len(recent_trend_aus)-1))
+
+                # Condition 2: AUS has not changed significantly for 'patience' epochs
+                no_change_aus = all(abs(recent_trend_aus[i] - recent_trend_aus[i+1]) < 1e-4 for i in range(len(recent_trend_aus)-1))
+
+
+                if decreasing_aus or no_change_aus:
+                    print(f"Early stopping triggered at epoch {epoch+1} due to AUS criteria.")
+                    break
+
+
+
+            
+            epoch_result = {
+                "Epoch": epoch + 1,
+                "Loss": round(loss.item(), 4),
+                "Unlearning Retain CE Loss": round(loss_ce_retain.item(), 4),
+                "Unlearning Forget CE Loss": round(loss_ce_forget.item(), 4),
+                "Unlearning Retain KD Loss": round(loss_kd_retain.item(), 4),
+                "Unlearning Forget KD Loss": round(loss_kd_forget.item(), 4),
+                "Unlearning Train Retain Acc": round(retain_accuracy, 4),
+                "Unlearning Train Forget Acc": round(forget_accuracy, 4),
+                "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
+                "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
+                "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
+                "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
+                "AUS": round(AUS, 4)
+            }
+            results.append(epoch_result)
+
+            # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
-                epoch=r["Epoch"],
-                train_retain_acc=r["Unlearning Train Retain Acc"] / 100,
-                train_fgt_acc=r["Unlearning Train Forget Acc"] / 100,
-                val_test_retain_acc=r["Unlearning Val Retain Test Acc"] / 100,
-                val_test_fgt_acc=r["Unlearning Val Forget Test Acc"] / 100,
-                val_full_retain_acc=r["Unlearning Val Retain Full Acc"] / 100,
-                val_full_fgt_acc=r["Unlearning Val Forget Full Acc"] / 100,
-                AUS=r["AUS"],
+                epoch=round(epoch_result["Epoch"],4),
+                train_retain_acc=round(epoch_result["Unlearning Train Retain Acc"] / 100,4),
+                train_fgt_acc=round(epoch_result["Unlearning Train Forget Acc"] / 100,4),
+                val_test_retain_acc=round(epoch_result["Unlearning Val Retain Test Acc"] / 100,4),
+                val_test_fgt_acc=round(epoch_result["Unlearning Val Forget Test Acc"] / 100,4),
+                val_full_retain_acc=round(epoch_result["Unlearning Val Retain Full Acc"] / 100,4),
+                val_full_fgt_acc=round(epoch_result["Unlearning Val Forget Full Acc"] / 100,4),
+                AUS=round(epoch_result["AUS"],4),
                 mode=opt.method,
                 dataset=opt.dataset,
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
             )
-
+    
         log_summary_across_classes(
-            best_epoch=best_results["Epoch"],
-            train_retain_acc=best_results["Unlearning Train Retain Acc"] / 100,
-            train_fgt_acc=best_results["Unlearning Train Forget Acc"] / 100,
-            val_test_retain_acc=best_results["Unlearning Val Retain Test Acc"] / 100,
-            val_test_fgt_acc=best_results["Unlearning Val Forget Test Acc"] / 100,
-            val_full_retain_acc=best_results["Unlearning Val Retain Full Acc"] / 100,
-            val_full_fgt_acc=best_results["Unlearning Val Forget Full Acc"] / 100,
-            AUS=best_results["AUS"],
+            best_epoch=round(best_results["Epoch"],4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
+            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"] / 100,4),
+            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"] / 100,4),
+            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"] / 100,4),
+            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"] / 100,4),
+            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"] / 100,4),
+            AUS=round(best_results["AUS"],4),
             mode=opt.method,
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
         )
-        self.student.fc = trained_student
+        self.student.fc = student_fc
 
         return self.student
