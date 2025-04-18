@@ -12,7 +12,8 @@ from copy import deepcopy
 from error_propagation import Complex
 import os 
 import csv
-
+from SCRUB_data_free import SCRUB_data_free
+import pandas as pd
 
 n_model = opt.n_model
  
@@ -34,6 +35,8 @@ def choose_method(name):
         return BoundaryShrink
     elif name == 'BoundaryExpanding':
         return BoundaryExpanding
+    elif name == 'SCRUB':
+        return SCRUB
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
@@ -144,7 +147,7 @@ class BaseMethod:
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
                 a_f = Complex(acc_test_val_fgt, 0.0)
-                a_or = opt.a_or[opt.dataset][1]  # assuming this is a Complex object
+                a_or = acc_test_val_ret
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
                 aus_error = aus_result.error
@@ -624,3 +627,92 @@ class BoundaryExpanding(BaseMethod):
         self.net.fc = pruned_fc.to(opt.device)
 
         return self.net
+
+
+class SCRUB(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        self.teacher = net  # The original FC layer
+        self.student = deepcopy(net)  # Clone of the original FC layer
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+        self.class_to_remove = class_to_remove
+
+    def run(self):
+        # Compute Aor from original model (accuracy on retain test set)
+        Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True) * 100
+
+        # Load all features/labels from loaders
+        def flatten_loader(loader):
+            features, labels = [], []
+            for x, y in loader:
+                features.append(x)
+                labels.append(y)
+            return torch.cat(features), torch.cat(labels)
+
+        retain_features_train, retain_labels_train = flatten_loader(self.train_retain_loader)
+        forget_features_train, forget_labels_train = flatten_loader(self.train_fgt_loader)
+
+        best_results, results, trained_student = SCRUB_data_free(
+            teacher=self.teacher.fc,
+            student=self.student.fc,
+            retain_synth_features_train=retain_features_train,
+            retain_synth_labels_train=retain_labels_train,
+            forget_synth_features_train=forget_features_train,
+            forget_synth_labels_train=forget_labels_train,
+            retainfull_loader_val=self.retainfull_loader_real,
+            forgetfull_loader_val=self.forgetfull_loader_real,
+            retaintest_loader_val=self.test_retain_loader,
+            forgettest_loader_val=self.test_fgt_loader,
+            Aor=Aor,
+            alpha=0.45,
+            gamma=0.45,
+            betha=0.1,
+            lr=opt.lr_unlearn,
+            epochs=opt.epochs_unlearn,
+            temperature=opt.temperature,
+            device=opt.device,
+            patience=opt.patience,
+            batch_size=opt.batch_size
+        )
+
+    
+        # Log best metrics to CSV like other methods
+        for r in results:
+            log_epoch_to_csv(
+                epoch=r["Epoch"],
+                train_retain_acc=r["Unlearning Train Retain Acc"] / 100,
+                train_fgt_acc=r["Unlearning Train Forget Acc"] / 100,
+                val_test_retain_acc=r["Unlearning Val Retain Test Acc"] / 100,
+                val_test_fgt_acc=r["Unlearning Val Forget Test Acc"] / 100,
+                val_full_retain_acc=r["Unlearning Val Retain Full Acc"] / 100,
+                val_full_fgt_acc=r["Unlearning Val Forget Full Acc"] / 100,
+                AUS=r["AUS"],
+                mode=opt.method,
+                dataset=opt.dataset,
+                model=opt.model,
+                class_to_remove=self.class_to_remove,
+                seed=opt.seed,
+            )
+
+        log_summary_across_classes(
+            best_epoch=best_results["Epoch"],
+            train_retain_acc=best_results["Unlearning Train Retain Acc"] / 100,
+            train_fgt_acc=best_results["Unlearning Train Forget Acc"] / 100,
+            val_test_retain_acc=best_results["Unlearning Val Retain Test Acc"] / 100,
+            val_test_fgt_acc=best_results["Unlearning Val Forget Test Acc"] / 100,
+            val_full_retain_acc=best_results["Unlearning Val Retain Full Acc"] / 100,
+            val_full_fgt_acc=best_results["Unlearning Val Forget Full Acc"] / 100,
+            AUS=best_results["AUS"],
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed,
+        )
+        self.student.fc = trained_student
+
+        return self.student

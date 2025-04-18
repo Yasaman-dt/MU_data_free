@@ -114,16 +114,8 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
         if opt.mode == "CR":
             #set tollerance for stopping criteria
             opt.target_accuracy = 0.00
-            if opt.method == "RandomLabels":
-                #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-                approach = choose_method(opt.method)(pretr_model, train_retain_loader, train_forget_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
-            elif opt.method in ['SCAR']:
-                print("METHOD", opt.method)
-                #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-                approach = choose_method(opt.method)(pretr_model, train_retain_loader, train_forget_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None) #real samples
-            else:
-                #approach = choose_method(opt.method)(pretr_model,retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-                approach = choose_method(opt.method)(pretr_model,train_retain_loader, train_forget_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
+            #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
+            approach = choose_method(opt.method)(pretr_model, train_retain_loader, train_forget_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
 
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
@@ -138,10 +130,10 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
 
         unlearned_model.eval()
         #save model
-        if opt.save_model:
-            if opt.mode == "CR":
-                torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_real/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
-
+        #if opt.save_model:
+        #    if opt.mode == "CR":
+        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_real/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
+#
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
 
