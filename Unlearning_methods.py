@@ -141,7 +141,10 @@ class BaseMethod:
 
         aus_history = []
         results = []
-    
+        a_or = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+        
+        
+        
         for epoch in tqdm(range(self.epochs)):
             for inputs, targets in self.loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
@@ -163,7 +166,6 @@ class BaseMethod:
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
                 a_f = Complex(acc_test_val_fgt, 0.0)
-                a_or = acc_test_val_ret
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
                 aus_error = aus_result.error
@@ -746,6 +748,9 @@ class SCRUB(BaseMethod):
 
         for name, param in student_fc.named_parameters():
             print(f"student {name}: requires_grad={param.requires_grad}")
+
+        zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         results = []
         aus_history = []  
@@ -873,7 +878,17 @@ class SCRUB(BaseMethod):
                     "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
                     "AUS": round(AUS, 4)
                 }
-                
+
+            if forgettest_val_acc == 0.0:
+                zero_acc_fgt_counter += 1
+            else:
+                zero_acc_fgt_counter = 0
+
+            if zero_acc_fgt_counter >= zero_acc_patience:
+                print(f"[Early Stopping] acc_test_fgt was 0 for {zero_acc_patience} consecutive epochs. Stopping...")
+                break
+
+
             if len(aus_history) > opt.patience:
                 recent_trend_aus = aus_history[-opt.patience:]
 
@@ -888,36 +903,26 @@ class SCRUB(BaseMethod):
                     print(f"Early stopping triggered at epoch {epoch+1} due to AUS criteria.")
                     break
 
+            # Additional early stopping: AUS < 0.4 for more than 20 epochs
+            low_aus_threshold = 0.4
+            low_aus_patience = 20
 
+            low_aus_count = sum(a < low_aus_threshold for a in aus_history[-low_aus_patience:])
+            if low_aus_count >= low_aus_patience:
+                print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
+                break
 
             
-            epoch_result = {
-                "Epoch": epoch + 1,
-                "Loss": round(loss.item(), 4),
-                "Unlearning Retain CE Loss": round(loss_ce_retain.item(), 4),
-                "Unlearning Forget CE Loss": round(loss_ce_forget.item(), 4),
-                "Unlearning Retain KD Loss": round(loss_kd_retain.item(), 4),
-                "Unlearning Forget KD Loss": round(loss_kd_forget.item(), 4),
-                "Unlearning Train Retain Acc": round(retain_accuracy, 4),
-                "Unlearning Train Forget Acc": round(forget_accuracy, 4),
-                "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
-                "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
-                "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
-                "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
-                "AUS": round(AUS, 4)
-            }
-            results.append(epoch_result)
-
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
-                epoch=round(epoch_result["Epoch"],4),
-                train_retain_acc=round(epoch_result["Unlearning Train Retain Acc"] / 100,4),
-                train_fgt_acc=round(epoch_result["Unlearning Train Forget Acc"] / 100,4),
-                val_test_retain_acc=round(epoch_result["Unlearning Val Retain Test Acc"] / 100,4),
-                val_test_fgt_acc=round(epoch_result["Unlearning Val Forget Test Acc"] / 100,4),
-                val_full_retain_acc=round(epoch_result["Unlearning Val Retain Full Acc"] / 100,4),
-                val_full_fgt_acc=round(epoch_result["Unlearning Val Forget Full Acc"] / 100,4),
-                AUS=round(epoch_result["AUS"],4),
+                epoch=epoch,
+                train_retain_acc=round(retain_accuracy / 100,4),
+                train_fgt_acc=round(forget_accuracy / 100,4),
+                val_test_retain_acc=round(retaintest_val_acc / 100,4),
+                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
+                val_full_retain_acc=round(retainfull_val_acc / 100,4),
+                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
                 model=opt.model,
