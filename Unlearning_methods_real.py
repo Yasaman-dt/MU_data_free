@@ -136,6 +136,8 @@ class BaseMethod:
         zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         aus_history = []
         results = []
+        a_or = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+
     
         for epoch in tqdm(range(self.epochs)):
             for inputs, targets in self.loader:
@@ -157,7 +159,7 @@ class BaseMethod:
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
                 a_f = Complex(acc_test_val_fgt, 0.0)
-                a_or = acc_test_val_ret
+
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
                 aus_error = aus_result.error
