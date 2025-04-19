@@ -811,8 +811,8 @@ class SCRUB(BaseMethod):
 
             loss_kd_forget = -kd_loss(forget_logits_student, forget_logits_teacher)
 
-            loss_ce_retain = loss_ce(retain_logits_student, retain_synth_labels_train)
-            loss_ce_forget = loss_ce(forget_logits_student, forget_synth_labels_train)
+            loss_ce_retain = loss_ce(retain_logits_student, retain_labels_train)
+            loss_ce_forget = loss_ce(forget_logits_student, forget_labels_train)
 
             # Total loss
             loss = (alpha * loss_kd_retain) + (gamma * loss_ce_retain) + (betha * loss_kd_forget)
