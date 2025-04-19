@@ -141,8 +141,7 @@ class BaseMethod:
 
         aus_history = []
         results = []
-        a_or = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-        
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         
         
         for epoch in tqdm(range(self.epochs)):
@@ -162,10 +161,14 @@ class BaseMethod:
                 acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
                 acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
 
+
+
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
                 a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
+
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
                 aus_error = aus_result.error
@@ -803,12 +806,12 @@ class SCRUB(BaseMethod):
             student_fc.train()
             optimizer.zero_grad()
 
-            retain_logits_student = student_fc(retain_synth_features_train)
-            forget_logits_student = student_fc(forget_synth_features_train) 
+            retain_logits_student = student_fc(retain_features_train)
+            forget_logits_student = student_fc(forget_features_train) 
             
             with torch.no_grad():
-                retain_logits_teacher = teacher_fc(retain_synth_features_train) 
-                forget_logits_teacher = teacher_fc(forget_synth_features_train)
+                retain_logits_teacher = teacher_fc(retain_features_train) 
+                forget_logits_teacher = teacher_fc(forget_features_train)
             
 
             # Compute Losses

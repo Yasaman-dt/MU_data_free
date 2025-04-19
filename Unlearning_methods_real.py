@@ -137,7 +137,7 @@ class BaseMethod:
         aus_history = []
         results = []
 
-        a_or = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
     
         for epoch in tqdm(range(self.epochs)):
@@ -160,6 +160,7 @@ class BaseMethod:
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
                 a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
 
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
@@ -642,6 +643,7 @@ class BoundaryExpanding(BaseMethod):
     
 
 
+
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         self.teacher = net  # The original FC layer
@@ -796,12 +798,12 @@ class SCRUB(BaseMethod):
             student_fc.train()
             optimizer.zero_grad()
 
-            retain_logits_student = student_fc(retain_synth_features_train)
-            forget_logits_student = student_fc(forget_synth_features_train) 
+            retain_logits_student = student_fc(retain_features_train)
+            forget_logits_student = student_fc(forget_features_train) 
             
             with torch.no_grad():
-                retain_logits_teacher = teacher_fc(retain_synth_features_train) 
-                forget_logits_teacher = teacher_fc(forget_synth_features_train)
+                retain_logits_teacher = teacher_fc(retain_features_train) 
+                forget_logits_teacher = teacher_fc(forget_features_train)
             
 
             # Compute Losses
