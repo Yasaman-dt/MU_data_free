@@ -647,6 +647,8 @@ class BoundaryExpanding(BaseMethod):
         return self.net
 
 
+
+
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         self.teacher = net  # The original FC layer
@@ -700,6 +702,7 @@ class SCRUB(BaseMethod):
             
             return AUS
     
+
         # Compute Aor from original model (accuracy on retain test set)
         Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True) * 100
 
@@ -716,10 +719,6 @@ class SCRUB(BaseMethod):
 
         teacher_fc=self.teacher.fc
         student_fc=self.student.fc
-        retain_synth_features_train=retain_features_train
-        retain_synth_labels_train=retain_labels_train
-        forget_synth_features_train=forget_features_train
-        forget_synth_labels_train=forget_labels_train
         retainfull_loader_val=self.retainfull_loader_real
         forgetfull_loader_val=self.forgetfull_loader_real
         retaintest_loader_val=self.test_retain_loader
@@ -729,8 +728,8 @@ class SCRUB(BaseMethod):
         betha=0.1
 
     
-        retain_synth_loader_train = DataLoader(TensorDataset(retain_synth_features_train, retain_synth_labels_train), batch_size=opt.batch_size, shuffle=True)
-        forget_synth_loader_train = DataLoader(TensorDataset(forget_synth_features_train, forget_synth_labels_train), batch_size=opt.batch_size, shuffle=True)
+        retain_synth_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
+        forget_synth_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
 
 
         student_fc.to(opt.device)
