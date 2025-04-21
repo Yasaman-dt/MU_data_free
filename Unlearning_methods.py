@@ -38,6 +38,8 @@ def choose_method(name):
         return BoundaryExpanding
     elif name == 'SCRUB':
         return SCRUB
+    elif name == 'DUCK':
+        return DUCK
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
@@ -950,3 +952,237 @@ class SCRUB(BaseMethod):
         self.student.fc = student_fc
 
         return self.student
+
+
+
+
+class DUCK(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
+        self.class_to_remove = class_to_remove
+
+
+    def pairwise_cos_dist(self, x, y):
+        """Compute pairwise cosine distance between two tensors"""
+        x_norm = torch.norm(x, dim=1).unsqueeze(1)
+        y_norm = torch.norm(y, dim=1).unsqueeze(1)
+        x = x / x_norm
+        y = y / y_norm
+        return 1 - torch.mm(x, y.transpose(0, 1))
+
+
+    def run(self):
+        """compute embeddings"""
+        #lambda1 fgt
+        #lambda2 retain
+
+        # Freeze all model params except final layer
+        for param in self.net.parameters():
+            param.requires_grad = False
+
+        for param in self.net.fc.parameters():
+            param.requires_grad = True
+            
+        if opt.model == 'AllCNN':
+            self.fc = self.net.classifier
+        else:
+            self.fc = self.net.fc
+
+        self.net.eval()  # just in case
+        self.fc.train()
+
+        # === Get class centroids from retain embeddings
+        retain_embs, retain_labels = [], []
+        for emb, label in self.train_retain_loader:
+            retain_embs.append(emb.to(opt.device))
+            retain_labels.append(label.to(opt.device))
+        retain_embs = torch.cat(retain_embs)
+        retain_labels = torch.cat(retain_labels)
+        
+        
+        # compute distribs from embeddings
+        distribs=[]
+        for i in range(opt.num_classes):
+            if type(self.class_to_remove) is list:
+                if i not in self.class_to_remove:
+                    distribs.append(retain_embs[retain_labels==i].mean(0))
+            else:
+                distribs.append(retain_embs[retain_labels==i].mean(0))
+        distribs=torch.stack(distribs)
+
+
+        optimizer = optim.Adam(self.net.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
+        scheduler=torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.scheduler, gamma=0.5)
+        criterion = nn.CrossEntropyLoss(label_smoothing=0.1 if opt.dataset == 'TinyImageNet' else 0)
+
+        best_aus = -float('inf')
+        best_epoch = -1
+        patience_counter = 0
+        patience = opt.patience
+        
+        zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        
+        aus_history = []
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+
+        init = True
+        all_closest_distribs = []
+        if opt.dataset == 'TinyImageNet':
+            ls = 0.2
+        else:
+            ls = 0
+        criterion = nn.CrossEntropyLoss(label_smoothing=ls)
+        
+        print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.train_retain_loader))
+        for epoch in tqdm(range(opt.epochs_unlearn)):
+            for n_batch, (emb_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
+                for n_batch_ret, (emb_ret, lab_ret) in enumerate(self.train_retain_loader):
+                    emb_ret, lab_ret,emb_fgt, lab_fgt  = emb_ret.to(opt.device), lab_ret.to(opt.device),emb_fgt.to(opt.device), lab_fgt.to(opt.device)
+                    
+                    optimizer.zero_grad()
+
+                    # compute pairwise cosine distance between embeddings and distribs
+                    dists = self.pairwise_cos_dist(emb_fgt, distribs)
+
+                    if init:
+                        closest_distribs = torch.argsort(dists, dim=1)
+                        tmp = closest_distribs[:, 0]
+                        closest_distribs = torch.where(tmp == lab_fgt, closest_distribs[:, 1], tmp)
+                        all_closest_distribs.append(closest_distribs)
+                        closest_distribs = all_closest_distribs[-1]
+                    else:
+                        closest_distribs = all_closest_distribs[n_batch]
+
+                    dists = dists[torch.arange(dists.shape[0]), closest_distribs[:dists.shape[0]]]
+                    loss_fgt = torch.mean(dists) * opt.lambda_1
+
+                    outputs_ret = self.fc(emb_ret)
+
+                    loss_ret = criterion(outputs_ret/opt.temperature, lab_ret)*opt.lambda_2
+                    loss = loss_ret+ loss_fgt
+                    
+                    if n_batch_ret>opt.num_retain_samp:
+                        del loss,loss_ret,loss_fgt, emb_fgt, emb_ret, outputs_ret,dists
+                        break
+                    
+                    loss.backward()
+                    optimizer.step()
+
+                # evaluate accuracy on forget set every batch
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
+                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+
+
+                a_t = Complex(acc_test_val_ret, 0.0)
+                a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
+
+                aus_result = AUS(a_t, a_or, a_f)
+                aus_value = aus_result.value
+                aus_error = aus_result.error
+
+                aus_history.append(aus_value)
+                
+                self.net.train()
+                print(f"Train Retain Acc: {acc_train_ret:.3f},"
+                      f"Train Forget Acc: {acc_train_fgt:.3f},"
+                      f"Val Retain Test Acc: {acc_test_val_ret:.3f},"
+                      f"Val Forget Test Acc: {acc_test_val_fgt:.3f},"
+                      f"Val Retain Full Acc: {acc_full_val_ret:.3f},"
+                      f"Val Forget Full Acc: {acc_full_val_fgt:.3f},"
+                      f"target Acc: {self.target_accuracy:.3f},"
+                      f"AUS: {aus_value:.3f}±{aus_error:.4f}")
+
+                    
+                if aus_value > best_aus:
+                    best_aus = aus_value
+                    best_model_state = deepcopy(self.net.state_dict())
+                    best_epoch = epoch
+
+                    best_acc_train_ret = acc_train_ret
+                    best_acc_train_fgt = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+                    
+
+                if acc_test_val_fgt == 0.0:
+                    zero_acc_fgt_counter += 1
+                else:
+                    zero_acc_fgt_counter = 0
+
+                if zero_acc_fgt_counter >= zero_acc_patience:
+                    print(f"[Early Stopping] acc_test_fgt was 0 for {zero_acc_patience} consecutive epochs. Stopping...")
+                    break
+    
+                if len(aus_history) > patience:
+                    recent_trend_aus = aus_history[-patience:]
+
+                    # Condition 1: AUS is decreasing
+                    decreasing_aus = all(recent_trend_aus[i] > recent_trend_aus[i+1] for i in range(patience - 1))
+
+                    # Condition 2: AUS has not changed significantly
+                    no_change_aus = all(abs(recent_trend_aus[i] - recent_trend_aus[i+1]) < 1e-4 for i in range(patience - 1))
+
+                    # Condition 3: AUS is above the minimum threshold
+                    #aus_high_enough = aus_value >= 70
+
+                    if (decreasing_aus or no_change_aus):# and aus_high_enough:
+                        print(f"[Early Stopping] Triggered at epoch {epoch+1} due to AUS trend.")
+                        break
+
+                # Additional early stopping: AUS < 0.4 for more than 20 epochs
+                low_aus_threshold = 0.4
+                low_aus_patience = 20
+
+                low_aus_count = sum(a < low_aus_threshold for a in aus_history[-low_aus_patience:])
+                if low_aus_count >= low_aus_patience:
+                    print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
+                    break
+
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus_value, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed)
+
+
+            init = False
+            scheduler.step()
+            
+            
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed) 
+        
+
+        self.net.eval()
+        return self.net
