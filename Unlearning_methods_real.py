@@ -725,8 +725,8 @@ class SCRUB(BaseMethod):
         betha=0.1
 
     
-        retain_synth_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
-        forget_synth_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
+        retain_real_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
+        forget_real_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
 
 
         student_fc.to(opt.device)
@@ -759,8 +759,8 @@ class SCRUB(BaseMethod):
         # Evaluate student model before training (Epoch 0)
         student_fc.eval()
 
-        retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
-        forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+        retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_real_loader_train, opt.device)
+        forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_real_loader_train, opt.device)
 
         retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
         forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
@@ -826,8 +826,8 @@ class SCRUB(BaseMethod):
             
             student_fc.eval()
             
-            retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
-            forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+            retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_real_loader_train, opt.device)
+            forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_real_loader_train, opt.device)
 
             retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
             forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
