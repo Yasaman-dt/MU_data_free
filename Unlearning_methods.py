@@ -604,7 +604,7 @@ class SCAR(BaseMethod):
         self.net.eval()
         return self.net
 
-class BoundaryShrink(BaseMethod):
+class newmethod(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.loader = self.train_fgt_loader
