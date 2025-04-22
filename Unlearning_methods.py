@@ -32,8 +32,10 @@ def choose_method(name):
         return RandomLabels
     elif name=='SCAR':
         return SCAR
-    elif name == 'BoundaryShrink':
-        return BoundaryShrink
+    elif name == 'newmethod':
+        return newmethod
+    #elif name == 'BoundaryShrink':
+    #    return BoundaryShrink
     elif name == 'BoundaryExpanding':
         return BoundaryExpanding
     elif name == 'SCRUB':

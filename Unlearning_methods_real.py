@@ -33,8 +33,10 @@ def choose_method(name):
         return RandomLabels
     elif name=='SCAR':
         return SCAR
-    elif name == 'BoundaryShrink':
-        return BoundaryShrink
+    elif name == 'newmethod':
+        return newmethod
+    #elif name == 'BoundaryShrink':
+    #    return BoundaryShrink
     elif name == 'BoundaryExpanding':
         return BoundaryExpanding
     elif name == 'SCRUB':
@@ -595,7 +597,7 @@ class SCAR(BaseMethod):
     
     
 
-class BoundaryShrink(BaseMethod):
+class newmethod(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.loader = self.train_fgt_loader
