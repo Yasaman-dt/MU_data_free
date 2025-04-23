@@ -715,7 +715,12 @@ class BoundaryShrink(BaseMethod):
                 )
 
             # Update the best result
-            if AUS > best_aus or retaintest_val_acc > best_retain_acc or forgettest_val_acc < best_forget_acc:
+            if AUS > best_aus or (
+                AUS == best_aus and (
+                    retaintest_val_acc > best_retain_acc or
+                    forgettest_val_acc < best_forget_acc
+                )
+            ):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
@@ -926,7 +931,12 @@ class BoundaryExpanding(BaseMethod):
                 )
 
             # Update the best result
-            if AUS > best_aus or retaintest_val_acc > best_retain_acc or forgettest_val_acc < best_forget_acc:
+            if AUS > best_aus or (
+                AUS == best_aus and (
+                    retaintest_val_acc > best_retain_acc or
+                    forgettest_val_acc < best_forget_acc
+                )
+            ):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
@@ -1234,7 +1244,12 @@ class SCRUB(BaseMethod):
                 )
 
             # Update the best result
-            if AUS > best_aus or retaintest_val_acc > best_retain_acc or forgettest_val_acc < best_forget_acc:
+            if AUS > best_aus or (
+                AUS == best_aus and (
+                    retaintest_val_acc > best_retain_acc or
+                    forgettest_val_acc < best_forget_acc
+                )
+            ):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
