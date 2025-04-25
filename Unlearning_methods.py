@@ -14,6 +14,7 @@ import os
 import csv
 import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
+from itertools import cycle
 
 
 n_model = opt.n_model
@@ -28,6 +29,8 @@ def choose_method(name):
         return FineTuning
     elif name=='NegativeGradient':
         return NegativeGradient
+    elif name=='NGFT':
+        return NGFT
     elif name=='RandomLabels':
         return RandomLabels
     elif name=='SCAR':
@@ -358,6 +361,189 @@ class NegativeGradient(BaseMethod):
         outputs = self.net.fc(inputs)
         loss = self.criterion(outputs, targets) * (-1)
         return loss
+
+class NGFT(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+        self.class_to_remove = class_to_remove
+
+    def loss_r(self, inputs, targets):
+        return self.criterion(self.net.fc(inputs), targets)
+    def loss_f(self, inputs, targets):
+        return -self.criterion(self.net.fc(inputs), targets)
+        
+    def run(self):
+        self.net.train()
+        best_model_state = None
+        best_aus = -float('inf')
+        best_epoch = -1
+        patience_counter = 0
+        patience = opt.patience
+
+        zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+
+        aus_history = []
+        results = []
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+        
+
+        forget_loader = cycle(self.train_fgt_loader)  # repeat forever
+
+        for epoch in tqdm(range(self.epochs)):
+            for inputs_r, targets_r in self.train_retain_loader:
+                inputs_r, targets_r = inputs_r.to(opt.device), targets_r.to(opt.device)
+
+                # fetch forget batch
+                inputs_f, targets_f = next(forget_loader)
+                inputs_f, targets_f = inputs_f.to(opt.device), targets_f.to(opt.device)
+
+                # compute both losses
+                loss_retain = self.loss_r(inputs_r, targets_r)
+                loss_forget = self.loss_f(inputs_f, targets_f)
+
+                # total loss
+                total_loss = loss_retain + loss_forget
+
+                self.optimizer.zero_grad()
+                total_loss.backward()
+                self.optimizer.step()
+
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
+                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+
+
+
+                self.net.train()
+                
+                a_t = Complex(acc_test_val_ret, 0.0)
+                a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
+
+                aus_result = AUS(a_t, a_or, a_f)
+                aus_value = aus_result.value
+                aus_error = aus_result.error
+
+                aus_history.append(aus_value)
+
+
+                print(f"Train Retain Acc: {acc_train_ret:.3f},"
+                      f"Train Forget Acc: {acc_train_fgt:.3f},"
+                      f"Val Retain Test Acc: {acc_test_val_ret:.3f},"
+                      f"Val Forget Test Acc: {acc_test_val_fgt:.3f},"
+                      f"Val Retain Full Acc: {acc_full_val_ret:.3f},"
+                      f"Val Forget Full Acc: {acc_full_val_fgt:.3f},"
+                      f"target Acc: {self.target_accuracy:.3f},"
+                      f"AUS: {aus_value:.3f}±{aus_error:.4f}")
+                
+                if aus_value > best_aus:
+                    best_aus = aus_value
+                    best_model_state = deepcopy(self.net.state_dict())
+                    best_epoch = epoch
+
+                    best_acc_train_ret = acc_train_ret
+                    best_acc_train_fgt = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+                    
+
+                if acc_test_val_fgt == 0.0:
+                    zero_acc_fgt_counter += 1
+                else:
+                    zero_acc_fgt_counter = 0
+
+                if zero_acc_fgt_counter >= zero_acc_patience:
+                    print(f"[Early Stopping] acc_test_fgt was 0 for {zero_acc_patience} consecutive epochs. Stopping...")
+                    break
+    
+                if len(aus_history) > patience:
+                    recent_trend_aus = aus_history[-patience:]
+
+                    # Condition 1: AUS is decreasing
+                    decreasing_aus = all(recent_trend_aus[i] > recent_trend_aus[i+1] for i in range(patience - 1))
+
+                    # Condition 2: AUS has not changed significantly
+                    no_change_aus = all(abs(recent_trend_aus[i] - recent_trend_aus[i+1]) < 1e-4 for i in range(patience - 1))
+
+                    # Condition 3: AUS is above the minimum threshold
+                    #aus_high_enough = aus_value >= 70
+
+                    if (decreasing_aus or no_change_aus):# and aus_high_enough:
+                        print(f"[Early Stopping] Triggered at epoch {epoch+1} due to AUS trend.")
+                        break
+
+                # Additional early stopping: AUS < 0.4 for more than 20 epochs
+                low_aus_threshold = 0.4
+                low_aus_patience = 20
+
+                low_aus_count = sum(a < low_aus_threshold for a in aus_history[-low_aus_patience:])
+                if low_aus_count >= low_aus_patience:
+                    print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
+                    break
+
+                
+                ## Early stopping condition
+                #if acc_test_fgt <= self.target_accuracy:
+                #    patience_counter += 1
+                #    if patience_counter >= patience_limit:
+                #        print("[Early Stopping Triggered]")
+                #        break
+#
+                
+                # Save a summary across all unlearning runs
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus_value, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed)
+
+            self.scheduler.step()
+            #print('Accuracy: ',self.evalNet())
+
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed) 
+
+        self.net.eval()
+        return self.net
+    
+
+ 
 
 
 class SCAR(BaseMethod):
