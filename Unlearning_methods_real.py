@@ -14,6 +14,8 @@ import os
 import csv
 import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
+from itertools import cycle
+
 
 
 n_model = opt.n_model
