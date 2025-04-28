@@ -146,7 +146,7 @@ class BaseMethod:
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
@@ -390,7 +390,7 @@ class NGFT(BaseMethod):
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
@@ -571,7 +571,7 @@ class NGFT_weighted(BaseMethod):
         best_epoch = -1
         aus_history = []
         zero_acc_fgt_counter = 0
-        zero_acc_patience = 50
+        zero_acc_patience = 100
         patience = opt.patience
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         forget_loader = cycle(self.train_fgt_loader)
@@ -857,7 +857,7 @@ class SCAR(BaseMethod):
             th = .8
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1144,7 +1144,7 @@ class BoundaryShrink(BaseMethod):
 
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1364,7 +1364,7 @@ class BoundaryExpanding(BaseMethod):
 
             
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1620,7 +1620,7 @@ class SCRUB(BaseMethod):
             print(f"student {name}: requires_grad={param.requires_grad}")
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
         
         results = []
         aus_history = []  
@@ -1892,7 +1892,7 @@ class DUCK(BaseMethod):
         patience = opt.patience
         
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 100    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
