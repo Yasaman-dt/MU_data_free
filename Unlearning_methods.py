@@ -736,9 +736,12 @@ class SCAR(BaseMethod):
 
         return kl_div
 
-    def tuckey_transf(self,vectors,delta=opt.delta):
-        return torch.pow(vectors,delta)
+    #def tuckey_transf(self,vectors,delta=opt.delta):
+    #    return torch.pow(vectors,delta)
     
+    def tuckey_transf(self, vectors, delta=opt.delta):
+        return torch.sign(vectors) * torch.pow(torch.abs(vectors), delta)
+
     def pairwise_cos_dist(self, x, y):
         """Compute pairwise cosine distance between two tensors"""
         x_norm = torch.norm(x, dim=1).unsqueeze(1)
@@ -821,13 +824,38 @@ class SCAR(BaseMethod):
         for i in range(opt.num_classes):
             if type(self.class_to_remove) is list:
                 if i not in self.class_to_remove:
-                    print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
+                    #print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
                     samples = self.tuckey_transf(ret_embs[labs==i])
+                    
+                    ## DEBUG: Check for NaN or Inf
+                    #print(f"Class {i} samples: mean={samples.mean().item():.6f}, std={samples.std().item():.6f}, min={samples.min().item():.6f}, max={samples.max().item():.6f}")
+                    #if torch.isnan(samples).any() or torch.isinf(samples).any():
+                    #    print(f"Class {i} has NaN or Inf in samples!")
+                    
                     distribs.append(samples.mean(0))
                     cov = torch.cov(samples.T)
                     cov_shrinked = self.cov_mat_shrinkage(self.cov_mat_shrinkage(cov))
                     cov_shrinked = self.normalize_cov(cov_shrinked)
                     cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
+
+                    
+                    
+                #    # DEBUG: Compute eigenvalues (singular values)
+                #    try:
+                #        s = torch.linalg.svdvals(cov_shrinked)
+                #        s_sorted, _ = torch.sort(s, descending=True)
+                #        print(f"Class {i} SVD: Largest={s_sorted[0].item():.6f}, Smallest={s_sorted[-1].item():.6f}")
+                #    except Exception as e:
+                #        print(f"Failed to compute SVD for class {i}: {e}")
+#
+                #    # Try pseudo-inverse
+                #    try:
+                #        cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
+                #    except Exception as e:
+                #        print(f"Failed to invert covariance matrix for class {i}: {e}")
+                #        # Optionally: append identity matrix instead to not crash
+                #        cov_matrix_inv.append(torch.eye(cov_shrinked.shape[0], device=cov_shrinked.device))
+    
             else:
                 print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
                 samples = self.tuckey_transf(ret_embs[labs==i])
@@ -837,6 +865,23 @@ class SCAR(BaseMethod):
                 cov_shrinked = self.normalize_cov(cov_shrinked)
                 cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
 
+
+                ## DEBUG: Compute eigenvalues (singular values)
+                #try:
+                #    s = torch.linalg.svdvals(cov_shrinked)
+                #    s_sorted, _ = torch.sort(s, descending=True)
+                #    print(f"Class {i} SVD: Largest={s_sorted[0].item():.6f}, Smallest={s_sorted[-1].item():.6f}")
+                #except Exception as e:
+                #    print(f"Failed to compute SVD for class {i}: {e}")
+#
+                ## Try pseudo-inverse
+                #try:
+                #    cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
+                #except Exception as e:
+                #    print(f"Failed to invert covariance matrix for class {i}: {e}")
+                #    # Optionally: append identity matrix instead to not crash
+                #    cov_matrix_inv.append(torch.eye(cov_shrinked.shape[0], device=cov_shrinked.device))
+                    
         distribs=torch.stack(distribs)
         #print('distribs.shape',distribs.shape)
         cov_matrix_inv=torch.stack(cov_matrix_inv)
