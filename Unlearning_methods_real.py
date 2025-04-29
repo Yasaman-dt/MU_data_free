@@ -49,6 +49,8 @@ def choose_method(name):
         return SCRUB
     elif name == 'DUCK':
         return DUCK
+    elif name == 'RetrainedEmbedding':
+        return RetrainedEmbedding
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
 
