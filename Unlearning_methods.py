@@ -49,6 +49,8 @@ def choose_method(name):
         return DUCK
     elif name == 'RetrainedEmbedding':
         return RetrainedEmbedding
+    elif name == 'LAU':
+        return LAU
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
@@ -2331,4 +2333,175 @@ class RetrainedEmbedding(BaseMethod):
 
         self.net.fc = self.fc_layer
         
+        return self.net
+    
+    
+class LAU(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        
+        self.teacher = deepcopy(self.net.fc).to(opt.device)
+        self.student = self.net.fc  # We modify directly the net.fc
+
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+        self.class_to_remove = class_to_remove
+
+        self.criterion_ce = nn.CrossEntropyLoss()
+        self.optimizer = optim.SGD(self.student.parameters(), lr=opt.lr_unlearn, momentum=0.9, weight_decay=5e-4)
+        self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
+
+        self.alpha = 0.5  # KD loss weight
+        self.temperature = 2.0
+        self.epsilon = 4/255  # perturbation size
+        self.step_size = 1/255  # PGD step size
+        self.attack_steps = 7  # PGD steps
+
+    def partial_pgd_attack(self, features, labels):
+        adv_features = features.detach().clone()
+        adv_features.requires_grad = True
+
+        for _ in range(self.attack_steps):
+            logits = self.student(adv_features)
+            loss = self.criterion_ce(logits, labels)
+            grad = torch.autograd.grad(loss, adv_features, retain_graph=False, create_graph=False)[0]
+
+            adv_features = adv_features + self.step_size * grad.sign()
+            delta = torch.clamp(adv_features - features, min=-self.epsilon, max=self.epsilon)
+            adv_features = torch.clamp(features + delta, min=-1, max=1).detach()
+            adv_features.requires_grad = True
+
+        return adv_features.detach()
+
+    def kd_loss(self, student_logits, teacher_logits):
+        log_student = F.log_softmax(student_logits / self.temperature, dim=1)
+        soft_teacher = F.softmax(teacher_logits / self.temperature, dim=1)
+        loss_kd = F.kl_div(log_student, soft_teacher, reduction='batchmean') * (self.temperature ** 2)
+        return loss_kd
+
+    def run(self):
+        best_aus = -float('inf')
+        best_epoch = -1
+        aus_history = []
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+        zero_acc_fgt_counter = 0
+        zero_acc_patience = 200
+
+        self.teacher.eval()
+
+        for epoch in tqdm(range(opt.epochs_unlearn)):
+            for inputs, targets in self.train_fgt_loader:
+                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
+                
+                # Partial PGD attack on inputs
+                adv_inputs = self.partial_pgd_attack(inputs, targets)
+                
+                # Forward pass
+                logits_student = self.student(adv_inputs)
+                with torch.no_grad():
+                    logits_teacher = self.teacher(inputs)
+
+                loss_ce = self.criterion_ce(logits_student, targets)
+                loss_kd = self.kd_loss(logits_student, logits_teacher)
+                loss = (1 - self.alpha) * loss_ce + self.alpha * loss_kd
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
+                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+
+                a_t = Complex(acc_test_val_ret, 0.0)
+                a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
+
+                aus_result = AUS(a_t, a_or, a_f)
+                aus_value = aus_result.value
+                aus_error = aus_result.error
+
+                aus_history.append(aus_value)
+                print(f"[Epoch {epoch}] Train Retain Acc: {acc_train_ret:.2f}%, Train Forget Acc: {acc_train_fgt:.2f}%, Val Retain Acc: {acc_test_val_ret:.2f}%, Val Forget Acc: {acc_test_val_fgt:.2f}%, AUS: {aus_value:.2f}")
+
+                if aus_value > best_aus:
+                    best_aus = aus_value
+                    best_model_state = deepcopy(self.net.state_dict())
+                    best_epoch = epoch
+
+                    best_acc_train_ret = acc_train_ret
+                    best_acc_train_fgt = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+                    
+                    
+                if acc_test_val_fgt == 0.0:
+                    zero_acc_fgt_counter += 1
+                else:
+                    zero_acc_fgt_counter = 0
+
+                if zero_acc_fgt_counter >= zero_acc_patience:
+                    print(f"[Early Stopping] Forget accuracy 0 for {zero_acc_patience} epochs.")
+                    break
+
+                if len(aus_history) > opt.patience:
+                    recent_trend = aus_history[-opt.patience:]
+                    if all(recent_trend[i] > recent_trend[i+1] for i in range(len(recent_trend)-1)) or all(abs(recent_trend[i] - recent_trend[i+1]) < 1e-4 for i in range(len(recent_trend)-1)):
+                        print(f"[Early Stopping] AUS decreased or flat for {opt.patience} epochs.")
+                        break
+
+                low_aus_threshold = 0.4
+                low_aus_patience = 20
+                if sum(a < low_aus_threshold for a in aus_history[-low_aus_patience:]) >= low_aus_patience:
+                    print(f"[Early Stopping] AUS < {low_aus_threshold} for {low_aus_patience} epochs.")
+                    break
+
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus_value, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed,
+                )
+
+            self.scheduler.step()
+
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed) 
+        
+
+        self.net.load_state_dict(best_model_state)
+        self.net.eval()
+
         return self.net
