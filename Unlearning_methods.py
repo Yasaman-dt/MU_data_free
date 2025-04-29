@@ -2164,7 +2164,7 @@ class RetrainedEmbedding(BaseMethod):
 
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
