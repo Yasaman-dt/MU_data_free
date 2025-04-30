@@ -44,7 +44,7 @@ def AUS(a_t, a_or, a_f):
     return aus
 
   
-def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
+def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
     original_pretr_model = get_trained_model()
@@ -58,12 +58,12 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
     if opt.run_original:
         if opt.mode =="CR":
              # df_or_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
-             df_or_model = get_MIA_SVC(train_loader=None, test_loader=None,model=original_model,opt=opt,fgt_loader=train_fgt_loader,fgt_loader_t=test_fgt_loader)
+             df_or_model = get_MIA_SVC(train_loader=None, test_loader=None,model=original_model,opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
              df_or_model["forget_test_accuracy"] = calculate_accuracy(original_model, test_fgt_loader, use_fc_only=True)
              df_or_model["retain_test_accuracy"] = calculate_accuracy(original_model, test_retain_loader, use_fc_only=True)
 
-        df_or_model["forget_accuracy"] = calculate_accuracy(original_model, train_fgt_loader, use_fc_only=True)
-        df_or_model["retain_accuracy"] = calculate_accuracy(original_model, train_retain_loader, use_fc_only=True)
+        df_or_model["forget_accuracy"] = calculate_accuracy(original_model, train_fgt_loader_real, use_fc_only=True)
+        df_or_model["retain_accuracy"] = calculate_accuracy(original_model, train_retain_loader_real, use_fc_only=True)
         #print(df_or_model)
         v_orig= df_or_model.mean(0)
         #convert v_orig back to df
@@ -115,7 +115,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
             #set tollerance for stopping criteria
             opt.target_accuracy = 0.00
             #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-            approach = choose_method(opt.method)(pretr_model, train_retain_loader, train_forget_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
+            approach = choose_method(opt.method)(pretr_model, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
 
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
@@ -138,7 +138,7 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
         print("BEGIN SVC FIT")
 
         if opt.mode == "CR":
-            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=unlearned_model.fc,opt=opt,fgt_loader=train_fgt_loader,fgt_loader_t=test_fgt_loader)
+            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=unlearned_model.fc,opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
             print('F1 mean: ',df_un_model.F1.mean())
             #df_un_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
 
@@ -152,8 +152,8 @@ def main(train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loa
             df_un_model["retain_test_accuracy"] = calculate_accuracy(unlearned_model, test_retain_loader, use_fc_only=True)
             print(f'forget test acc: {df_un_model["forget_test_accuracy"]}, retain test acc: {df_un_model["retain_test_accuracy"]}')
 
-        df_un_model["forget_accuracy"] = calculate_accuracy(unlearned_model, train_fgt_loader, use_fc_only=True)
-        df_un_model["retain_accuracy"] = calculate_accuracy(unlearned_model, train_retain_loader, use_fc_only=True)
+        df_un_model["forget_accuracy"] = calculate_accuracy(unlearned_model, train_fgt_loader_real, use_fc_only=True)
+        df_un_model["retain_accuracy"] = calculate_accuracy(unlearned_model, train_retain_loader_real, use_fc_only=True)
         #print(df_un_model)
         v_unlearn=df_un_model.mean(0)
         v_unlearn = pd.DataFrame(v_unlearn).T
@@ -304,11 +304,11 @@ if __name__ == "__main__":
                 full_retain_dataset = TensorDataset(retain_features_full, retain_labels_full)
                 
                 # Create DataLoader for each subset
-                train_forget_loader = DataLoader(train_forget_dataset, batch_size=batch_size, shuffle=True)
-                train_retain_loader = DataLoader(train_retain_dataset, batch_size=batch_size, shuffle=True)
+                train_fgt_loader_real = DataLoader(train_forget_dataset, batch_size=batch_size, shuffle=True)
+                train_retain_loader_real = DataLoader(train_retain_dataset, batch_size=batch_size, shuffle=True)
                 
-                test_forget_loader = DataLoader(test_forget_dataset, batch_size=batch_size, shuffle=False)
-                test_retain_loader = DataLoader(test_retain_dataset, batch_size=batch_size, shuffle=False)
+                test_fgt_loader_real = DataLoader(test_forget_dataset, batch_size=batch_size, shuffle=False)
+                test_retain_loader_real = DataLoader(test_retain_dataset, batch_size=batch_size, shuffle=False)
 
                 full_forget_loader = DataLoader(full_forget_dataset, batch_size=batch_size, shuffle=False)
                 full_retain_loader = DataLoader(full_retain_dataset, batch_size=batch_size, shuffle=False)
@@ -316,19 +316,17 @@ if __name__ == "__main__":
                 
                 all_train_loader = train_loader
                 all_test_loader = test_loader
-                real_train_fgt_loader = train_forget_loader
-                real_test_fgt_loader = test_forget_loader
-                real_train_retain_loader = train_retain_loader
-                real_test_retain_loader = test_retain_loader
+
                 
+                            
                 opt.RT_model_weights_path = opt.root_folder+f'weights/chks_{dataset_name_lower}/retrained/best_checkpoint_without_{class_to_remove[0]}.pth'
                 print(opt.RT_model_weights_path)
                 
                 
-                row_orig, row_unl, row_ret=main(train_retain_loader=real_train_retain_loader,
-                                                train_fgt_loader=real_train_fgt_loader,
-                                                test_retain_loader=real_test_retain_loader,
-                                                test_fgt_loader=real_test_fgt_loader,
+                row_orig, row_unl, row_ret=main(train_retain_loader_real=train_retain_loader_real,
+                                                train_fgt_loader_real=train_fgt_loader_real,
+                                                test_retain_loader=test_retain_loader_real,
+                                                test_fgt_loader=test_fgt_loader_real,
                                                 train_loader=all_train_loader,
                                                 test_loader=all_test_loader,
                                                 seed=i,
