@@ -6,27 +6,11 @@ from create_embeddings_utils import get_model
 from torch.utils.data import DataLoader, TensorDataset
 
 
-def generate_emb_samples(B_matrix, num_classes, samples_per_class, sigma_range, resnet_model, device='cuda'):
+def generate_emb_samples_balanced(B_matrix, num_classes, samples_per_class, sigma_range, resnet_model, device='cuda'):
     """
-    Generates synthetic feature embeddings and their corresponding labels using the given B matrix and passes them 
-    through the last fully connected layer to obtain soft probabilities.
-
-    Args:
-        B_matrix (numpy.ndarray): The fully connected weight matrix (e.g., matrix_B_224.npy).
-        num_classes (int): Number of classes.
-        samples_per_class (int): Number of samples to generate per class.
-        sigma_range (array-like): Range of sigma values for covariance scaling.
-        resnet_model (torch.nn.Module): The pre-trained ResNet model for the last FC layer.
-        device (str, optional): Device to run computations on. Defaults to 'cuda'.
-
-    Returns:
-        sample_features (torch.Tensor): Generated feature embeddings after pooling.
-        sample_labels (torch.Tensor): Corresponding labels.
-        probability_array (numpy.ndarray): Soft probabilities for each sample.
+    Generates synthetic feature embeddings with a fixed number of samples per class.
     """
-
-    # Convert B_matrix to torch tensor
-    weights = torch.tensor(B_matrix, dtype=torch.float32, device=device)  # Shape: (512, 2304)
+    weights = torch.tensor(B_matrix, dtype=torch.float32, device=device)
 
     def generate_feature_samples(n_samples, Sigma, mean_vector, device):
         return torch.distributions.MultivariateNormal(
@@ -34,7 +18,6 @@ def generate_emb_samples(B_matrix, num_classes, samples_per_class, sigma_range, 
             torch.from_numpy(Sigma).float().to(device)
         ).sample((n_samples,))
 
-    # Compute correlation matrix R
     def compute_coefficient_matrix(weights):
         norm_weights = weights / torch.norm(weights, dim=1, keepdim=True)
         return torch.matmul(norm_weights, norm_weights.T)
@@ -47,52 +30,77 @@ def generate_emb_samples(B_matrix, num_classes, samples_per_class, sigma_range, 
             sigma_values = torch.ones(R.shape[0], device=device) * sigma_val
             D = torch.diag(sigma_values)
             Sigma = torch.matmul(D, torch.matmul(R, D))
-    
+
             mean_vector = np.zeros(R.shape[0])
             feature_samples = generate_feature_samples(100, Sigma.cpu().numpy(), mean_vector, device)
-            
-            # Ensure soft targets are valid
             entropy = -torch.sum(feature_samples * torch.log(feature_samples + 1e-10), dim=1).mean().item()
-    
-            if entropy < best_entropy or best_Sigma is None:  # Ensure at least one Sigma is selected
+
+            if entropy < best_entropy or best_Sigma is None:
                 best_entropy, best_sigma, best_Sigma = entropy, sigma_val, Sigma
-        
-        if best_Sigma is None:  # Ensure we always return a valid Sigma
-            best_Sigma = torch.eye(R.shape[0], device=device) * 1  # Default to identity matrix scaled
-    
+
+        if best_Sigma is None:
+            best_Sigma = torch.eye(R.shape[0], device=device)
+
         return best_sigma, best_Sigma
 
     best_sigma, best_Sigma = optimize_sigma(sigma_range)
-
-    # Generate feature samples in the CNN feature map space (before pooling)
-    total_samples = num_classes * samples_per_class
-    mean_vector = np.zeros(best_Sigma.shape[0])
-
-    sample_features = generate_feature_samples(total_samples, best_Sigma.cpu().numpy(), mean_vector, device)
-
-    # Step 1: Reshape to CNN feature map dimensions (10000, 512, 6, 6) if possible
-    output_size = 6  # Assuming feature map size is 6x6
+    output_size = 6
     expected_feature_size = 512 * 6 * 6
+    mean_vector = np.zeros(best_Sigma.shape[0])
+    total_needed = samples_per_class * num_classes
 
-    if best_Sigma.shape[0] == expected_feature_size:
-        sample_features = sample_features.view(total_samples, 512, output_size, output_size)
+    collected_features = []
+    collected_labels = []
 
-        # Step 2: Apply Global Average Pooling (GAP) to reduce (512, 6, 6) → (512, 1, 1)
-        sample_features = F.adaptive_avg_pool2d(sample_features, (1, 1))
-
-        # Step 3: Flatten to (10000, 512)
-        sample_features = sample_features.view(total_samples, -1)
-
-    # Step 4: Pass through the last FC layer of pre-trained ResNet-18
     resnet_model.to(device)
     resnet_model.eval()
+
     with torch.no_grad():
-        probability_array = F.softmax(resnet_model.fc(sample_features), dim=1)  # Shape: (10000, 10)
+        for cls in range(num_classes):
+            class_features = []
+            attempts = 0
+            while len(class_features) < samples_per_class:
+                # Over-generate to filter later
+                batch_size = samples_per_class * 4
+                feature_samples = generate_feature_samples(batch_size, best_Sigma.cpu().numpy(), mean_vector, device)
 
-    # Step 5: Assign labels based on highest probability
-    sample_labels = torch.argmax(probability_array, dim=1).to(device)
+                if best_Sigma.shape[0] == expected_feature_size:
+                    feature_samples = feature_samples.view(batch_size, 512, output_size, output_size)
+                    feature_samples = F.adaptive_avg_pool2d(feature_samples, (1, 1))
+                    feature_samples = feature_samples.view(batch_size, -1)
 
-    return sample_features, sample_labels, probability_array.cpu().numpy()
+                logits = resnet_model.fc(feature_samples)
+                probs = F.softmax(logits, dim=1)
+                predicted = torch.argmax(probs, dim=1)
+
+                # Select those predicted as the current class
+                mask = predicted == cls
+                selected = feature_samples[mask]
+                class_features.append(selected[:samples_per_class - len(class_features)])
+                attempts += 1
+
+                if attempts > 20:  # Fail-safe
+                    print(f"Warning: Class {cls} took too many attempts to fill quota.")
+                    break
+
+
+            class_features = torch.cat(class_features, dim=0)
+            class_features = class_features[:samples_per_class]  # Just in case over-collected
+            class_labels = torch.full((class_features.size(0),), cls, dtype=torch.long, device=device)
+            collected_features.append(class_features)
+            collected_labels.append(class_labels)
+
+
+
+
+    sample_features = torch.cat(collected_features, dim=0)
+    sample_labels = torch.cat(collected_labels, dim=0)
+
+    # Recalculate final probability array
+    with torch.no_grad():
+        probability_array = F.softmax(resnet_model.fc(sample_features), dim=1).cpu().numpy()
+
+    return sample_features, sample_labels, probability_array
 
 
 def evaluate_model(model, data_loader, device):
@@ -114,7 +122,7 @@ def evaluate_model(model, data_loader, device):
     accuracy = 100 * correct / total
     return accuracy        
         
-
+        
 # ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
 DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
@@ -147,7 +155,7 @@ sigma_range = np.linspace(0.5, 5, 20)  # Range for sigma optimization
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Run the function
-sample_features, sample_labels, probability_array = generate_emb_samples(B_numpy, num_classes, samples_per_class, sigma_range, model, device=device)
+sample_features, sample_labels, probability_array = generate_emb_samples_balanced(B_numpy, num_classes, samples_per_class, sigma_range, model, device=device)
 
 # Print summary statistics
 print(f"Generated feature tensor shape: {sample_features.shape}")  # Expected: (10000, 512)
