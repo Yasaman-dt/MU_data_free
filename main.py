@@ -10,7 +10,7 @@ from error_propagation import Complex
 import os
 import torch
 import numpy as np
-from generate_emb_samples_resnet18 import generate_emb_samples
+from generate_emb_samples_resnet18 import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods import calculate_accuracy
@@ -88,7 +88,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
         #fc_layer = model.fc
         
-        all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples(
+        all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
             B_numpy, num_classes, samples_per_class, sigma_range, pretr_model, device=device
         )
 

@@ -10,7 +10,6 @@ from error_propagation import Complex
 import os
 import torch
 import numpy as np
-from generate_emb_samples_resnet18 import generate_emb_samples
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods_real import calculate_accuracy
