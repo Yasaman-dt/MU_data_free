@@ -88,14 +88,14 @@ def evaluate_embedding_accuracy(model, dataloader, device):
 
 
 def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
-    os.makedirs(f'results_synth/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
+    os.makedirs(f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
         class_name = '_'.join(map(str, class_to_remove))
     else:
         class_name = class_to_remove if class_to_remove is not None else 'all'
 
-    csv_path = f'results_synth/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    csv_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
@@ -106,7 +106,7 @@ def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc
 
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
     os.makedirs('results_synth', exist_ok=True)
-    summary_path = f'results_synth/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    summary_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
     file_exists = os.path.isfile(summary_path)
 
     if isinstance(class_to_remove, list):
@@ -150,7 +150,7 @@ class BaseMethod:
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
@@ -394,7 +394,7 @@ class NGFT(BaseMethod):
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
@@ -575,7 +575,7 @@ class NGFT_weighted(BaseMethod):
         best_epoch = -1
         aus_history = []
         zero_acc_fgt_counter = 0
-        zero_acc_patience = 200
+        zero_acc_patience = 1000
         patience = opt.patience
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         forget_loader = cycle(self.train_fgt_loader)
@@ -906,7 +906,7 @@ class SCAR(BaseMethod):
             th = .8
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1193,7 +1193,7 @@ class BoundaryShrink(BaseMethod):
 
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1413,7 +1413,7 @@ class BoundaryExpanding(BaseMethod):
 
             
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1669,7 +1669,7 @@ class SCRUB(BaseMethod):
             print(f"student {name}: requires_grad={param.requires_grad}")
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         results = []
         aus_history = []  
@@ -1941,7 +1941,7 @@ class DUCK(BaseMethod):
         patience = opt.patience
         
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 200    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
@@ -2402,7 +2402,7 @@ class LAU(BaseMethod):
         aus_history = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         zero_acc_fgt_counter = 0
-        zero_acc_patience = 200
+        zero_acc_patience = 1000
 
         self.teacher.eval()
 

@@ -152,7 +152,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
-                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
 
             unlearned_model = get_trained_model().to(opt.device)
             unlearned_model.load_state_dict(unlearned_model_dict)
@@ -164,7 +164,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         #save model
         #if opt.save_model:
         #    if opt.mode == "CR":
-        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
+        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
 #
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
@@ -214,7 +214,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
     if opt.run_unlearn:
         if opt.save_df:
             if opt.mode == "CR":
-                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
     return v_orig, v_unlearn, v_rt
 
 if __name__ == "__main__":
@@ -223,12 +223,12 @@ if __name__ == "__main__":
     df_orig_total=[]
     
     #create output folders
-    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
+    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
         #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/models")
-        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
-    if not os.path.exists(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
+        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
+    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
         #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/dfs")
-        os.makedirs(f"{opt.root_folder}/out_synth/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
+        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
 
     for i in opt.seed:
         set_seed(i)

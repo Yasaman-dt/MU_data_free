@@ -87,14 +87,14 @@ def evaluate_embedding_accuracy(model, dataloader, device):
 
     return 100 * correct / total if total > 0 else 0
 def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
-    os.makedirs(f'results_real/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
+    os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
         class_name = '_'.join(map(str, class_to_remove))
     else:
         class_name = class_to_remove if class_to_remove is not None else 'all'
 
-    csv_path = f'results_real/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    csv_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
@@ -105,7 +105,7 @@ def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc
 
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
     os.makedirs('results_real', exist_ok=True)
-    summary_path = f'results_real/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    summary_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
     file_exists = os.path.isfile(summary_path)
 
     if isinstance(class_to_remove, list):
