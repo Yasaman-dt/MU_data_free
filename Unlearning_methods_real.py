@@ -56,7 +56,8 @@ def choose_method(name):
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
 
-
+def count_samples(dataloader):
+    return sum(inputs.size(0) for inputs, _ in dataloader)
 def calculate_accuracy(net, dataloader, use_fc_only=False):
     net.eval()
     correct = 0
@@ -86,7 +87,7 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             total += labels.size(0)
 
     return 100 * correct / total if total > 0 else 0
-def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
+def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
@@ -100,10 +101,10 @@ def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'])
-        writer.writerow([epoch, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS])
+            writer.writerow(['epoch', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
+        writer.writerow([epoch, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
-def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed):
+def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs('results_real', exist_ok=True)
     summary_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
     file_exists = os.path.isfile(summary_path)
@@ -116,8 +117,8 @@ def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_
     with open(summary_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'])
-        writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS])
+            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
+        writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
         
         
@@ -154,7 +155,9 @@ class BaseMethod:
 
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
-    
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
         for epoch in tqdm(range(self.epochs)):
             for inputs, targets in self.loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
@@ -261,8 +264,10 @@ class BaseMethod:
                     dataset=opt.dataset,
                     model=opt.model,
                     class_to_remove=self.class_to_remove,
-                    seed=opt.seed)
-
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
@@ -279,8 +284,10 @@ class BaseMethod:
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
-            seed=opt.seed) 
-            
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)            
         self.net.eval()
         return self.net
     
@@ -393,7 +400,10 @@ class NGFT(BaseMethod):
         aus_history = []
         results = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-        
+
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count        
 
         forget_loader = cycle(self.train_fgt_loader)  # repeat forever
 
@@ -519,8 +529,10 @@ class NGFT(BaseMethod):
                     dataset=opt.dataset,
                     model=opt.model,
                     class_to_remove=self.class_to_remove,
-                    seed=opt.seed)
-
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
@@ -537,14 +549,16 @@ class NGFT(BaseMethod):
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
-            seed=opt.seed) 
-
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
         self.net.eval()
         return self.net
 
 
 class NGFT_weighted(BaseMethod):
-    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None, beta=0.5):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         
         self.train_retain_loader = train_retain_loader
@@ -554,7 +568,7 @@ class NGFT_weighted(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-        self.beta = beta  # balance factor
+        self.beta = 0.9  # balance factor
 
     def loss_weighted(self, inputs_r, targets_r, inputs_f, targets_f):
         retain_loss = self.criterion(self.net.fc(inputs_r), targets_r)
@@ -573,7 +587,9 @@ class NGFT_weighted(BaseMethod):
         patience = opt.patience
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         forget_loader = cycle(self.train_fgt_loader)
-
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
         for epoch in tqdm(range(self.epochs)):
             for inputs_r, targets_r in self.train_retain_loader:
                 inputs_r, targets_r = inputs_r.to(opt.device), targets_r.to(opt.device)
@@ -660,7 +676,10 @@ class NGFT_weighted(BaseMethod):
                     dataset=opt.dataset,
                     model=opt.model,
                     class_to_remove=self.class_to_remove,
-                    seed=opt.seed)
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
 
             self.scheduler.step()
 
@@ -677,8 +696,10 @@ class NGFT_weighted(BaseMethod):
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
-            seed=opt.seed)
-
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
         self.net.eval()
         return self.net
 
@@ -864,7 +885,9 @@ class SCAR(BaseMethod):
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
         #print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.synthetic_retain_emb_loader))
-
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
         for epoch in tqdm(range(opt.epochs_unlearn)):
             for n_batch, (embs_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
                 for n_batch_ret, all_batch in enumerate(self.train_retain_loader):
@@ -1052,8 +1075,10 @@ class SCAR(BaseMethod):
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
-            )
-    
+                retain_count=retain_count,
+                forget_count=forget_count,
+                total_count=total_count)
+                
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1068,8 +1093,9 @@ class SCAR(BaseMethod):
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
-        )
-
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
 
         self.net.eval()
         return self.net
@@ -1148,7 +1174,11 @@ class BoundaryShrink(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
         
+                
         for epoch in range(opt.epochs_unlearn):
             for batch_idx, (x, y) in enumerate(self.train_fgt_loader):
                 x, y = x.to(opt.device), y.to(opt.device)
@@ -1265,8 +1295,10 @@ class BoundaryShrink(BaseMethod):
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
-            )
-    
+                retain_count=retain_count,
+                forget_count=forget_count,
+                total_count=total_count)
+                
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1281,8 +1313,9 @@ class BoundaryShrink(BaseMethod):
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
-        )
-
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
 
 
         self.model = self.net
@@ -1368,7 +1401,10 @@ class BoundaryExpanding(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-        
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+                
         for epoch in range(opt.epochs_unlearn):
             for batch_idx, (x, y) in enumerate(self.train_fgt_loader):
                 x, y = x.to(opt.device), y.to(opt.device)
@@ -1481,8 +1517,10 @@ class BoundaryExpanding(BaseMethod):
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
-            )
-    
+                retain_count=retain_count,
+                forget_count=forget_count,
+                total_count=total_count)
+                
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1497,8 +1535,10 @@ class BoundaryExpanding(BaseMethod):
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
-        )
-                
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
+                        
         # Prune the shadow class to return a normal classifier
         pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
         with torch.no_grad():
@@ -1663,7 +1703,9 @@ class SCRUB(BaseMethod):
             "AUS": round(AUS, 4)
         })
 
-
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
 
         for epoch in range(opt.epochs_unlearn):
             student_fc.train()
@@ -1798,8 +1840,10 @@ class SCRUB(BaseMethod):
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
-            )
-    
+                retain_count=retain_count,
+                forget_count=forget_count,
+                total_count=total_count)
+                
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1814,7 +1858,9 @@ class SCRUB(BaseMethod):
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
-        )
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
         self.student.fc = student_fc
 
         return self.student
@@ -1897,7 +1943,11 @@ class DUCK(BaseMethod):
         else:
             ls = 0
         criterion = nn.CrossEntropyLoss(label_smoothing=ls)
-        
+
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+                
         print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.train_retain_loader))
         for epoch in tqdm(range(opt.epochs_unlearn)):
             for n_batch, (emb_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
@@ -2025,8 +2075,10 @@ class DUCK(BaseMethod):
                     dataset=opt.dataset,
                     model=opt.model,
                     class_to_remove=self.class_to_remove,
-                    seed=opt.seed)
-
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
 
             init = False
             scheduler.step()
@@ -2045,8 +2097,10 @@ class DUCK(BaseMethod):
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
-            seed=opt.seed) 
-        
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)        
 
         self.net.eval()
         return self.net
@@ -2119,7 +2173,10 @@ class RetrainedEmbedding(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-        
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+                
         for epoch in tqdm(range(self.epochs)):
             self.fc_layer.train()
             running_loss = 0.0
@@ -2254,7 +2311,9 @@ class RetrainedEmbedding(BaseMethod):
                 model=opt.model,
                 class_to_remove=self.class_to_remove,
                 seed=opt.seed,
-            )
+                retain_count=retain_count,
+                forget_count=forget_count,
+                total_count=total_count)
     
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
@@ -2270,8 +2329,9 @@ class RetrainedEmbedding(BaseMethod):
             model=opt.model,
             class_to_remove=self.class_to_remove,
             seed=opt.seed,
-        )
-
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
         print(f"Best Epoch {best_epoch+1}: Train Acc {best_train_acc:.2f}%, Val Acc {best_acc:.2f}%")
 
         self.net.fc = self.fc_layer
@@ -2348,7 +2408,9 @@ class LAU(BaseMethod):
         zero_acc_patience = 200
 
         self.teacher.eval()
-
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
         for epoch in tqdm(range(opt.epochs_unlearn)):
             for inputs, targets in self.train_fgt_loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
@@ -2427,7 +2489,9 @@ class LAU(BaseMethod):
                     model=opt.model,
                     class_to_remove=self.class_to_remove,
                     seed=opt.seed,
-                )
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
 
             self.scheduler.step()
 
@@ -2444,9 +2508,10 @@ class LAU(BaseMethod):
             dataset=opt.dataset,
             model=opt.model,
             class_to_remove=self.class_to_remove,
-            seed=opt.seed
-        )
-
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
         self.net.load_state_dict(best_model_state)
         self.net.eval()
         return self.net
