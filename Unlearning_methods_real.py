@@ -27,29 +27,29 @@ def AUS(a_t, a_or, a_f):
     return aus
 
 def choose_method(name):
-    if name=='FineTuning':
+    if name=='FT':
         return FineTuning
-    elif name=='NegativeGradient':
+    elif name=='NG':
         return NegativeGradient
     elif name=='NGFT':
         return NGFT
-    elif name=='NGFT_weighted':
+    elif name=='NGFTW':
         return NGFT_weighted
-    elif name=='RandomLabels':
+    elif name=='RL':
         return RandomLabels
     elif name=='SCAR':
         return SCAR
     elif name == 'newmethod':
         return newmethod
-    elif name == 'BoundaryShrink':
+    elif name == 'BS':
         return BoundaryShrink
-    elif name == 'BoundaryExpanding':
+    elif name == 'BE':
         return BoundaryExpanding
     elif name == 'SCRUB':
         return SCRUB
     elif name == 'DUCK':
         return DUCK
-    elif name == 'RetrainedEmbedding':
+    elif name == 'RE':
         return RetrainedEmbedding
     elif name == 'LAU':
         return LAU
