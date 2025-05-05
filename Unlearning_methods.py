@@ -141,6 +141,13 @@ class BaseMethod:
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
 
+        print(f"Train Retain Samples: {len(self.train_retain_loader.dataset)}")
+        print(f"Test Retain Samples: {len(self.test_retain_loader.dataset)}")
+        print(f"Real Retain Full Samples: {len(self.retainfull_loader_real.dataset)}")
+        print(f"Train forget Samples: {len(self.train_fgt_loader.dataset)}")
+        print(f"Test forget Samples: {len(self.test_fgt_loader.dataset)}")
+        print(f"Real forget Full Samples: {len(self.forgetfull_loader_real.dataset)}")
+
     def loss_f(self, net, inputs, targets):
         return None
 
@@ -727,7 +734,8 @@ class SCAR(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.class_to_remove = class_to_remove
-        
+
+      
     def cov_mat_shrinkage(self,cov_mat,gamma1=opt.gamma1,gamma2=opt.gamma2):
         I = torch.eye(cov_mat.shape[0]).to(opt.device)
         V1 = torch.mean(torch.diagonal(cov_mat))
@@ -1198,7 +1206,7 @@ class BoundaryShrink(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-
+        
     def run(self):
 
         def calculate_AUS(A_test_forget, A_test_retain, Aor):
@@ -1628,17 +1636,12 @@ class BoundaryExpanding(BaseMethod):
 
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
+
         self.teacher = net  # The original FC layer
         self.student = deepcopy(net)  # Clone of the original FC layer
-        self.train_retain_loader = train_retain_loader
-        self.train_fgt_loader = train_fgt_loader
-        self.test_retain_loader = test_retain_loader
-        self.test_fgt_loader = test_fgt_loader
-        self.retainfull_loader_real = retainfull_loader_real
-        self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-
-
 
 
     def run(self):
@@ -1948,7 +1951,8 @@ class DUCK(BaseMethod):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
         self.class_to_remove = class_to_remove
 
-
+    
+        
     def pairwise_cos_dist(self, x, y):
         """Compute pairwise cosine distance between two tensors"""
         x_norm = torch.norm(x, dim=1).unsqueeze(1)
@@ -2189,7 +2193,7 @@ class DUCK(BaseMethod):
 class RetrainedEmbedding(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
-        
+
         self.fc_layer = nn.Linear(512, opt.num_classes).to('cuda')
 
         self.optimizer = optim.SGD(self.fc_layer.parameters(), lr=opt.lr_unlearn, weight_decay=5e-5)
@@ -2431,14 +2435,9 @@ class LAU(BaseMethod):
         self.teacher = deepcopy(self.net.fc).to(opt.device)
         self.student = self.net.fc  # Only modify fc layer
 
-        self.train_retain_loader = train_retain_loader
-        self.train_fgt_loader = train_fgt_loader
-        self.test_retain_loader = test_retain_loader
-        self.test_fgt_loader = test_fgt_loader
-        self.retainfull_loader_real = retainfull_loader_real
-        self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
 
+     
         self.criterion_ce = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.student.parameters(), lr=opt.lr_unlearn, momentum=0.9, weight_decay=5e-4)
         self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)

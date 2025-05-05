@@ -118,7 +118,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
         labels_real = data["labels"]  # Shape: (N,)
     
-        print(f"Loaded Embeddings: {embeddings_real.shape}, Labels: {labels_real.shape}")
+        print(f"Real Embeddings: {embeddings_real.shape}")
     
         # Convert to tensors
         embeddings_tensor_real = torch.tensor(embeddings_real, dtype=torch.float32)
@@ -141,7 +141,70 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         # Create DataLoaders for validation
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
-            
+
+        #from sklearn.manifold import TSNE
+        #import matplotlib.pyplot as plt
+#
+        ## Run the function
+        #real_features = embeddings_tensor_real
+        #synth_features = all_features_synth
+        #real_labels = labels_tensor_real
+        #synth_labels = all_labels_synth
+        #n_samples=1000
+        #seed=42
+        #torch.manual_seed(seed)
+        #np.random.seed(seed)
+#
+        #n_classes = real_labels.max().item() + 1
+#
+        #def subsample_by_class(features, labels, n_per_class):
+        #    selected_features, selected_labels = [], []
+        #    for cls in range(n_classes):
+        #        idxs = (labels == cls).nonzero(as_tuple=True)[0]
+        #        selected = idxs[torch.randperm(len(idxs))[:n_per_class]]
+        #        selected_features.append(features[selected])
+        #        selected_labels.append(labels[selected])
+        #    return torch.cat(selected_features), torch.cat(selected_labels)
+#
+        ## Subsample
+        #real_sub, real_lbls = subsample_by_class(real_features, real_labels, n_samples // n_classes)
+        #synth_sub, synth_lbls = subsample_by_class(synth_features, synth_labels, n_samples // n_classes)
+#
+        ## Compute t-SNE separately
+        #tsne_real = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=1000, random_state=seed)
+        #tsne_synth = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=10000, random_state=seed)
+        #synth_sub = (synth_sub - synth_sub.min())/synth_sub.max()
+#
+        #tsne_real_result = tsne_real.fit_transform(real_sub.cpu().numpy())
+        #tsne_synth_result = tsne_synth.fit_transform(synth_sub.cpu().numpy())
+#
+        ## Plot: Real
+        #plt.figure(figsize=(10, 5))
+        #plt.subplot(1, 2, 1)
+        #for cls in range(n_classes):
+        #    idxs = real_lbls.cpu().numpy() == cls
+        #    plt.scatter(tsne_real_result[idxs, 0], tsne_real_result[idxs, 1], label=f"Class {cls}", alpha=0.6, s=20)
+        #plt.title("t-SNE of Real Embeddings")
+        #plt.legend()
+        #plt.grid(True)
+#
+        ## Plot: Synthetic
+        #plt.subplot(1, 2, 2)
+        #for cls in range(n_classes):
+        #    idxs = synth_lbls.cpu().numpy() == cls
+        #    plt.scatter(tsne_synth_result[idxs, 0], tsne_synth_result[idxs, 1], label=f"Class {cls}", alpha=0.6, s=20)
+        #plt.title("t-SNE of Synthetic Embeddings")
+        #plt.legend()
+        #plt.grid(True)
+#
+        #plt.tight_layout()
+        #plt.savefig("tsne_real_vs_synthetic_separate.png", dpi=300)  # <- Add this line
+#
+        #plt.show()
+
+
+
+
             
         if opt.mode == "CR":
             #set tollerance for stopping criteria

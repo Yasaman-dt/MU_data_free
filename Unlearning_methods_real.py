@@ -137,6 +137,13 @@ class BaseMethod:
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
 
+
+        print(f"Train Retain Samples: {len(self.train_retain_loader.dataset)}")
+        print(f"Test Retain Samples: {len(self.test_retain_loader.dataset)}")
+        print(f"Real Retain Full Samples: {len(self.retainfull_loader_real.dataset)}")
+        print(f"Train forget Samples: {len(self.train_fgt_loader.dataset)}")
+        print(f"Test forget Samples: {len(self.test_fgt_loader.dataset)}")
+        print(f"Real forget Full Samples: {len(self.forgetfull_loader_real.dataset)}")
     def loss_f(self, net, inputs, targets):
         return None
 
@@ -1557,14 +1564,11 @@ class BoundaryExpanding(BaseMethod):
 
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
+
         self.teacher = net  # The original FC layer
         self.student = deepcopy(net)  # Clone of the original FC layer
-        self.train_retain_loader = train_retain_loader
-        self.train_fgt_loader = train_fgt_loader
-        self.test_retain_loader = test_retain_loader
-        self.test_fgt_loader = test_fgt_loader
-        self.retainfull_loader_real = retainfull_loader_real
-        self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
 
 
