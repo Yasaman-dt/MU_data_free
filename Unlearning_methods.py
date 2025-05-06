@@ -15,7 +15,9 @@ import csv
 import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
+#import wandb
 
+#wandb.init(project="data_free_unlearning", name="run_name", config=opt)
 
 n_model = opt.n_model
  
@@ -2428,12 +2430,15 @@ class RetrainedEmbedding(BaseMethod):
         return self.net
     
     
+
 class LAU(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         
-        self.teacher = deepcopy(self.net.fc).to(opt.device)
-        self.student = self.net.fc  # Only modify fc layer
+        self.student = self.net.fc
+        self.teacher = deepcopy(self.student).to(opt.device)
+        self.teacher.eval()
+
 
         self.class_to_remove = class_to_remove
 
@@ -2509,7 +2514,7 @@ class LAU(BaseMethod):
 
                 loss_ce = self.criterion_ce(logits_student, targets)
                 loss_kd = self.double_softmax_kd_loss(logits_student, logits_teacher, targets)
-                loss = (1 - self.alpha) * loss_ce + self.alpha * loss_kd  # T^2 is inside kd_loss
+                loss = 0.95 * loss_ce + 0.05 * loss_kd  # T^2 is inside kd_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()
@@ -2530,6 +2535,28 @@ class LAU(BaseMethod):
                 aus_result = AUS(a_t, a_or, a_f)
                 aus_value = aus_result.value
                 aus_history.append(aus_value)
+
+                #wandb.log({
+                #    "epoch": epoch,
+                #    "loss/ce": loss_ce.item(),
+                #    "loss/kd": loss_kd.item(),
+                #    "loss/total": loss.item(),
+#
+                #    "train/acc_ret": acc_train_ret,
+                #    "train/acc_fgt": acc_train_fgt,
+#
+                #    "val/acc_ret": acc_test_val_ret,
+                #    "val/acc_fgt": acc_test_val_fgt,
+#
+                #    "val_full/acc_ret": acc_full_val_ret,
+                #    "val_full/acc_fgt": acc_full_val_fgt,
+#
+                #    "val/AUS": aus_value  # Ensure `aus_score` is a float
+                #})
+
+
+
+
 
                 print(f"[Epoch {epoch}] Train Retain Acc: {acc_train_ret:.2f}%, Train Forget Acc: {acc_train_fgt:.2f}%, Val Retain Acc: {acc_test_val_ret:.2f}%, Val Forget Acc: {acc_test_val_fgt:.2f}%, AUS: {aus_value:.2f}")
 
