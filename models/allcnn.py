@@ -1,5 +1,5 @@
 from torch import nn
-
+import torch as torch
 
 # Below methods to claculate input featurs to the FC layer
 # and weight initialization for CNN model is based on the below github repo
@@ -102,9 +102,16 @@ class AllCNN(nn.Module):
             nn.AvgPool2d(8),
             Flatten()
         )
+        
+        # Dynamically infer feature size
+        dummy_input = torch.zeros(1, n_channels, 32, 32)
+        with torch.no_grad():
+            dummy_output = self.features(dummy_input)
+            feat_dim = dummy_output.shape[1]
+            
         self.classifier = nn.Sequential(
             nn.Dropout(dropout_prob),
-            nn.Linear(768, 384),
+            nn.Linear(feat_dim, 384),
             nn.ReLU(),
             nn.Dropout(dropout_prob),
             nn.Linear(384,num_classes)
