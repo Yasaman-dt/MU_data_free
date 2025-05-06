@@ -457,11 +457,11 @@ if __name__ == "__main__":
             print(output)
 
 
-            if opt.mode == "CR":
-                a_t = Complex(means["retain_test_accuracy"], std_devs["retain_test_accuracy"])
-                a_f = Complex(means["forget_test_accuracy"], std_devs["forget_test_accuracy"])
-                a_or = opt.a_or[opt.dataset][1]
-            aus = AUS(a_t, a_or, a_f)
-            dfs[name]["AUS"] = aus.value
-            print(f"AUS: {aus.value:.4f} \pm {aus.error:.4f}")
+            #if opt.mode == "CR":
+            #    a_t = Complex(means["retain_test_accuracy"], std_devs["retain_test_accuracy"])
+            #    a_f = Complex(means["forget_test_accuracy"], std_devs["forget_test_accuracy"])
+            #    a_or = opt.a_or[opt.dataset][1]
+            #aus = AUS(a_t, a_or, a_f)
+            #dfs[name]["AUS"] = aus.value
+            #print(f"AUS: {aus.value:.4f} \pm {aus.error:.4f}")
    
