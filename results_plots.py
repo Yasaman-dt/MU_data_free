@@ -63,7 +63,7 @@ g = sns.relplot(
     dashes=False,
     row="metric",
     col="dataset",
-    col_order=["cifar10", "cifar100", "TinyImageNet"],  
+    col_order=["cifar10", "cifar100", "tinyimagenet"],  
     facet_kws={'sharex': False, 'sharey': False},
     kind="line",
     err_style="band",
@@ -110,8 +110,8 @@ for col, ax in enumerate(g.axes[0]):  # Loop through top row only
         display_title = "CIFAR10"
     elif title.lower() == "cifar100":
         display_title = "CIFAR100"
-    else:
-        display_title = title  # leave other titles unchanged    
+    elif title.lower() == "tinyimagenet":
+        display_title = "TinyImageNet"
     ax.set_title(r"$\mathbf{" + display_title + "}$")  # Bold the dataset name without "dataset="
 
 
@@ -169,11 +169,11 @@ for row in range(len(g.row_names)):
         ax.grid(True)
 
         if dataset == "cifar10":
-            ax.set_xlim(4,6000)  
+            ax.set_xlim(1,6000)  
         elif dataset == "cifar100":
-            ax.set_xlim(4,600)  
-        elif dataset == "TinyImageNet":
-            ax.set_xlim(4,600)  
+            ax.set_xlim(1,600)  
+        elif dataset == "tinyimagenet":
+            ax.set_xlim(1,600)  
 
 # Save the plot before showing it
 plot_with_black_box(g, "plot")

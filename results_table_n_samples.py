@@ -14,6 +14,7 @@ original_df = pd.read_csv(original_path)
 original_df = original_df.rename(columns={
 "Mode": "mode",
 "Dataset": "dataset",
+"Model Num": "model_num",
 "Model": "model",
 "Train Retain Acc": "train_retain_acc",
 "Train Forget Acc": "train_fgt_acc",
@@ -22,6 +23,15 @@ original_df = original_df.rename(columns={
 "Val Full Retain Acc": "val_full_retain_acc",
 "Val Full Forget Acc": "val_full_fgt_acc",
 })
+
+original_df["source"] = "real"  # Assuming original_df corresponds to real data
+original_df["samples_per_class"] = -1  # Or set to a consistent dummy value if not applicable
+original_df["method"] = "original"
+original_df["epoch"] = 0
+original_df["train_retain_acc"] = 0
+original_df["train_fgt_acc"] = 0
+
+
 
 
 
@@ -106,6 +116,14 @@ for source in sources:
                 else:
                     print(f"⚠️ Could not parse: {filename}")
 
+def normalize_keys(df):
+    df['dataset'] = df['dataset'].astype(str).str.strip().str.lower()
+    df['model'] = df['model'].astype(str).str.strip().str.lower()
+    df['model_num'] = df['model_num'].astype(int)  # ensure consistent type
+    df['Forget Class'] = df['Forget Class'].astype(int)
+    return df
+
+
 
 # === Combine all ===
 if all_data:
@@ -121,13 +139,58 @@ if all_data:
     
     # Sort the full DataFrame with all tie-breaker preferences
     sorted_df = final_df.sort_values(by=sort_keys, ascending=ascending_flags)
-    
+
+
     # Group and pick the first (best) row for each combination
     best_df = sorted_df.groupby(
         ["source", "method", "dataset", "model", "model_num", "Forget Class", "samples_per_class"],
         as_index=False
     ).first()
     
+    best_df = normalize_keys(best_df)
+    original_df = normalize_keys(original_df)
+
+    # List of columns you want to bring from original_df with _orig suffix
+    cols_to_add = [
+        'train_retain_acc', 'train_fgt_acc',
+        'val_test_retain_acc', 'val_test_fgt_acc',
+        'val_full_retain_acc', 'val_full_fgt_acc',
+        'AUS'
+    ]
+    
+    # Set merge keys (these identify the row identity)
+    merge_keys = ["dataset", "model", "model_num", "Forget Class"]
+
+    original_subset = original_df[merge_keys + cols_to_add].copy()
+    original_subset = original_subset.rename(columns={col: f"{col}_orig" for col in cols_to_add})
+    merged_df = best_df.merge(original_subset, on=merge_keys, how='left')
+    merged_df['key'] = merged_df['AUS'] > merged_df['AUS_orig']
+    
+    merged_df['AUS_new'] = merged_df['key'] * merged_df['AUS'] + (1- merged_df['key']) * merged_df['AUS_orig'] 
+    merged_df['train_fgt_acc_new'] = merged_df['key'] * merged_df['val_full_fgt_acc'] + (1- merged_df['key']) * merged_df['val_full_fgt_acc_orig'] 
+    merged_df['train_retain_acc_new'] = merged_df['key'] * merged_df['val_full_retain_acc'] + (1- merged_df['key']) * merged_df['val_full_retain_acc_orig'] 
+    merged_df['val_test_fgt_acc_new'] = merged_df['key'] * merged_df['val_test_fgt_acc'] + (1- merged_df['key']) * merged_df['val_test_fgt_acc_orig'] 
+    merged_df['val_test_retain_acc_new'] = merged_df['key'] * merged_df['val_test_retain_acc'] + (1- merged_df['key']) * merged_df['val_test_retain_acc_orig'] 
+    merged_df['val_full_fgt_acc_new'] = merged_df['key'] * merged_df['val_full_fgt_acc'] + (1- merged_df['key']) * merged_df['val_full_fgt_acc_orig'] 
+    merged_df['val_full_retain_acc_new'] = merged_df['key'] * merged_df['val_full_retain_acc'] + (1- merged_df['key']) * merged_df['val_full_retain_acc_orig'] 
+
+    metrics = [
+        'train_retain_acc', 'train_fgt_acc',
+        'val_test_retain_acc', 'val_test_fgt_acc',
+        'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'
+    ]
+    
+    # Construct list of columns to keep
+    columns_to_keep = [col for col in merged_df.columns if not any(
+        col == m or col.endswith('_orig') and m in col for m in metrics
+    )]
+    
+    # Create new DataFrame
+    new_df = merged_df[columns_to_keep].copy()
+
+    new_df = new_df.rename(columns=lambda col: col.replace('_new', '') if col.endswith('_new') else col)
+
+    best_df = new_df
     # Save results
     best_df.to_csv(os.path.join(parent_dir, "results_n_samples/results_unlearning_best_per_model_by_aus.csv"), index=False)
     print("✅ Refined best results saved using AUS → val_test_fgt_acc → val_test_retain_acc.")
@@ -146,14 +209,14 @@ if all_data:
         filename = f"samples_per_class/{dataset}_{method}_{source}_{samples_per_class}.csv"
         output_file = os.path.join(save_dir, filename)
         group_df.to_csv(output_file, index=False)
-        print(f"✅ Saved {output_file}")
+        #print(f"✅ Saved {output_file}")
 
         
     for (dataset, method, source, forget_class), group_df in best_df.groupby(["dataset", "method", "source", "Forget Class"]):
         filename = f"forget_class/{dataset}_{method}_{source}_{forget_class}.csv"
         output_file = os.path.join(save_dir, filename)
         group_df.to_csv(output_file, index=False)
-        print(f"✅ Saved {output_file}")
+        #print(f"✅ Saved {output_file}")
 
     
     # === Combine original + best_df
