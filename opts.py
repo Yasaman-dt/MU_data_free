@@ -62,11 +62,11 @@ class OPT:
     else:
         seed = [42]
         if dataset == 'cifar10':
-            class_to_remove = [[i*1] for i in range(10)]
+            class_to_remove = [[i*1] for i in range(10)]#[[0]]#
         elif dataset == 'cifar100':
-            class_to_remove = [[i*1] for i in range(100)]
+            class_to_remove = [[i*1] for i in range(100)]#[[0]]#
         elif dataset == 'TinyImageNet':
-            class_to_remove = [[i*1] for i in range(200)] 
+            class_to_remove = [[i*1] for i in range(200)] #[[0]]#
    
         #class_to_remove = [[i for i in range(100)][:j] for j in [1]+[z*10 for z in range(1,10)]+[98]]
         #print('Class to remove iter. : ', class_to_remove)
