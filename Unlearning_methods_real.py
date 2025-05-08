@@ -15,6 +15,7 @@ import csv
 import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
+import time
 
 
 
@@ -87,7 +88,7 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             total += labels.size(0)
 
     return 100 * correct / total if total > 0 else 0
-def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
+def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
@@ -101,8 +102,8 @@ def log_epoch_to_csv(epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
-        writer.writerow([epoch, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
+            writer.writerow(['epoch','epoch_times',  'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
+        writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs('results_real', exist_ok=True)
@@ -173,6 +174,9 @@ class BaseMethod:
                 loss.backward()
                 self.optimizer.step()
 
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -260,6 +264,7 @@ class BaseMethod:
                 # Save a summary across all unlearning runs
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),
@@ -413,8 +418,12 @@ class NGFT(BaseMethod):
         total_count = retain_count + forget_count        
 
         forget_loader = cycle(self.train_fgt_loader)  # repeat forever
+        epoch_times = []
+
 
         for epoch in tqdm(range(self.epochs)):
+            start_time = time.time()
+
             for inputs_r, targets_r in self.train_retain_loader:
                 inputs_r, targets_r = inputs_r.to(opt.device), targets_r.to(opt.device)
 
@@ -432,7 +441,9 @@ class NGFT(BaseMethod):
                 self.optimizer.zero_grad()
                 total_loss.backward()
                 self.optimizer.step()
-
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -525,6 +536,7 @@ class NGFT(BaseMethod):
                 # Save a summary across all unlearning runs
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),
@@ -597,7 +609,11 @@ class NGFT_weighted(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
+        
+        epoch_times = []
+
         for epoch in tqdm(range(self.epochs)):
+            start_time = time.time()
             for inputs_r, targets_r in self.train_retain_loader:
                 inputs_r, targets_r = inputs_r.to(opt.device), targets_r.to(opt.device)
                 inputs_f, targets_f = next(forget_loader)
@@ -608,7 +624,10 @@ class NGFT_weighted(BaseMethod):
                 self.optimizer.zero_grad()
                 total_loss.backward()
                 self.optimizer.step()
-
+                
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -672,6 +691,7 @@ class NGFT_weighted(BaseMethod):
 
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),
@@ -895,7 +915,11 @@ class SCAR(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
+        epoch_times = []
+
         for epoch in tqdm(range(opt.epochs_unlearn)):
+            start_time = time.time()
+
             for n_batch, (embs_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
                 for n_batch_ret, all_batch in enumerate(self.train_retain_loader):
 
@@ -957,7 +981,10 @@ class SCAR(BaseMethod):
                     #print(f'n_batch_ret:{n_batch_ret} ,loss FGT:{loss_fgt}, loss RET:{loss_ret}')
                     loss.backward()
                     optimizer.step()
-
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
+            
 #                    with torch.no_grad():
 #                        self.net.eval()
 #                        if opt.mode=='CR':
@@ -1070,6 +1097,7 @@ class SCAR(BaseMethod):
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
+                epoch_times=duration,
                 train_retain_acc=round(retain_accuracy / 100,4),
                 train_fgt_acc=round(forget_accuracy / 100,4),
                 val_test_retain_acc=round(retaintest_val_acc / 100,4),
@@ -1186,7 +1214,11 @@ class BoundaryShrink(BaseMethod):
         total_count = retain_count + forget_count
         
                 
+        epoch_times = []
+
         for epoch in range(opt.epochs_unlearn):
+            start_time = time.time()
+
             for batch_idx, (x, y) in enumerate(self.train_fgt_loader):
                 x, y = x.to(opt.device), y.to(opt.device)
 
@@ -1203,7 +1235,9 @@ class BoundaryShrink(BaseMethod):
                 loss.backward()
                 optimizer.step()
 
-
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             
             retain_accuracy = evaluate_embedding_accuracy(unlearn_model_fc, self.train_retain_loader, opt.device)
             forget_accuracy = evaluate_embedding_accuracy(unlearn_model_fc, self.train_fgt_loader, opt.device)
@@ -1290,6 +1324,7 @@ class BoundaryShrink(BaseMethod):
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
+                epoch_times=duration,
                 train_retain_acc=round(retain_accuracy / 100,4),
                 train_fgt_acc=round(forget_accuracy / 100,4),
                 val_test_retain_acc=round(retaintest_val_acc / 100,4),
@@ -1412,7 +1447,10 @@ class BoundaryExpanding(BaseMethod):
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
                 
+        epoch_times = []
         for epoch in range(opt.epochs_unlearn):
+            start_time = time.time()
+
             for batch_idx, (x, y) in enumerate(self.train_fgt_loader):
                 x, y = x.to(opt.device), y.to(opt.device)
                 target = torch.full_like(y, fill_value=shadow_class)
@@ -1424,6 +1462,9 @@ class BoundaryExpanding(BaseMethod):
                 loss.backward()
                 optimizer.step()
 
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
 
 
             
@@ -1512,6 +1553,7 @@ class BoundaryExpanding(BaseMethod):
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
+                epoch_times=duration,
                 train_retain_acc=round(retain_accuracy / 100,4),
                 train_fgt_acc=round(forget_accuracy / 100,4),
                 val_test_retain_acc=round(retaintest_val_acc / 100,4),
@@ -1710,8 +1752,11 @@ class SCRUB(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
+        epoch_times = []
+
 
         for epoch in range(opt.epochs_unlearn):
+            start_time = time.time()
             student_fc.train()
             optimizer.zero_grad()
 
@@ -1737,7 +1782,9 @@ class SCRUB(BaseMethod):
             # Backpropagation
             loss.backward()
             optimizer.step()
-        
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)        
             
             student_fc.eval()
             
@@ -1832,6 +1879,7 @@ class SCRUB(BaseMethod):
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
+                epoch_times=duration,
                 train_retain_acc=round(retain_accuracy / 100,4),
                 train_fgt_acc=round(forget_accuracy / 100,4),
                 val_test_retain_acc=round(retaintest_val_acc / 100,4),
@@ -1952,8 +2000,11 @@ class DUCK(BaseMethod):
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
                 
+        epoch_times = []
+
         print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.train_retain_loader))
         for epoch in tqdm(range(opt.epochs_unlearn)):
+            start_time = time.time()
             for n_batch, (emb_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
                 for n_batch_ret, (emb_ret, lab_ret) in enumerate(self.train_retain_loader):
                     emb_ret, lab_ret,emb_fgt, lab_fgt  = emb_ret.to(opt.device), lab_ret.to(opt.device),emb_fgt.to(opt.device), lab_fgt.to(opt.device)
@@ -1986,6 +2037,10 @@ class DUCK(BaseMethod):
                     
                     loss.backward()
                     optimizer.step()
+
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
 
                 # evaluate accuracy on forget set every batch
             with torch.no_grad():
@@ -2068,6 +2123,7 @@ class DUCK(BaseMethod):
 
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),
@@ -2180,8 +2236,10 @@ class RetrainedEmbedding(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-                
+        epoch_times = []
+
         for epoch in tqdm(range(self.epochs)):
+            start_time = time.time()
             self.fc_layer.train()
             running_loss = 0.0
             correct = 0
@@ -2199,7 +2257,9 @@ class RetrainedEmbedding(BaseMethod):
                 _, predicted = outputs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
-
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             #train_loss = running_loss / len(self.train_retain_loader)
             #train_acc = 100. * correct / total
             self.scheduler.step()
@@ -2303,6 +2363,7 @@ class RetrainedEmbedding(BaseMethod):
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
+                epoch_times=duration,
                 train_retain_acc=round(retain_accuracy / 100,4),
                 train_fgt_acc=round(forget_accuracy / 100,4),
                 val_test_retain_acc=round(retaintest_val_acc / 100,4),
@@ -2415,7 +2476,11 @@ class LAU(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
+        epoch_times = []
+
         for epoch in tqdm(range(opt.epochs_unlearn)):
+            start_time = time.time()
+
             for inputs, targets in self.train_fgt_loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
                 
@@ -2433,6 +2498,9 @@ class LAU(BaseMethod):
                 loss.backward()
                 self.optimizer.step()
 
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -2481,6 +2549,7 @@ class LAU(BaseMethod):
 
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),

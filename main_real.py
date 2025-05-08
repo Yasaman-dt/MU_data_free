@@ -84,7 +84,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
         labels_real = data["labels"]  # Shape: (N,)
     
-        print(f"Loaded Embeddings: {embeddings_real.shape}, Labels: {labels_real.shape}")
+        print(f"Loaded Embeddings: {embeddings_real.shape}")
     
         # Convert to tensors
         embeddings_tensor_real = torch.tensor(embeddings_real, dtype=torch.float32)
