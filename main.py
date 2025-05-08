@@ -44,7 +44,7 @@ def AUS(a_t, a_or, a_f):
     return aus
 
   
-def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
+def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
     original_pretr_model = get_trained_model()
@@ -78,19 +78,19 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         timestamp1 = time.time()
 
         # Step 1: Generate synthetic retain samples in feature space
-        samples_per_class = opt.samples_per_class
+        #samples_per_class = opt.samples_per_class
         
-        sigma_range = np.linspace(0.5, 6, 3)
+        #sigma_range = np.linspace(0.5, 6, 3)
 
-        B_numpy = np.load(matrix_B_224)  # Shape: (512, 2304)
+        #B_numpy = np.load(matrix_B_224)  # Shape: (512, 2304)
 
         #checkpoint_path = f"{DIR}/{files}/{dataset_name}/best_checkpoint_resnet18.pth"  # Set your actual checkpoint path
         #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
         #fc_layer = model.fc
         
-        all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-            B_numpy, num_classes, samples_per_class, sigma_range, pretr_model, device=device
-        )
+        #all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
+        #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+        #)
 
         print(all_features_synth.shape)
         print(all_labels_synth.shape)
@@ -298,6 +298,20 @@ if __name__ == "__main__":
 
         print(f"Seed {i}")
         if opt.mode == "CR":
+            
+            print("Generating synthetic embeddings ONCE...")
+            B_numpy = np.load(matrix_B_224)
+            sigma_range = np.linspace(0.5, 6, 3)
+            original_pretr_model = get_trained_model().to(device)
+            original_pretr_model.eval()
+
+            all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
+                B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+            )
+                
+            
+            
+            
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
@@ -418,7 +432,9 @@ if __name__ == "__main__":
                 print(opt.RT_model_weights_path)
                 
                 
-                row_orig, row_unl, row_ret=main(train_retain_loader_real=train_retain_loader_real,
+                row_orig, row_unl, row_ret=main(all_features_synth=all_features_synth,
+                                                all_labels_synth=all_labels_synth,
+                                                train_retain_loader_real=train_retain_loader_real,
                                                 train_fgt_loader_real=train_fgt_loader_real,
                                                 test_retain_loader=test_retain_loader_real,
                                                 test_fgt_loader=test_fgt_loader_real,
