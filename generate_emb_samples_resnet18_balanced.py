@@ -61,7 +61,7 @@ def generate_emb_samples_balanced(B_matrix, num_classes, samples_per_class, sigm
             attempts = 0
             while len(class_features) < samples_per_class:
                 # Over-generate to filter later
-                batch_size = samples_per_class * 50
+                batch_size = int(samples_per_class * max(4, 20 * num_classes / samples_per_class))
                 feature_samples = generate_feature_samples(batch_size, best_Sigma.cpu().numpy(), mean_vector, device)
 
                 if best_Sigma.shape[0] == expected_feature_size:
