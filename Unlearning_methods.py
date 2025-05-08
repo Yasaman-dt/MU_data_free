@@ -2597,6 +2597,10 @@ class LAU(BaseMethod):
                 loss.backward()
                 self.optimizer.step()
 
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
+
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
