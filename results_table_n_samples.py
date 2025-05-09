@@ -133,6 +133,8 @@ if all_data:
     final_df.to_csv(os.path.join(parent_dir, f"results_n_samples/results_unlearning.csv"), index=False)
     print("✅ All results merged.")
 
+    final_df = final_df[final_df['model_num'].between(2,4)]  # This filters the data
+
     # === Refined selection: prefer highest AUS, then smallest val_test_fgt_acc, then largest val_test_retain_acc
     sort_keys = ["AUS", "val_test_fgt_acc", "val_test_retain_acc", "val_full_fgt_acc", "val_full_retain_acc"]
     ascending_flags = [False, True, False, True, False]  # Maximize AUS, minimize fgt, maximize retain
