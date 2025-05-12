@@ -16,6 +16,7 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
 import time
+from random import choice
 
 
 
@@ -52,6 +53,8 @@ def choose_method(name):
         return DUCK
     elif name == 'RE':
         return RetrainedEmbedding
+    elif name == 'MM':
+        return MaximeMethod
     elif name == 'LAU':
         return LAU
     else:
@@ -108,6 +111,7 @@ def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc, val_te
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs('results_real', exist_ok=True)
     summary_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
     file_exists = os.path.isfile(summary_path)
 
     if isinstance(class_to_remove, list):
@@ -133,7 +137,7 @@ class BaseMethod:
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.net.fc.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        self.optimizer = optim.SGD(self.net.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
         self.epochs = opt.epochs_unlearn
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
@@ -1973,7 +1977,7 @@ class DUCK(BaseMethod):
         distribs=torch.stack(distribs)
 
 
-        optimizer = optim.Adam(self.net.fc.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
+        optimizer = optim.Adam(self.net.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
         scheduler=torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.scheduler, gamma=0.5)
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1 if opt.dataset == 'TinyImageNet' else 0)
 
@@ -2588,3 +2592,164 @@ class LAU(BaseMethod):
         self.net.load_state_dict(best_model_state)
         self.net.eval()
         return self.net
+    
+    
+
+
+class MaximeMethod(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
+                 retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader,
+                         test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+        self.class_to_remove = class_to_remove
+      
+        
+    def run(self):
+        
+        def calculate_AUS(A_test_forget, A_test_retain, Aor):
+            A_test_forget = A_test_forget / 100
+            A_test_retain = A_test_retain / 100
+            Aor = Aor / 100
+            """
+            Calculate the AUS based on the given accuracy values.
+
+            Args:
+                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
+                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
+                Aor (float): Constant value for A_or (default is 84.72).
+
+            Returns:
+                float: The calculated AUS value.
+            """
+            # Calculate Delta
+            delta = abs(0 - A_test_forget)
+            
+            # Calculate AUS
+            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
+            
+            return AUS
+    
+
+        # def forget_class_for_yasi(M: torch.tensor,
+        #                           B: torch.tensor,
+        #                           p: int,
+        #                           num_classes: int):
+        #     M = torch.clone(M)
+        #     B = torch.clone(B)
+        #     q = choice([i for i in range(num_classes) if i != p])
+        #     M[:, p] = M[:, q]
+        #     B[p] = B[q]-1e-3
+        #     return M, B
+    
+    
+        def forget_class_for_yasi(M: torch.Tensor,
+                                B: torch.Tensor,
+                                forget_classes: list,
+                                num_classes: int):
+            M = M.clone()
+            B = B.clone()
+            for p in forget_classes:
+                q = choice([i for i in range(num_classes) if i not in forget_classes and i != p])
+                M[p, :] = M[q, :]
+                B[p] = B[q] - 1e-3
+            return M, B
+
+    
+    
+        # Extract the last Linear layer from self.net.fc, whether it's Sequential or Linear
+        def find_final_linear(module):
+            if isinstance(module, nn.Linear):
+                return module
+            elif isinstance(module, nn.Sequential):
+                for layer in reversed(module):
+                    if isinstance(layer, nn.Linear):
+                        return layer
+            raise ValueError("No nn.Linear layer found in self.net.fc")
+
+        final_linear = find_final_linear(self.net.fc)
+        embedding_dim = final_linear.in_features
+        num_classes = final_linear.out_features
+
+        weight_np = final_linear.weight.detach().cpu().numpy()
+        bias_np = final_linear.bias.detach().cpu().numpy()
+
+        weight_tensor = torch.tensor(weight_np, dtype=torch.float32, device=opt.device)
+        bias_tensor = torch.tensor(bias_np, dtype=torch.float32, device=opt.device)
+
+        M, B = forget_class_for_yasi(weight_tensor, bias_tensor, self.class_to_remove, num_classes)
+
+        # Widen model with an extra output for the shadow class
+        widen_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+        with torch.no_grad():
+            widen_model.weight[:num_classes] = M
+            widen_model.bias[:num_classes] = B
+
+
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+                
+
+        epoch = 0
+        duration = 0
+            
+        retain_accuracy = evaluate_embedding_accuracy(widen_model, self.train_retain_loader, opt.device)
+        forget_accuracy = evaluate_embedding_accuracy(widen_model, self.train_fgt_loader, opt.device)
+
+        retainfull_val_acc = evaluate_embedding_accuracy(widen_model, self.retainfull_loader_real, opt.device)
+        forgetfull_val_acc = evaluate_embedding_accuracy(widen_model, self.forgetfull_loader_real, opt.device)
+
+        retaintest_val_acc = evaluate_embedding_accuracy(widen_model, self.test_retain_loader, opt.device)
+        forgettest_val_acc = evaluate_embedding_accuracy(widen_model, self.test_fgt_loader, opt.device)
+        
+
+        AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)  # Calculate AUS using the accuracies
+
+        # wandb.log({"retainfull_val_acc": retainfull_val_acc, "forgetfull_val_acc": forgetfull_val_acc,
+        #            "retaintest_val_acc": retaintest_val_acc, "forgettest_val_acc": forgettest_val_acc, "AUS": AUS})
+
+
+        print(f"Train Retain Acc: {retain_accuracy:.2f}% | Train Forget Acc: {forget_accuracy:.2f}% | "
+            f"Val Retain full Acc: {retainfull_val_acc:.2f}% | Val Forget full Acc: {forgetfull_val_acc:.2f}%  | "
+            f"Val Retain Test Acc: {retaintest_val_acc:.2f}% | Val Forget Test Acc: {forgettest_val_acc:.2f}% | "
+            f"AUS: {AUS:.2f}"
+            )
+
+                
+        log_summary_across_classes(
+            best_epoch=round(epoch,4),
+            train_retain_acc=round(retain_accuracy / 100,4),
+            train_fgt_acc=round(forget_accuracy / 100,4),
+            val_test_retain_acc=round(retaintest_val_acc / 100,4),
+            val_test_fgt_acc=round(forgettest_val_acc / 100,4),
+            val_full_retain_acc=round(retainfull_val_acc / 100,4),
+            val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+            AUS=round(AUS,4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
+                        
+        # Prune the shadow class to return a normal classifier
+        pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+        with torch.no_grad():
+            pruned_model.weight = torch.nn.Parameter(widen_model.weight[:num_classes])
+            pruned_model.bias = torch.nn.Parameter(widen_model.bias[:num_classes])
+
+        self.net.fc = pruned_model
+        self.model = self.net
+        
+        return self.model
+
