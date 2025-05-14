@@ -7,7 +7,7 @@ from create_embeddings_utils import get_model
 from sklearn.manifold import TSNE
 
 # ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
-DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
+DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
 weights_folder = "weights"
 embeddings_folder = "embeddings"
@@ -140,11 +140,11 @@ for step in range(num_iterations):
     optimizer.zero_grad()
 
     logits_pred = fc_layer(optimized_embeddings)
-    log_probs = F.log_softmax(logits_pred / temperature, dim=1)
+    probs = F.softmax(logits_pred / temperature, dim=1)
 
     synthetic_soft_targets = synthetic_soft_targets.to(device)
 
-    loss = loss_fn(log_probs, synthetic_soft_targets)
+    loss = loss_fn(probs, synthetic_soft_targets)
     loss.backward()
     optimizer.step()
 
@@ -202,7 +202,7 @@ synthetic_labels_new = synthetic_labels + num_classes
 
 # === Combine Real and Synthetic Embeddings ===
 combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
-combined_labels = torch.cat([real_labels_par, torch.tensor(synthetic_labels_new)], dim=0)
+combined_labels = torch.cat([real_labels_par, synthetic_labels_new.clone().detach()], dim=0)
 
 # === Reduce to 2D using t-SNE ===
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
