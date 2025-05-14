@@ -154,7 +154,7 @@ n_samples = num_per_class * num_classes
 
 
 n_rounds = 10  
-samples_per_class_total = 100
+samples_per_class_total = num_per_class
 samples_per_class_per_round = samples_per_class_total // n_rounds
 
 all_embeddings = []
