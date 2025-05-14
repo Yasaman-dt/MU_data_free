@@ -121,11 +121,11 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, sigma_range, m
         optimizer.zero_grad()
 
         logits_pred = fc_layer(optimized_embeddings)
-        log_probs = F.log_softmax(logits_pred / temperature, dim=1)
+        probs = F.softmax(logits_pred / temperature, dim=1)
 
         synthetic_soft_targets = synthetic_soft_targets.to(device)
 
-        loss = loss_fn(log_probs, synthetic_soft_targets)
+        loss = loss_fn(probs, synthetic_soft_targets)
         loss.backward()
         optimizer.step()
 
