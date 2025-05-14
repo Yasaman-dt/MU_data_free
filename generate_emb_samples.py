@@ -92,15 +92,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, sigma_range, m
     mean_vector = np.zeros(R.shape[0])
     num_per_class = samples_per_class
 
-    synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
-        fc_layer=fc_layer,
-        Sigma=Sigma,
-        mean_vector=mean_vector,
-        device=device,
-        n_classes=num_classes,
-        n_per_class=num_per_class,  # total will be 1000
-        batch_size=1000,
-        threshold=0.97)
+
 
 
 
@@ -110,31 +102,96 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, sigma_range, m
     temperature = 1
     n_samples = num_per_class * num_classes
 
-    # === Step 2: Initialize embeddings to be optimized ===
-    optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
 
-    # === Step 3: Optimize embeddings to match soft targets ===
-    optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
-    loss_fn = nn.KLDivLoss(reduction='batchmean')
+    # synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
+    #     fc_layer=fc_layer,
+    #     Sigma=Sigma,
+    #     mean_vector=mean_vector,
+    #     device=device,
+    #     n_classes=num_classes,
+    #     n_per_class=num_per_class,  # total will be 1000
+    #     batch_size=1000,
+    #     threshold=0.97)
 
-    for step in range(num_iterations):
-        optimizer.zero_grad()
+    # # === Step 2: Initialize embeddings to be optimized ===
+    # optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
 
-        logits_pred = fc_layer(optimized_embeddings)
-        probs = F.softmax(logits_pred / temperature, dim=1)
+    # # === Step 3: Optimize embeddings to match soft targets ===
+    # optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
+    # loss_fn = nn.KLDivLoss(reduction='batchmean')
+
+    # for step in range(num_iterations):
+    #     optimizer.zero_grad()
+
+    #     logits_pred = fc_layer(optimized_embeddings)
+    #     probs = F.softmax(logits_pred / temperature, dim=1)
+
+    #     synthetic_soft_targets = synthetic_soft_targets.to(device)
+
+    #     loss = loss_fn(probs, synthetic_soft_targets)
+    #     loss.backward()
+    #     optimizer.step()
+
+    #     if step % 100 == 0:
+    #         print(f"Step {step}: Loss = {loss.item():.4f}")
+
+    # synthetic_embeddings = optimized_embeddings.detach().cpu().numpy()
+
+
+
+    n_rounds = 10  
+    samples_per_class_total = 100
+    samples_per_class_per_round = samples_per_class_total // n_rounds
+
+    all_embeddings = []
+    all_soft_targets = []
+    all_labels = []
+
+    for round_idx in range(n_rounds):
+        print(f"=== Round {round_idx + 1}/{n_rounds} ===")
+
+        # === Generate fresh soft targets ===
+        synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
+            fc_layer=fc_layer,
+            Sigma=Sigma,
+            mean_vector=mean_vector,
+            device=device,
+            n_classes=num_classes,
+            n_per_class=samples_per_class_per_round,
+            batch_size=1000,
+            threshold=0.97
+        )
+
+        n_samples = samples_per_class_per_round * num_classes
+        optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
+
+        optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
+        loss_fn = nn.KLDivLoss(reduction='batchmean')
 
         synthetic_soft_targets = synthetic_soft_targets.to(device)
 
-        loss = loss_fn(probs, synthetic_soft_targets)
-        loss.backward()
-        optimizer.step()
+        # === Optimize embeddings ===
+        for step in range(num_iterations):
+            optimizer.zero_grad()
+            logits_pred = fc_layer(optimized_embeddings)
+            probs = F.softmax(logits_pred / temperature, dim=1)
+            loss = loss_fn(probs.log(), synthetic_soft_targets)
+            loss.backward()
+            optimizer.step()
 
-        if step % 100 == 0:
-            print(f"Step {step}: Loss = {loss.item():.4f}")
+            if step % 100 == 0:
+                print(f"  Step {step}: Loss = {loss.item():.4f}")
+
+        # Save results from this batch
+        all_embeddings.append(optimized_embeddings.detach().cpu())
+        all_soft_targets.append(synthetic_soft_targets.detach().cpu())
+        all_labels.append(synthetic_labels)  # no need to shift class index
 
 
-    optimized_embeddings_np = optimized_embeddings.detach().cpu().numpy()
+    synthetic_embeddings = torch.cat(all_embeddings, dim=0)          
+    synthetic_soft_targets = torch.cat(all_soft_targets, dim=0)     
+    synthetic_labels = torch.cat(all_labels, dim=0)                 
 
-    return optimized_embeddings_np, synthetic_labels, synthetic_soft_targets
+    return synthetic_embeddings, synthetic_labels, synthetic_soft_targets
 
 

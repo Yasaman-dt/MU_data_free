@@ -111,51 +111,104 @@ mean_vector = np.zeros(R.shape[0])
 #soft_targets, predicted_labels = generate_soft_targets(fc_layer, feature_samples, layer_index, device=device)
 
 num_per_class = 100
-
-synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
-    fc_layer=fc_layer,
-    Sigma=Sigma,
-    mean_vector=mean_vector,
-    device=device,
-    n_classes=num_classes,
-    n_per_class=num_per_class,  # total will be 1000
-    batch_size=1000,
-    threshold=0.97)
-
-
 embedding_dim = 512
 lr = 0.01
 num_iterations = 3000
 temperature = 1
 n_samples = num_per_class * num_classes
 
-# === Step 2: Initialize embeddings to be optimized ===
-optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
+# synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
+#     fc_layer=fc_layer,
+#     Sigma=Sigma,
+#     mean_vector=mean_vector,
+#     device=device,
+#     n_classes=num_classes,
+#     n_per_class=num_per_class,  # total will be 1000
+#     batch_size=1000,
+#     threshold=0.97)
 
-# === Step 3: Optimize embeddings to match soft targets ===
-optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
-loss_fn = nn.KLDivLoss(reduction='batchmean')
+# # === Step 2: Initialize embeddings to be optimized ===
+# optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
 
-for step in range(num_iterations):
-    optimizer.zero_grad()
+# # === Step 3: Optimize embeddings to match soft targets ===
+# optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
+# loss_fn = nn.KLDivLoss(reduction='batchmean')
 
-    logits_pred = fc_layer(optimized_embeddings)
-    probs = F.softmax(logits_pred / temperature, dim=1)
+# for step in range(num_iterations):
+#     optimizer.zero_grad()
+
+#     logits_pred = fc_layer(optimized_embeddings)
+#     probs = F.softmax(logits_pred / temperature, dim=1)
+
+#     synthetic_soft_targets = synthetic_soft_targets.to(device)
+
+#     loss = loss_fn(probs, synthetic_soft_targets)
+#     loss.backward()
+#     optimizer.step()
+
+#     if step % 100 == 0:
+#         print(f"Step {step}: Loss = {loss.item():.4f}")
+
+# synthetic_embeddings = optimized_embeddings.detach().cpu().numpy()
+
+
+
+n_rounds = 10  
+samples_per_class_total = 100
+samples_per_class_per_round = samples_per_class_total // n_rounds
+
+all_embeddings = []
+all_soft_targets = []
+all_labels = []
+
+for round_idx in range(n_rounds):
+    print(f"=== Round {round_idx + 1}/{n_rounds} ===")
+
+    # === Generate fresh soft targets ===
+    synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
+        fc_layer=fc_layer,
+        Sigma=Sigma,
+        mean_vector=mean_vector,
+        device=device,
+        n_classes=num_classes,
+        n_per_class=samples_per_class_per_round,
+        batch_size=1000,
+        threshold=0.97
+    )
+
+    n_samples = samples_per_class_per_round * num_classes
+    optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
+
+    optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
+    loss_fn = nn.KLDivLoss(reduction='batchmean')
 
     synthetic_soft_targets = synthetic_soft_targets.to(device)
 
-    loss = loss_fn(probs, synthetic_soft_targets)
-    loss.backward()
-    optimizer.step()
+    # === Optimize embeddings ===
+    for step in range(num_iterations):
+        optimizer.zero_grad()
+        logits_pred = fc_layer(optimized_embeddings)
+        probs = F.softmax(logits_pred / temperature, dim=1)
+        loss = loss_fn(probs.log(), synthetic_soft_targets)
+        loss.backward()
+        optimizer.step()
 
-    if step % 100 == 0:
-        print(f"Step {step}: Loss = {loss.item():.4f}")
+        if step % 100 == 0:
+            print(f"  Step {step}: Loss = {loss.item():.4f}")
+
+    # Save results from this batch
+    all_embeddings.append(optimized_embeddings.detach().cpu())
+    all_soft_targets.append(synthetic_soft_targets.detach().cpu())
+    all_labels.append(synthetic_labels)  # no need to shift class index
 
 
-optimized_embeddings_np = optimized_embeddings.detach().cpu().numpy()
+synthetic_embeddings = torch.cat(all_embeddings, dim=0)          
+synthetic_soft_targets = torch.cat(all_soft_targets, dim=0)     
+synthetic_labels = torch.cat(all_labels, dim=0)                 
+
 
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-optimized_embeddings_2d = tsne.fit_transform(optimized_embeddings_np)
+optimized_embeddings_2d = tsne.fit_transform(synthetic_embeddings)
 
 plt.figure(figsize=(8, 6))
 scatter = plt.scatter(optimized_embeddings_2d[:, 0], optimized_embeddings_2d[:, 1], c=synthetic_labels, cmap="tab10", s=20)
@@ -197,10 +250,11 @@ print(real_embeddings_par.shape)
 print(real_labels_par.shape)      
 
 
-synthetic_embeddings = optimized_embeddings.detach().cpu()
+synthetic_embeddings = synthetic_embeddings
 synthetic_labels_new = synthetic_labels + num_classes 
 
 # === Combine Real and Synthetic Embeddings ===
+synthetic_embeddings = torch.tensor(synthetic_embeddings, dtype=torch.float32)
 combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
 combined_labels = torch.cat([real_labels_par, synthetic_labels_new.clone().detach()], dim=0)
 
