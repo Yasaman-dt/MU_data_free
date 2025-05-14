@@ -110,54 +110,37 @@ mean_vector = np.zeros(R.shape[0])
 #feature_samples = generate_feature_samples(n_samples, Sigma, mean_vector, device)
 #soft_targets, predicted_labels = generate_soft_targets(fc_layer, feature_samples, layer_index, device=device)
 
+
+
+conv_activations = []
+
+def hook_fn(module, input, output):
+    conv_activations.append(output)
+
+# Register hook (ResNet-specific)
+last_conv_layer = None
+for name, module in model.named_modules():
+    if isinstance(module, nn.Conv2d):
+        last_conv_layer = module
+model.eval()
+hook_handle = last_conv_layer.register_forward_hook(hook_fn)
+
+
+
 num_per_class = 100
-embedding_dim = 512
+embedding_dim = (3, 32, 32)
 lr = 0.01
-num_iterations = 3000
+num_iterations = 5000
 temperature = 1
 n_samples = num_per_class * num_classes
 
-# synthetic_features, synthetic_soft_targets, synthetic_labels = accumulate_per_class_samples(
-#     fc_layer=fc_layer,
-#     Sigma=Sigma,
-#     mean_vector=mean_vector,
-#     device=device,
-#     n_classes=num_classes,
-#     n_per_class=num_per_class,  # total will be 1000
-#     batch_size=1000,
-#     threshold=0.97)
+lambda_a = 0.1  
 
-# # === Step 2: Initialize embeddings to be optimized ===
-# optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
-
-# # === Step 3: Optimize embeddings to match soft targets ===
-# optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
-# loss_fn = nn.KLDivLoss(reduction='batchmean')
-
-# for step in range(num_iterations):
-#     optimizer.zero_grad()
-
-#     logits_pred = fc_layer(optimized_embeddings)
-#     probs = F.softmax(logits_pred / temperature, dim=1)
-
-#     synthetic_soft_targets = synthetic_soft_targets.to(device)
-
-#     loss = loss_fn(probs, synthetic_soft_targets)
-#     loss.backward()
-#     optimizer.step()
-
-#     if step % 100 == 0:
-#         print(f"Step {step}: Loss = {loss.item():.4f}")
-
-# synthetic_embeddings = optimized_embeddings.detach().cpu().numpy()
-
-
-
-n_rounds = 10  
+n_rounds = 5  
 samples_per_class_total = num_per_class
 samples_per_class_per_round = samples_per_class_total // n_rounds
 
-all_embeddings = []
+all_data = []
 all_soft_targets = []
 all_labels = []
 
@@ -177,7 +160,8 @@ for round_idx in range(n_rounds):
     )
 
     n_samples = samples_per_class_per_round * num_classes
-    optimized_embeddings = torch.randn(n_samples, embedding_dim, requires_grad=True, device=device)
+    optimized_embeddings = torch.randn(n_samples, *embedding_dim, requires_grad=True, device=device)
+
 
     optimizer = torch.optim.Adam([optimized_embeddings], lr=lr)
     loss_fn = nn.KLDivLoss(reduction='batchmean')
@@ -187,24 +171,56 @@ for round_idx in range(n_rounds):
     # === Optimize embeddings ===
     for step in range(num_iterations):
         optimizer.zero_grad()
-        logits_pred = fc_layer(optimized_embeddings)
+        model = model.to(device)
+
+        conv_activations.clear()  # clear previous activations
+
+        
+        model.eval()
+        logits_pred = model(optimized_embeddings)
         probs = F.softmax(logits_pred / temperature, dim=1)
-        loss = loss_fn(probs.log(), synthetic_soft_targets)
-        loss.backward()
+
+
+        # KL loss
+        loss_kl = loss_fn(probs.log(), synthetic_soft_targets)
+
+
+        # Activation loss
+        if conv_activations:
+            act = conv_activations[0]  # shape: [B, C, H, W]
+            activation_loss = -torch.mean(torch.abs(act))
+        else:
+            activation_loss = torch.tensor(0.0, device=device)
+        
+        
+        total_loss = loss_kl + lambda_a * activation_loss
+        total_loss.backward()
         optimizer.step()
+        
 
         if step % 100 == 0:
-            print(f"  Step {step}: Loss = {loss.item():.4f}")
+            print(f"  Step {step}: loss_kl = {loss_kl.item():.4f},"
+                  f"  loss_kl = {loss_kl.item():.4f},"
+                  f"  activation_loss = {activation_loss.item():.4f},"
+                  f"  total_loss = {total_loss.item():.4f},")
 
     # Save results from this batch
-    all_embeddings.append(optimized_embeddings.detach().cpu())
+    all_data.append(optimized_embeddings.detach().cpu())
     all_soft_targets.append(synthetic_soft_targets.detach().cpu())
     all_labels.append(synthetic_labels)  # no need to shift class index
 
 
-synthetic_embeddings = torch.cat(all_embeddings, dim=0)          
+synthetic_data = torch.cat(all_data, dim=0)          
 synthetic_soft_targets = torch.cat(all_soft_targets, dim=0)     
 synthetic_labels = torch.cat(all_labels, dim=0)                 
+
+synthetic_soft_targets_np = synthetic_soft_targets.detach().cpu().numpy()
+
+bbone = torch.nn.Sequential(*(list(model.children())[:-1]))
+
+synthetic_embeddings1 = bbone(synthetic_data.to(device))  # shape: [B, 512, 1, 1]
+synthetic_embeddings = synthetic_embeddings1.view(synthetic_embeddings1.size(0), -1)  # shape: [B, 512]
+synthetic_embeddings = synthetic_embeddings.detach().cpu().numpy()
 
 
 tsne = TSNE(n_components=2, perplexity=30, random_state=42)
@@ -217,6 +233,8 @@ plt.title("t-SNE of Optimized Embeddings")
 plt.xlabel("Dimension 1")
 plt.ylabel("Dimension 2")
 plt.grid(True)
+plt.tight_layout()
+plt.savefig(f"{DIR}/plot/tsne_generate_img_synthetic_emb_m{n_model}_{dataset_name_upper}.png", dpi=300)  # You can change the filename here
 plt.show()
 
 
@@ -270,5 +288,7 @@ plt.xlabel("Dimension 1")
 plt.ylabel("Dimension 2")
 plt.grid(True)
 plt.tight_layout()
+save_path = f"{DIR}/plot/tsne_generate_img_real_vs_syntheticemb_m{n_model}_{dataset_name_upper}.png"
+plt.savefig(save_path, dpi=300)
 plt.show()
 
