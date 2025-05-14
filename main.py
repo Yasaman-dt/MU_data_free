@@ -10,10 +10,13 @@ from error_propagation import Complex
 import os
 import torch
 import numpy as np
-from generate_emb_samples_resnet18_balanced import generate_emb_samples_balanced
+from generate_emb_samples import generate_emb_samples_balanced
+#from generate_emb_samples_resnet18 import generate_emb_samples
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods import calculate_accuracy
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 
 DATASET_NUM_CLASSES = {
     "CIFAR10": 10,
@@ -95,6 +98,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         print(all_features_synth.shape)
         print(all_labels_synth.shape)
 
+
         forgetfull_mask_synth = (all_labels_synth == forget_class)
         forgetfull_features_synth = all_features_synth[forgetfull_mask_synth]
         forgetfull_labels_synth = all_labels_synth[forgetfull_mask_synth]
@@ -103,14 +107,26 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         retainfull_mask_synth = (all_labels_synth != forget_class)
         retainfull_features_synth = all_features_synth[retainfull_mask_synth]
         retainfull_labels_synth = all_labels_synth[retainfull_mask_synth]
-        
+
+        forgetfull_features_synth = torch.tensor(forgetfull_features_synth, dtype=torch.float32)
+        forgetfull_labels_synth = torch.tensor(forgetfull_labels_synth, dtype=torch.long)
+
+        retainfull_features_synth = torch.tensor(retainfull_features_synth, dtype=torch.float32)
+        retainfull_labels_synth = torch.tensor(retainfull_labels_synth, dtype=torch.long)
+
+
+        forgetfull_features_synth = forgetfull_features_synth.to(opt.device)
+        forgetfull_labels_synth = forgetfull_labels_synth.to(opt.device)
+
+        retainfull_features_synth = retainfull_features_synth.to(opt.device)
+        retainfull_labels_synth = retainfull_labels_synth.to(opt.device)
         
         print(f" Generated Retain Samples: {retainfull_features_synth.shape[0]} ")
         print(f" Generated Forget Samples: {forgetfull_features_synth.shape[0]} (Class {forget_class})")
         
         
-        forget_loader_synth = DataLoader(TensorDataset(forgetfull_features_synth, forgetfull_labels_synth), batch_size, shuffle=False)
-        retain_loader_synth = DataLoader(TensorDataset(retainfull_features_synth, retainfull_labels_synth), batch_size, shuffle=False)
+        forget_loader_synth = DataLoader(TensorDataset(forgetfull_features_synth, forgetfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
+        retain_loader_synth = DataLoader(TensorDataset(retainfull_features_synth, retainfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
         
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
     
@@ -141,67 +157,6 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         # Create DataLoaders for validation
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
-
-        #from sklearn.manifold import TSNE
-        #import matplotlib.pyplot as plt
-#
-        ## Run the function
-        #real_features = embeddings_tensor_real
-        #synth_features = all_features_synth
-        #real_labels = labels_tensor_real
-        #synth_labels = all_labels_synth
-        #n_samples=1000
-        #seed=42
-        #torch.manual_seed(seed)
-        #np.random.seed(seed)
-#
-        #n_classes = real_labels.max().item() + 1
-#
-        #def subsample_by_class(features, labels, n_per_class):
-        #    selected_features, selected_labels = [], []
-        #    for cls in range(n_classes):
-        #        idxs = (labels == cls).nonzero(as_tuple=True)[0]
-        #        selected = idxs[torch.randperm(len(idxs))[:n_per_class]]
-        #        selected_features.append(features[selected])
-        #        selected_labels.append(labels[selected])
-        #    return torch.cat(selected_features), torch.cat(selected_labels)
-#
-        ## Subsample
-        #real_sub, real_lbls = subsample_by_class(real_features, real_labels, n_samples // n_classes)
-        #synth_sub, synth_lbls = subsample_by_class(synth_features, synth_labels, n_samples // n_classes)
-#
-        ## Compute t-SNE separately
-        #tsne_real = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=1000, random_state=seed)
-        #tsne_synth = TSNE(n_components=2, perplexity=30, learning_rate=200, n_iter=10000, random_state=seed)
-        #synth_sub = (synth_sub - synth_sub.min())/synth_sub.max()
-#
-        #tsne_real_result = tsne_real.fit_transform(real_sub.cpu().numpy())
-        #tsne_synth_result = tsne_synth.fit_transform(synth_sub.cpu().numpy())
-#
-        ## Plot: Real
-        #plt.figure(figsize=(10, 5))
-        #plt.subplot(1, 2, 1)
-        #for cls in range(n_classes):
-        #    idxs = real_lbls.cpu().numpy() == cls
-        #    plt.scatter(tsne_real_result[idxs, 0], tsne_real_result[idxs, 1], label=f"Class {cls}", alpha=0.6, s=20)
-        #plt.title("t-SNE of Real Embeddings")
-        #plt.legend()
-        #plt.grid(True)
-#
-        ## Plot: Synthetic
-        #plt.subplot(1, 2, 2)
-        #for cls in range(n_classes):
-        #    idxs = synth_lbls.cpu().numpy() == cls
-        #    plt.scatter(tsne_synth_result[idxs, 0], tsne_synth_result[idxs, 1], label=f"Class {cls}", alpha=0.6, s=20)
-        #plt.title("t-SNE of Synthetic Embeddings")
-        #plt.legend()
-        #plt.grid(True)
-#
-        #plt.tight_layout()
-        #plt.savefig("tsne_real_vs_synthetic_separate.png", dpi=300)  # <- Add this line
-#
-        #plt.show()
-
 
 
 
@@ -301,14 +256,85 @@ if __name__ == "__main__":
             
             print("Generating synthetic embeddings ONCE...")
             B_numpy = np.load(matrix_B_224)
-            sigma_range = np.linspace(0.5, 6, 3)
+            sigma_range = [5.0]
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
             all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-                B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+                num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             )
                 
+            
+            
+            # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
+
+            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+            # optimized_embeddings_2d = tsne.fit_transform(all_features_synth)
+
+            # plt.figure(figsize=(8, 6))
+            # scatter = plt.scatter(optimized_embeddings_2d[:, 0], optimized_embeddings_2d[:, 1], c=all_labels_synth, cmap="tab10", s=20)
+            # plt.colorbar(scatter, ticks=range(10))
+            # plt.title("t-SNE of Optimized Embeddings")
+            # plt.xlabel("Dimension 1")
+            # plt.ylabel("Dimension 2")
+            # plt.grid(True)
+            # plt.tight_layout()
+            # plt.savefig(f"{opt.root_folder}/plots/tsne_optimized_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
+            # plt.close()
+
+
+            # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+            # train_embeddings_data = np.load(train_path)
+            # real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
+            # real_labels = torch.tensor(train_embeddings_data["labels"])
+
+
+            # def select_n_per_class(embeddings, labels, num_per_class, num_classes):
+            #     selected_embeddings = []
+            #     selected_labels = []
+
+            #     for num_class in range(num_classes):
+            #         cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
+            #         if len(cls_indices) >= num_per_class:
+            #             chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
+            #             selected_embeddings.append(embeddings[chosen_indices])
+            #             selected_labels.append(labels[chosen_indices])
+            #         else:
+            #             print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
+
+            #     selected_embeddings = torch.cat(selected_embeddings, dim=0)
+            #     selected_labels = torch.cat(selected_labels, dim=0)
+            #     return selected_embeddings, selected_labels
+
+
+            # real_embeddings_par, real_labels_par = select_n_per_class(real_embeddings, real_labels, num_per_class=opt.samples_per_class, num_classes=num_classes)
+            # print(real_embeddings_par.shape)  
+            # print(real_labels_par.shape)      
+
+
+            # synthetic_embeddings = torch.tensor(all_features_synth, dtype=torch.float32)
+            # synthetic_labels = all_labels_synth + num_classes 
+
+            # # === Combine Real and Synthetic Embeddings ===
+            # combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
+            # combined_labels = torch.cat([real_labels_par, torch.tensor(synthetic_labels)], dim=0)
+
+            # # === Reduce to 2D using t-SNE ===
+            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+            # combined_2d = tsne.fit_transform(combined_embeddings.numpy())
+
+            # plt.figure(figsize=(10, 7))
+            # scatter = plt.scatter(combined_2d[:, 0], combined_2d[:, 1], c=combined_labels, cmap='tab20', s=10)
+            # plt.colorbar(scatter, ticks=range(20), label='Class')
+            # plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
+            # plt.xlabel("Dimension 1")
+            # plt.ylabel("Dimension 2")
+            # plt.grid(True)
+            # plt.tight_layout()
+            # plt.savefig(f"{opt.root_folder}/plots/tsne_combined_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
+            # plt.close()
+                    
+            
             
             
             
