@@ -107,7 +107,7 @@ def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_tes
             writer.writerow(['epoch', 'epoch_times', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
         writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
-def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
+def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count, unlearning_time_until_best):
     os.makedirs('results_synth', exist_ok=True)
     summary_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
     file_exists = os.path.isfile(summary_path)
@@ -120,8 +120,8 @@ def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_
     with open(summary_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
-        writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
+            writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count','unlearning_time'])
+        writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count, unlearning_time_until_best])
 
         
 class BaseMethod:
@@ -298,6 +298,8 @@ class BaseMethod:
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
+
         log_summary_across_classes(
             best_epoch=best_epoch,
             train_retain_acc=round(best_acc_train_ret, 4),
@@ -314,7 +316,8 @@ class BaseMethod:
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
 
         self.net.eval()
         return self.net
@@ -574,6 +577,8 @@ class NGFT(BaseMethod):
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
+
         log_summary_across_classes(
             best_epoch=best_epoch,
             train_retain_acc=round(best_acc_train_ret, 4),
@@ -590,7 +595,8 @@ class NGFT(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
 
         self.net.eval()
         return self.net
@@ -735,6 +741,8 @@ class NGFT_weighted(BaseMethod):
 
             self.scheduler.step()
 
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
+
         log_summary_across_classes(
             best_epoch=best_epoch,
             train_retain_acc=round(best_acc_train_ret, 4),
@@ -751,7 +759,8 @@ class NGFT_weighted(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
 
         self.net.eval()
         return self.net
@@ -1189,7 +1198,9 @@ class SCAR(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-    
+
+        unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
+
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1206,7 +1217,12 @@ class SCAR(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
+
+
+
+
 
         self.net.eval()
         return self.net
@@ -1418,7 +1434,9 @@ class BoundaryShrink(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
+
             
+        unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
                 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
@@ -1436,7 +1454,9 @@ class BoundaryShrink(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
+
 
 
         self.model = self.net
@@ -1652,6 +1672,8 @@ class BoundaryExpanding(BaseMethod):
                 total_count=total_count)
             
                 
+        unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
+
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1668,7 +1690,9 @@ class BoundaryExpanding(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
+
 
                         
         # Prune the shadow class to return a normal classifier
@@ -1982,6 +2006,8 @@ class SCRUB(BaseMethod):
                 total_count=total_count)
             
                 
+        unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
+
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -1998,7 +2024,9 @@ class SCRUB(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
+
         
         self.student.fc = student_fc
 
@@ -2237,6 +2265,8 @@ class DUCK(BaseMethod):
             scheduler.step()
             
             
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
+
         log_summary_across_classes(
             best_epoch=best_epoch,
             train_retain_acc=round(best_acc_train_ret, 4),
@@ -2253,7 +2283,8 @@ class DUCK(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
         
 
         self.net.eval()
@@ -2481,6 +2512,8 @@ class RetrainedEmbedding(BaseMethod):
                 total_count=total_count)
             
                 
+        unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
+
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
             train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
@@ -2497,7 +2530,9 @@ class RetrainedEmbedding(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
+
         
         
         print(f"Best Epoch {best_epoch+1}: Train Acc {best_train_acc:.2f}%, Val Acc {best_acc:.2f}%")
@@ -2669,6 +2704,8 @@ class LAU(BaseMethod):
                 
             self.scheduler.step()
 
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
+
         log_summary_across_classes(
             best_epoch=best_epoch,
             train_retain_acc=round(best_acc_train_ret, 4),
@@ -2685,7 +2722,8 @@ class LAU(BaseMethod):
             seed=opt.seed,
             retain_count=retain_count,
             forget_count=forget_count,
-            total_count=total_count)
+            total_count=total_count,
+            unlearning_time_until_best=unlearning_time_until_best)
         
         
         self.net.load_state_dict(best_model_state)

@@ -11,7 +11,7 @@ import os
 import torch
 import numpy as np
 from generate_emb_samples import generate_emb_samples_balanced
-#from generate_emb_samples_resnet18 import generate_emb_samples
+#from generate_emb_samples_resnet18_balanced import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods import calculate_accuracy
@@ -264,7 +264,9 @@ if __name__ == "__main__":
                 num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             )
                 
-            
+            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
+            #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+            # )
             
             # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
 
