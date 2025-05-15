@@ -317,7 +317,7 @@ class BaseMethod:
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         self.net.eval()
         return self.net
@@ -596,7 +596,7 @@ class NGFT(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         self.net.eval()
         return self.net
@@ -760,7 +760,7 @@ class NGFT_weighted(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         self.net.eval()
         return self.net
@@ -1218,7 +1218,7 @@ class SCAR(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
 
@@ -1455,7 +1455,7 @@ class BoundaryShrink(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
 
@@ -1691,7 +1691,7 @@ class BoundaryExpanding(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
                         
@@ -2025,7 +2025,7 @@ class SCRUB(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         
         self.student.fc = student_fc
@@ -2284,7 +2284,7 @@ class DUCK(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
         
 
         self.net.eval()
@@ -2531,7 +2531,7 @@ class RetrainedEmbedding(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         
         
@@ -2723,7 +2723,7 @@ class LAU(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=unlearning_time_until_best)
+            unlearning_time_until_best=round(unlearning_time_until_best,4))
         
         
         self.net.load_state_dict(best_model_state)
