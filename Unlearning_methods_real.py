@@ -164,6 +164,7 @@ class BaseMethod:
         zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         aus_history = []
         results = []
+        epoch_times = []
 
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
@@ -171,6 +172,8 @@ class BaseMethod:
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
         for epoch in tqdm(range(self.epochs)):
+            start_time = time.time()
+
             for inputs, targets in self.loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
                 self.optimizer.zero_grad()
