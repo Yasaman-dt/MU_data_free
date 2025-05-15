@@ -46,7 +46,7 @@ def generate_emb_samples_balanced(B_matrix, num_classes, samples_per_class, sigm
     #best_sigma, best_Sigma = optimize_sigma(sigma_range)
     #print(best_sigma)
 
-    fixed_sigma = 0.5
+    fixed_sigma = 5
     sigma_values = torch.ones(R.shape[0], device=device) * fixed_sigma
     D = torch.diag(sigma_values)
     best_Sigma = torch.matmul(D, torch.matmul(R, D))
@@ -72,12 +72,14 @@ def generate_emb_samples_balanced(B_matrix, num_classes, samples_per_class, sigm
                     batch_size = int(samples_per_class * min(4, 18 * num_classes / samples_per_class))
                 else:
                     batch_size = int(samples_per_class * max(4, 18 * num_classes / samples_per_class))
-                feature_samples = generate_feature_samples(batch_size, best_Sigma.cpu().numpy(), mean_vector, device)
+                #feature_samples = generate_feature_samples(batch_size, best_Sigma.cpu().numpy(), mean_vector, device)
 
-                if best_Sigma.shape[0] == expected_feature_size:
-                    feature_samples = feature_samples.view(batch_size, 512, output_size, output_size)
-                    feature_samples = F.adaptive_avg_pool2d(feature_samples, (1, 1))
-                    feature_samples = feature_samples.view(batch_size, -1)
+                # if best_Sigma.shape[0] == expected_feature_size:
+                #     feature_samples = feature_samples.view(batch_size, 512, output_size, output_size)
+                #     feature_samples = F.adaptive_avg_pool2d(feature_samples, (1, 1))
+                #     feature_samples = feature_samples.view(batch_size, -1)
+
+                feature_samples = torch.randn(batch_size, best_Sigma.shape[0], device=device)
 
                 logits = resnet_model.fc(feature_samples)
                 probs = F.softmax(logits, dim=1)
