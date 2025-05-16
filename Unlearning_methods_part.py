@@ -669,7 +669,7 @@ class NGFT_weighted(BaseMethod):
         self.train_fgt_loader_img = train_fgt_loader_img
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
-
+        
         
         self.train_retain_loader = train_retain_loader
         self.train_fgt_loader = train_fgt_loader
@@ -683,6 +683,24 @@ class NGFT_weighted(BaseMethod):
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         self.optimizer = torch.optim.Adam(self.Remainingmodel.parameters(), lr=opt.lr_unlearn)
 
+        for images, labels in self.train_retain_loader:
+            print("train_retain_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.train_fgt_loader:
+            print("train_fgt_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_retain_loader_img:
+            print("test_retain_loader_img:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_fgt_loader_img:
+            print("test_fgt_loader_img:", images.shape, labels.shape)
+            break
+        
+        
+        
         
     def loss_weighted(self, inputs_r, targets_r, inputs_f, targets_f):
         retain_loss = self.criterion(self.Remainingmodel(inputs_r), targets_r)

@@ -15,7 +15,12 @@ class TruncatedResNet(torch.nn.Module):
         self.maxpool = original_model.maxpool
         self.layer1 = original_model.layer1
         self.layer2 = original_model.layer2
-        self.layer3 = original_model.layer3
+        self.layer3_0 = original_model.layer3[0]
+        self.layer3_1_conv1 = original_model.layer3[1].conv1
+        self.layer3_1_bn1 = original_model.layer3[1].bn1
+        self.layer3_1_relu = original_model.layer3[1].relu
+        self.layer3_1_conv2 = original_model.layer3[1].conv2
+        self.layer3_1_bn2 = original_model.layer3[1].bn2
         self.layer4_0 = original_model.layer4[0]
         self.layer4_1_conv1 = original_model.layer4[1].conv1
         self.layer4_1_bn1 = original_model.layer4[1].bn1
@@ -23,7 +28,7 @@ class TruncatedResNet(torch.nn.Module):
         # self.layer4_1_conv2 = original_model.layer4[1].conv2
         # self.layer4_1_bn2 = original_model.layer4[1].bn2
         # self.avgpool = original_model.avgpool
-        #self.flatten = torch.nn.Flatten()
+        # self.flatten = torch.nn.Flatten()
         #self.fc = original_model.fc
 
     def forward(self, x):
@@ -33,7 +38,12 @@ class TruncatedResNet(torch.nn.Module):
         x = self.maxpool(x)
         x = self.layer1(x)
         x = self.layer2(x)
-        x = self.layer3(x)
+        x = self.layer3_0(x)
+        x = self.layer3_1_conv1(x)
+        x = self.layer3_1_bn1(x)
+        x = self.layer3_1_relu(x)
+        x = self.layer3_1_conv2(x)
+        x = self.layer3_1_bn2(x)
         x = self.layer4_0(x)
         x = self.layer4_1_conv1(x)
         x = self.layer4_1_bn1(x)
@@ -41,7 +51,7 @@ class TruncatedResNet(torch.nn.Module):
         # x = self.layer4_1_conv2(x)
         # x = self.layer4_1_bn2(x)
         # x = self.avgpool(x)
-        #x = self.flatten(x)
+        # x = self.flatten(x)
         #x = self.fc(x)
         return x
 
@@ -55,12 +65,17 @@ class RemainingResNet(torch.nn.Module):
         # self.relu = original_model.relu
         # self.maxpool = original_model.maxpool
         # self.layer1 = original_model.layer1
-        #self.layer2 = original_model.layer2
-        #self.layer3 = original_model.layer3
-        #self.layer4_0 = original_model.layer4[0]
-        #self.layer4_1_conv1 = original_model.layer4[1].conv1
-        #self.layer4_1_bn1 = original_model.layer4[1].bn1
-        #self.layer4_1_relu = original_model.layer4[1].relu
+        # self.layer2 = original_model.layer2
+        # self.layer3_0 = original_model.layer3[0]
+        # self.layer3_1_conv1 = original_model.layer3[1].conv1
+        # self.layer3_1_bn1 = original_model.layer3[1].bn1
+        # self.layer3_1_relu = original_model.layer3[1].relu
+        # self.layer3_1_conv2 = original_model.layer3[1].conv2
+        # self.layer3_1_bn2 = original_model.layer3[1].bn2
+        # self.layer4_0 = original_model.layer4[0]
+        # self.layer4_1_conv1 = original_model.layer4[1].conv1
+        # self.layer4_1_bn1 = original_model.layer4[1].bn1
+        # self.layer4_1_relu = original_model.layer4[1].relu
         self.layer4_1_conv2 = original_model.layer4[1].conv2
         self.layer4_1_bn2 = original_model.layer4[1].bn2
         self.avgpool = original_model.avgpool
@@ -74,7 +89,12 @@ class RemainingResNet(torch.nn.Module):
         # x = self.maxpool(x)
         # x = self.layer1(x)
         # x = self.layer2(x)
-        # x = self.layer3(x)
+        # x = self.layer3_0(x)
+        # x = self.layer3_1_conv1(x)
+        # x = self.layer3_1_bn1(x)
+        # x = self.layer3_1_relu(x)
+        # x = self.layer3_1_conv2(x)
+        # x = self.layer3_1_bn2(x)
         # x = self.layer4_0(x)
         # x = self.layer4_1_conv1(x)
         # x = self.layer4_1_bn1(x)

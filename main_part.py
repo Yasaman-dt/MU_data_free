@@ -21,6 +21,7 @@ from Unlearning_methods_part import calculate_accuracy
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from torchvision.datasets import CIFAR10, CIFAR100
+from torch.utils.data import Subset
 
 
 
@@ -53,7 +54,22 @@ def AUS(a_t, a_or, a_f):
     return aus
 
   
-def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
+
+  
+def main(train_retain_loader_img,
+        train_fgt_loader_img,
+        test_retain_loader_img,
+        test_fgt_loader_img,
+        all_features_synth,
+        all_labels_synth,
+        train_retain_loader_real,
+        train_fgt_loader_real,
+        test_retain_loader,
+        test_fgt_loader,
+        train_loader=None,
+        test_loader=None,
+        seed=0,
+        class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
     original_pretr_model = get_trained_model()
@@ -165,60 +181,6 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size=opt.batch_size, shuffle=False)
 
 
-        from torchvision import transforms
-
-        mean = {
-                'cifar10': (0.4914, 0.4822, 0.4465),
-                'cifar100': (0.5071, 0.4867, 0.4408),
-                'TinyImageNet': (0.485, 0.456, 0.406),
-                }
-
-        std = {
-                'cifar10': (0.2023, 0.1994, 0.2010),
-                'cifar100': (0.2675, 0.2565, 0.2761),
-                'TinyImageNet': (0.229, 0.224, 0.225),
-                }
-
-
-
-        transform_train = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomCrop(32, padding=4),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
-        ])
-
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
-        ])
-        
-        if dataset_name_lower == "cifar10":
-            train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
-            test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
-
-        from torch.utils.data import Subset
-
-        # For train set
-        retain_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label != forget_class]
-        forget_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label == forget_class]
-
-        train_retain_dataset_img = Subset(train_dataset_real, retain_indices_train)
-        train_fgt_dataset_img = Subset(train_dataset_real, forget_indices_train)
-
-        # For test set
-        retain_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label != forget_class]
-        forget_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label == forget_class]
-
-        test_retain_dataset_img = Subset(test_dataset_real, retain_indices_test)
-        test_fgt_dataset_img = Subset(test_dataset_real, forget_indices_test)
-
-
-        train_retain_loader_img = DataLoader(train_retain_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
-        train_fgt_loader_img = DataLoader(train_fgt_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
-
-        test_retain_loader_img = DataLoader(test_retain_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)
-        test_fgt_loader_img = DataLoader(test_fgt_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)
 
             
         if opt.mode == "CR":
@@ -418,9 +380,42 @@ if __name__ == "__main__":
             # plt.savefig(f"{opt.root_folder}/plots/tsne_combined_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
             # plt.close()
                     
+
+            from torchvision import transforms
+
+            mean = {
+                    'cifar10': (0.4914, 0.4822, 0.4465),
+                    'cifar100': (0.5071, 0.4867, 0.4408),
+                    'TinyImageNet': (0.485, 0.456, 0.406),
+                    }
+
+            std = {
+                    'cifar10': (0.2023, 0.1994, 0.2010),
+                    'cifar100': (0.2675, 0.2565, 0.2761),
+                    'TinyImageNet': (0.229, 0.224, 0.225),
+                    }
+
+
+
+            transform_train = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
+            ])
             
-            
-            
+            if dataset_name_lower == "cifar10":
+                train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
+                test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
+
+
+        
+        
             
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
@@ -536,13 +531,38 @@ if __name__ == "__main__":
                 all_train_loader = train_loader
                 all_test_loader = test_loader
 
-                
                             
                 opt.RT_model_weights_path = opt.root_folder+f'weights/chks_{dataset_name_lower}/retrained/best_checkpoint_without_{class_to_remove[0]}.pth'
                 print(opt.RT_model_weights_path)
+
                 
-                
-                row_orig, row_unl, row_ret=main(all_features_synth=all_features_synth,
+
+                # For train set
+                retain_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label != forget_class]
+                forget_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label == forget_class]
+
+                train_retain_dataset_img = Subset(train_dataset_real, retain_indices_train)
+                train_fgt_dataset_img = Subset(train_dataset_real, forget_indices_train)
+
+                # For test set
+                retain_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label != forget_class]
+                forget_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label == forget_class]
+
+                test_retain_dataset_img = Subset(test_dataset_real, retain_indices_test)
+                test_fgt_dataset_img = Subset(test_dataset_real, forget_indices_test)
+
+
+                train_retain_loader_img = DataLoader(train_retain_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
+                train_fgt_loader_img = DataLoader(train_fgt_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
+
+                test_retain_loader_img = DataLoader(test_retain_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)
+                test_fgt_loader_img = DataLoader(test_fgt_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)                
+                    
+                row_orig, row_unl, row_ret=main(train_retain_loader_img=train_retain_loader_img,
+                                                train_fgt_loader_img=train_fgt_loader_img,
+                                                test_retain_loader_img=test_retain_loader_img,
+                                                test_fgt_loader_img=test_fgt_loader_img,
+                                                all_features_synth=all_features_synth,
                                                 all_labels_synth=all_labels_synth,
                                                 train_retain_loader_real=train_retain_loader_real,
                                                 train_fgt_loader_real=train_fgt_loader_real,
