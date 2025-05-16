@@ -78,7 +78,6 @@ def main(train_retain_loader_img,
     #original_pretr_model = original_pretr_model_total.fc
     original_model.to(opt.device)
     original_model.eval()
-    opt.class_to_rem_curr = class_to_remove
     if opt.run_original:
         if opt.mode =="CR":
              # df_or_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
@@ -119,7 +118,8 @@ def main(train_retain_loader_img,
 
         print(all_features_synth.shape)
         print(all_labels_synth.shape)
-
+        print("forget_class:",forget_class)
+        print("class_to_remove:",class_to_remove)
 
         forgetfull_mask_synth = (all_labels_synth == forget_class)
         forgetfull_features_synth = all_features_synth[forgetfull_mask_synth]
@@ -413,6 +413,9 @@ if __name__ == "__main__":
                 train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
                 test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
 
+            if dataset_name_lower == "cifar100":
+                train_dataset_real = CIFAR100(root="./data", train=True, download=True, transform=transform_train)
+                test_dataset_real = CIFAR100(root="./data", train=False, download=True, transform=transform_test)
 
         
         

@@ -5,20 +5,18 @@ from utils import accuracy, set_seed, get_retrained_model, get_trained_model
 from MIA_code.MIA import get_MIA_SVC
 from opts import OPT as opt
 import time
-from Unlearning_methods import choose_method
+from Unlearning_methods_real_part import choose_method
 from error_propagation import Complex
 import os
 import torch
 import numpy as np
-#from generate_emb_samples import generate_emb_samples_balanced
-from generate_emb_samples_randomly import generate_emb_samples_balanced
-#from generate_emb_samples_resnet18_balanced import generate_emb_samples_balanced
+from generate_part_samples_randomly import generate_emb_samples_balanced
+
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
-from Unlearning_methods import calculate_accuracy
-from sklearn.manifold import TSNE
-import matplotlib.pyplot as plt
-
+from Unlearning_methods_real import calculate_accuracy
+from torchvision.datasets import CIFAR10, CIFAR100
+from torch.utils.data import Subset
 DATASET_NUM_CLASSES = {
     "CIFAR10": 10,
     "CIFAR100": 100,
@@ -48,10 +46,22 @@ def AUS(a_t, a_or, a_f):
     return aus
 
   
-def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
+def main(train_retain_loader_img,
+        train_fgt_loader_img,
+        test_retain_loader_img,
+        test_fgt_loader_img,
+        train_retain_loader_real,
+        train_fgt_loader_real,
+        test_retain_loader,
+        test_fgt_loader,
+        train_loader=None,
+        test_loader=None,
+        seed=0,
+        class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
     original_pretr_model = get_trained_model()
+
     original_model = deepcopy(original_pretr_model)
 
     #original_pretr_model = original_pretr_model_total.fc
@@ -78,64 +88,20 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         pretr_model.to(opt.device)
         pretr_model.eval()
 
+
+        print("forget_class:",forget_class)
+        print("class_to_remove:",class_to_remove)
+        
         timestamp1 = time.time()
 
         # Step 1: Generate synthetic retain samples in feature space
-        #samples_per_class = opt.samples_per_class
-        
-        #sigma_range = np.linspace(0.5, 6, 3)
-
-        #B_numpy = np.load(matrix_B_224)  # Shape: (512, 2304)
-
-        #checkpoint_path = f"{DIR}/{files}/{dataset_name}/best_checkpoint_resnet18.pth"  # Set your actual checkpoint path
-        #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
-        #fc_layer = model.fc
-        
-        #all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-        #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-        #)
-
-        print(all_features_synth.shape)
-        print(all_labels_synth.shape)
-        print("forget_class:",forget_class)
-        print("class_to_remove:",class_to_remove)
-
-        forgetfull_mask_synth = (all_labels_synth == forget_class)
-        forgetfull_features_synth = all_features_synth[forgetfull_mask_synth]
-        forgetfull_labels_synth = all_labels_synth[forgetfull_mask_synth]
-        
-        # Retain set
-        retainfull_mask_synth = (all_labels_synth != forget_class)
-        retainfull_features_synth = all_features_synth[retainfull_mask_synth]
-        retainfull_labels_synth = all_labels_synth[retainfull_mask_synth]
-
-        forgetfull_features_synth = torch.tensor(forgetfull_features_synth, dtype=torch.float32)
-        forgetfull_labels_synth = torch.tensor(forgetfull_labels_synth, dtype=torch.long)
-
-        retainfull_features_synth = torch.tensor(retainfull_features_synth, dtype=torch.float32)
-        retainfull_labels_synth = torch.tensor(retainfull_labels_synth, dtype=torch.long)
-
-
-        forgetfull_features_synth = forgetfull_features_synth.to(opt.device)
-        forgetfull_labels_synth = forgetfull_labels_synth.to(opt.device)
-
-        retainfull_features_synth = retainfull_features_synth.to(opt.device)
-        retainfull_labels_synth = retainfull_labels_synth.to(opt.device)
-        
-        print(f" Generated Retain Samples: {retainfull_features_synth.shape[0]} ")
-        print(f" Generated Forget Samples: {forgetfull_features_synth.shape[0]} (Class {forget_class})")
-        
-        
-        forget_loader_synth = DataLoader(TensorDataset(forgetfull_features_synth, forgetfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
-        retain_loader_synth = DataLoader(TensorDataset(retainfull_features_synth, retainfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
-        
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
     
         data = np.load(data_path)
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
         labels_real = data["labels"]  # Shape: (N,)
     
-        print(f"Real Embeddings: {embeddings_real.shape}")
+        print(f"Loaded Embeddings: {embeddings_real.shape}")
     
         # Convert to tensors
         embeddings_tensor_real = torch.tensor(embeddings_real, dtype=torch.float32)
@@ -158,20 +124,34 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         # Create DataLoaders for validation
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
-
-
+            
 
             
         if opt.mode == "CR":
             #set tollerance for stopping criteria
             opt.target_accuracy = 0.00
-            approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-            #approach = choose_method(opt.method)(pretr_model, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
+            if opt.method == 'NGFTW':
+                approach = choose_method(opt.method)(pretr_model,
+                                                     train_retain_loader_img,
+                                                     train_fgt_loader_img,
+                                                     test_retain_loader_img,
+                                                     test_fgt_loader_img,
+                                                     train_retain_loader_real,
+                                                     train_fgt_loader_real,
+                                                     test_retain_loader,
+                                                     test_fgt_loader,
+                                                     retainfull_loader_real,
+                                                     forgetfull_loader_real,
+                                                     class_to_remove=class_to_remove)  #generated samples
+
+            else:
+                #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
+                approach = choose_method(opt.method)(pretr_model, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
 
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
-                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
 
             unlearned_model = get_trained_model().to(opt.device)
             unlearned_model.load_state_dict(unlearned_model_dict)
@@ -183,7 +163,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         #save model
         #if opt.save_model:
         #    if opt.mode == "CR":
-        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
+        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
 #
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
@@ -233,7 +213,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
     if opt.run_unlearn:
         if opt.save_df:
             if opt.mode == "CR":
-                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                v_unlearn.to_csv(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
     return v_orig, v_unlearn, v_rt
 
 if __name__ == "__main__":
@@ -242,109 +222,55 @@ if __name__ == "__main__":
     df_orig_total=[]
     
     #create output folders
-    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
-        #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/models")
-        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
-    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
-        #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/dfs")
-        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
+    if not os.path.exists(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
+        #os.makedirs(opt.root_folder+"out_real/"+opt.mode+"/"+opt.dataset+"/models")
+        os.makedirs(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
+    if not os.path.exists(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
+        #os.makedirs(opt.root_folder+"out_real/"+opt.mode+"/"+opt.dataset+"/dfs")
+        os.makedirs(f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
 
     for i in opt.seed:
         set_seed(i)
 
         print(f"Seed {i}")
         if opt.mode == "CR":
+
+
+            from torchvision import transforms
+
+            mean = {
+                    'cifar10': (0.4914, 0.4822, 0.4465),
+                    'cifar100': (0.5071, 0.4867, 0.4408),
+                    'TinyImageNet': (0.485, 0.456, 0.406),
+                    }
+
+            std = {
+                    'cifar10': (0.2023, 0.1994, 0.2010),
+                    'cifar100': (0.2675, 0.2565, 0.2761),
+                    'TinyImageNet': (0.229, 0.224, 0.225),
+                    }
+
+
+
+            transform_train = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
+            ])
             
-            print("Generating synthetic embeddings ONCE...")
-            B_numpy = np.load(matrix_B_224)
-            sigma_range = [5.0]
-            original_pretr_model = get_trained_model().to(device)
-            original_pretr_model.eval()
-
-            all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, original_pretr_model, device=device
-            )
-            
-            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-            #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-            # )
-                
-            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples(
-            #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-            # )
-            
-            # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
-
-            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # optimized_embeddings_2d = tsne.fit_transform(all_features_synth)
-
-            # plt.figure(figsize=(8, 6))
-            # scatter = plt.scatter(optimized_embeddings_2d[:, 0], optimized_embeddings_2d[:, 1], c=all_labels_synth, cmap="tab10", s=20)
-            # plt.colorbar(scatter, ticks=range(10))
-            # plt.title("t-SNE of Optimized Embeddings")
-            # plt.xlabel("Dimension 1")
-            # plt.ylabel("Dimension 2")
-            # plt.grid(True)
-            # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_optimized_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
-            # plt.close()
+            if dataset_name_lower == "cifar10":
+                train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
+                test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
 
 
-            # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
-            # train_embeddings_data = np.load(train_path)
-            # real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
-            # real_labels = torch.tensor(train_embeddings_data["labels"])
 
 
-            # def select_n_per_class(embeddings, labels, num_per_class, num_classes):
-            #     selected_embeddings = []
-            #     selected_labels = []
-
-            #     for num_class in range(num_classes):
-            #         cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
-            #         if len(cls_indices) >= num_per_class:
-            #             chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
-            #             selected_embeddings.append(embeddings[chosen_indices])
-            #             selected_labels.append(labels[chosen_indices])
-            #         else:
-            #             print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
-
-            #     selected_embeddings = torch.cat(selected_embeddings, dim=0)
-            #     selected_labels = torch.cat(selected_labels, dim=0)
-            #     return selected_embeddings, selected_labels
-
-
-            # real_embeddings_par, real_labels_par = select_n_per_class(real_embeddings, real_labels, num_per_class=opt.samples_per_class, num_classes=num_classes)
-            # print(real_embeddings_par.shape)  
-            # print(real_labels_par.shape)      
-
-
-            # synthetic_embeddings = torch.tensor(all_features_synth, dtype=torch.float32)
-            # synthetic_labels = all_labels_synth + num_classes 
-
-            # # === Combine Real and Synthetic Embeddings ===
-            # combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
-            # combined_labels = torch.cat([real_labels_par, torch.tensor(synthetic_labels)], dim=0)
-
-            # # === Reduce to 2D using t-SNE ===
-            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # combined_2d = tsne.fit_transform(combined_embeddings.numpy())
-
-            # plt.figure(figsize=(10, 7))
-            # scatter = plt.scatter(combined_2d[:, 0], combined_2d[:, 1], c=combined_labels, cmap='tab20', s=10)
-            # plt.colorbar(scatter, ticks=range(20), label='Class')
-            # plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
-            # plt.xlabel("Dimension 1")
-            # plt.ylabel("Dimension 2")
-            # plt.grid(True)
-            # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_combined_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
-            # plt.close()
-                    
-            
-            
-            
-            
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
@@ -464,9 +390,32 @@ if __name__ == "__main__":
                 opt.RT_model_weights_path = opt.root_folder+f'weights/chks_{dataset_name_lower}/retrained/best_checkpoint_without_{class_to_remove[0]}.pth'
                 print(opt.RT_model_weights_path)
                 
+                # For train set
+                retain_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label != forget_class]
+                forget_indices_train = [i for i, (_, label) in enumerate(train_dataset_real) if label == forget_class]
+
+                train_retain_dataset_img = Subset(train_dataset_real, retain_indices_train)
+                train_fgt_dataset_img = Subset(train_dataset_real, forget_indices_train)
+
+                # For test set
+                retain_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label != forget_class]
+                forget_indices_test = [i for i, (_, label) in enumerate(test_dataset_real) if label == forget_class]
+
+                test_retain_dataset_img = Subset(test_dataset_real, retain_indices_test)
+                test_fgt_dataset_img = Subset(test_dataset_real, forget_indices_test)
+
+
+                train_retain_loader_img = DataLoader(train_retain_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
+                train_fgt_loader_img = DataLoader(train_fgt_dataset_img, batch_size=opt.batch_size, shuffle=True, num_workers=4)
+
+                test_retain_loader_img = DataLoader(test_retain_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)
+                test_fgt_loader_img = DataLoader(test_fgt_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)    
                 
-                row_orig, row_unl, row_ret=main(all_features_synth=all_features_synth,
-                                                all_labels_synth=all_labels_synth,
+                                
+                row_orig, row_unl, row_ret=main(train_retain_loader_img=train_retain_loader_img,
+                                                train_fgt_loader_img=train_fgt_loader_img,
+                                                test_retain_loader_img=test_retain_loader_img,
+                                                test_fgt_loader_img=test_fgt_loader_img,
                                                 train_retain_loader_real=train_retain_loader_real,
                                                 train_fgt_loader_real=train_fgt_loader_real,
                                                 test_retain_loader=test_retain_loader_real,

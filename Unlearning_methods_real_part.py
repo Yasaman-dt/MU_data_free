@@ -16,15 +16,16 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
 import time
+from random import choice
 import copy
 
 from generate_part_samples_randomly import TruncatedResNet, RemainingResNet
 
 
 
-
-
 n_model = opt.n_model
+
+    
     
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
@@ -55,15 +56,15 @@ def choose_method(name):
         return DUCK
     elif name == 'RE':
         return RetrainedEmbedding
+    elif name == 'MM':
+        return MaximeMethod
     elif name == 'LAU':
         return LAU
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
-    
-    
+
 def count_samples(dataloader):
     return sum(inputs.size(0) for inputs, _ in dataloader)
-        
 def calculate_accuracy(net, dataloader, use_fc_only=False):
     net.eval()
     correct = 0
@@ -93,32 +94,27 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             total += labels.size(0)
 
     return 100 * correct / total if total > 0 else 0
-
-
-
-
-
-
-def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
-    os.makedirs(f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
+def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
+    os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
         class_name = '_'.join(map(str, class_to_remove))
     else:
         class_name = class_to_remove if class_to_remove is not None else 'all'
 
-    csv_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    csv_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'epoch_times', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
+            writer.writerow(['epoch','epoch_times',  'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
         writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count, unlearning_time_until_best):
-    os.makedirs('results_synth', exist_ok=True)
-    summary_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    os.makedirs('results_real', exist_ok=True)
+    summary_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
     file_exists = os.path.isfile(summary_path)
 
     if isinstance(class_to_remove, list):
@@ -132,6 +128,7 @@ def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_
             writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count','unlearning_time'])
         writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count, unlearning_time_until_best])
 
+        
         
 class BaseMethod:
     def __init__(self,
@@ -147,7 +144,6 @@ class BaseMethod:
                  retainfull_loader_real,
                  forgetfull_loader_real,
                  class_to_remove=None):
-        
         self.net = net
         self.train_retain_loader = train_retain_loader
         self.train_fgt_loader = train_fgt_loader
@@ -159,14 +155,12 @@ class BaseMethod:
         self.train_fgt_loader_img = train_fgt_loader_img
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
-
-
-
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.net.fc.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
         self.epochs = opt.epochs_unlearn
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
+
 
         print(f"Train Retain Samples: {len(self.train_retain_loader.dataset)}")
         print(f"Test Retain Samples: {len(self.test_retain_loader.dataset)}")
@@ -174,7 +168,6 @@ class BaseMethod:
         print(f"Train forget Samples: {len(self.train_fgt_loader.dataset)}")
         print(f"Test forget Samples: {len(self.test_fgt_loader.dataset)}")
         print(f"Real forget Full Samples: {len(self.forgetfull_loader_real.dataset)}")
-
     def loss_f(self, net, inputs, targets):
         return None
 
@@ -187,17 +180,16 @@ class BaseMethod:
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
-
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         aus_history = []
         results = []
+        epoch_times = []
+
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-        epoch_times = []
-
         for epoch in tqdm(range(self.epochs)):
             start_time = time.time()
 
@@ -208,11 +200,9 @@ class BaseMethod:
                 loss.backward()
                 self.optimizer.step()
 
-
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -221,9 +211,6 @@ class BaseMethod:
                 acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
                 acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
                 acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
-
-
-
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
@@ -258,7 +245,6 @@ class BaseMethod:
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
                     
-
                 if acc_test_val_fgt == 0.0:
                     zero_acc_fgt_counter += 1
                 else:
@@ -292,7 +278,6 @@ class BaseMethod:
                 if low_aus_count >= low_aus_patience:
                     print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
                     break
-
                 
                 ## Early stopping condition
                 #if acc_test_fgt <= self.target_accuracy:
@@ -321,7 +306,6 @@ class BaseMethod:
                     retain_count=retain_count,
                     forget_count=forget_count,
                     total_count=total_count)
-
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
@@ -345,7 +329,6 @@ class BaseMethod:
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
         self.net.eval()
         return self.net
     
@@ -426,6 +409,7 @@ class NegativeGradient(BaseMethod):
         loss = self.criterion(outputs, targets) * (-1)
         return loss
 
+
 class NGFT(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
@@ -452,7 +436,7 @@ class NGFT(BaseMethod):
         patience = opt.patience
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
@@ -460,11 +444,11 @@ class NGFT(BaseMethod):
 
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
-        total_count = retain_count + forget_count
-        
+        total_count = retain_count + forget_count        
 
         forget_loader = cycle(self.train_fgt_loader)  # repeat forever
         epoch_times = []
+
 
         for epoch in tqdm(range(self.epochs)):
             start_time = time.time()
@@ -486,12 +470,9 @@ class NGFT(BaseMethod):
                 self.optimizer.zero_grad()
                 total_loss.backward()
                 self.optimizer.step()
-
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-            
-    
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -600,7 +581,6 @@ class NGFT(BaseMethod):
                     retain_count=retain_count,
                     forget_count=forget_count,
                     total_count=total_count)
-
             self.scheduler.step()
             #print('Accuracy: ',self.evalNet())
 
@@ -624,10 +604,9 @@ class NGFT(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
         self.net.eval()
         return self.net
-    
+
 
 class NGFT_weighted(BaseMethod):
     def __init__(self,
@@ -654,16 +633,12 @@ class NGFT_weighted(BaseMethod):
                          test_retain_loader,
                          test_fgt_loader,
                          retainfull_loader_real,
-                         forgetfull_loader_real)
-
-
-                                                     
+                         forgetfull_loader_real)        
+        
         self.train_retain_loader_img = train_retain_loader_img
         self.train_fgt_loader_img = train_fgt_loader_img
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
-        
-        
         self.train_retain_loader = train_retain_loader
         self.train_fgt_loader = train_fgt_loader
         self.test_retain_loader = test_retain_loader
@@ -676,28 +651,34 @@ class NGFT_weighted(BaseMethod):
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         self.optimizer = torch.optim.Adam(self.Remainingmodel.parameters(), lr=opt.lr_unlearn)
 
-        for images, labels in self.train_retain_loader:
-            print("train_retain_loader_synth:", images.shape, labels.shape)
-            break
 
-        for images, labels in self.train_fgt_loader:
-            print("train_fgt_loader_synth:", images.shape, labels.shape)
-            break
+        # for images, labels in self.train_retain_loader:
+        #     print("train_retain_loader_synth:", images.shape, labels.shape)
+        #     break
 
-        for images, labels in self.test_retain_loader_img:
-            print("test_retain_loader_img:", images.shape, labels.shape)
-            break
+        # for images, labels in self.train_fgt_loader:
+        #     print("train_fgt_loader_synth:", images.shape, labels.shape)
+        #     break
 
-        for images, labels in self.test_fgt_loader_img:
-            print("test_fgt_loader_img:", images.shape, labels.shape)
-            break
+        # for images, labels in self.test_retain_loader_img:
+        #     print("test_retain_loader_img:", images.shape, labels.shape)
+        #     break
+
+        # for images, labels in self.test_fgt_loader_img:
+        #     print("test_fgt_loader_img:", images.shape, labels.shape)
+        #     break
         
-        
-        
-        
-    def loss_weighted(self, inputs_r, targets_r, inputs_f, targets_f):
-        retain_loss = self.criterion(self.Remainingmodel(inputs_r), targets_r)
-        forget_loss = self.criterion(self.Remainingmodel(inputs_f), targets_f)
+        merged_model = copy.deepcopy(self.net)
+
+        # === Overwrite the parts that were trained in RemainingResNet ===
+        merged_model.layer4[1].conv2 = self.Remainingmodel.layer4_1_conv2
+        merged_model.layer4[1].bn2 = self.Remainingmodel.layer4_1_bn2
+        merged_model.avgpool = self.Remainingmodel.avgpool
+        merged_model.fc = self.Remainingmodel.fc        
+
+    def loss_weighted(self, inputs_r, targets_r, inputs_f, targets_f, merged_model):
+        retain_loss = self.criterion(merged_model(inputs_r), targets_r)
+        forget_loss = self.criterion(merged_model(inputs_f), targets_f)
         # Weighted sum as per the formula
         return self.beta * retain_loss - (1 - self.beta) * forget_loss
 
@@ -714,7 +695,7 @@ class NGFT_weighted(BaseMethod):
         best_epoch = -1
         aus_history = []
         zero_acc_fgt_counter = 0
-        zero_acc_patience = 1000
+        zero_acc_patience = 50
         patience = opt.patience
 
 
@@ -725,29 +706,26 @@ class NGFT_weighted(BaseMethod):
         merged_model.layer4[1].bn2 = self.Remainingmodel.layer4_1_bn2
         merged_model.avgpool = self.Remainingmodel.avgpool
         merged_model.fc = self.Remainingmodel.fc
-
         a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
         print(a_or_value)
         
         a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)/100
         print(a_or_value)
-        
-        forget_loader = cycle(self.train_fgt_loader)
-
+        forget_loader_img = cycle(self.train_fgt_loader_img)
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-
+        
         epoch_times = []
 
         for epoch in tqdm(range(self.epochs)):
             start_time = time.time()
-            for inputs_r, targets_r in self.train_retain_loader:
+            for inputs_r, targets_r in self.train_retain_loader_img:
                 inputs_r, targets_r = inputs_r.to(opt.device), targets_r.to(opt.device)
-                inputs_f, targets_f = next(forget_loader)
+                inputs_f, targets_f = next(forget_loader_img)
                 inputs_f, targets_f = inputs_f.to(opt.device), targets_f.to(opt.device)
 
-                total_loss = self.loss_weighted(inputs_r, targets_r, inputs_f, targets_f)
+                total_loss = self.loss_weighted(inputs_r, targets_r, inputs_f, targets_f, merged_model)
 
                 self.optimizer.zero_grad()
                 total_loss.backward()
@@ -756,15 +734,10 @@ class NGFT_weighted(BaseMethod):
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-
-
-
-
-
             with torch.no_grad():
                 self.net.eval()
-                acc_train_ret = evaluate_embedding_accuracy(self.Remainingmodel, self.train_retain_loader, opt.device)/100
-                acc_train_fgt = evaluate_embedding_accuracy(self.Remainingmodel, self.train_fgt_loader, opt.device)/100
+                acc_train_ret = evaluate_embedding_accuracy(merged_model, self.train_retain_loader_img, opt.device)/100
+                acc_train_fgt = evaluate_embedding_accuracy(merged_model, self.train_fgt_loader_img, opt.device)/100
                 acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
                 acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)/100
                 acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)/100
@@ -863,19 +836,15 @@ class NGFT_weighted(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
         merged_model.eval()
         return merged_model
-
- 
 
 
 class SCAR(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.class_to_remove = class_to_remove
-
-      
+        
     def cov_mat_shrinkage(self,cov_mat,gamma1=opt.gamma1,gamma2=opt.gamma2):
         I = torch.eye(cov_mat.shape[0]).to(opt.device)
         V1 = torch.mean(torch.diagonal(cov_mat))
@@ -920,12 +889,9 @@ class SCAR(BaseMethod):
 
         return kl_div
 
-    #def tuckey_transf(self,vectors,delta=opt.delta):
-    #    return torch.pow(vectors,delta)
+    def tuckey_transf(self,vectors,delta=opt.delta):
+        return torch.pow(vectors,delta)
     
-    def tuckey_transf(self, vectors, delta=opt.delta):
-        return torch.sign(vectors) * torch.pow(torch.abs(vectors), delta)
-
     def pairwise_cos_dist(self, x, y):
         """Compute pairwise cosine distance between two tensors"""
         x_norm = torch.norm(x, dim=1).unsqueeze(1)
@@ -1008,38 +974,13 @@ class SCAR(BaseMethod):
         for i in range(opt.num_classes):
             if type(self.class_to_remove) is list:
                 if i not in self.class_to_remove:
-                    #print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
+                    print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
                     samples = self.tuckey_transf(ret_embs[labs==i])
-                    
-                    ## DEBUG: Check for NaN or Inf
-                    #print(f"Class {i} samples: mean={samples.mean().item():.6f}, std={samples.std().item():.6f}, min={samples.min().item():.6f}, max={samples.max().item():.6f}")
-                    #if torch.isnan(samples).any() or torch.isinf(samples).any():
-                    #    print(f"Class {i} has NaN or Inf in samples!")
-                    
                     distribs.append(samples.mean(0))
                     cov = torch.cov(samples.T)
                     cov_shrinked = self.cov_mat_shrinkage(self.cov_mat_shrinkage(cov))
                     cov_shrinked = self.normalize_cov(cov_shrinked)
                     cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
-
-                    
-                    
-                #    # DEBUG: Compute eigenvalues (singular values)
-                #    try:
-                #        s = torch.linalg.svdvals(cov_shrinked)
-                #        s_sorted, _ = torch.sort(s, descending=True)
-                #        print(f"Class {i} SVD: Largest={s_sorted[0].item():.6f}, Smallest={s_sorted[-1].item():.6f}")
-                #    except Exception as e:
-                #        print(f"Failed to compute SVD for class {i}: {e}")
-#
-                #    # Try pseudo-inverse
-                #    try:
-                #        cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
-                #    except Exception as e:
-                #        print(f"Failed to invert covariance matrix for class {i}: {e}")
-                #        # Optionally: append identity matrix instead to not crash
-                #        cov_matrix_inv.append(torch.eye(cov_shrinked.shape[0], device=cov_shrinked.device))
-    
             else:
                 print(f"Class {i} samples shape:", ret_embs[labs==i].shape)
                 samples = self.tuckey_transf(ret_embs[labs==i])
@@ -1049,23 +990,6 @@ class SCAR(BaseMethod):
                 cov_shrinked = self.normalize_cov(cov_shrinked)
                 cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
 
-
-                ## DEBUG: Compute eigenvalues (singular values)
-                #try:
-                #    s = torch.linalg.svdvals(cov_shrinked)
-                #    s_sorted, _ = torch.sort(s, descending=True)
-                #    print(f"Class {i} SVD: Largest={s_sorted[0].item():.6f}, Smallest={s_sorted[-1].item():.6f}")
-                #except Exception as e:
-                #    print(f"Failed to compute SVD for class {i}: {e}")
-#
-                ## Try pseudo-inverse
-                #try:
-                #    cov_matrix_inv.append(torch.linalg.pinv(cov_shrinked))
-                #except Exception as e:
-                #    print(f"Failed to invert covariance matrix for class {i}: {e}")
-                #    # Optionally: append identity matrix instead to not crash
-                #    cov_matrix_inv.append(torch.eye(cov_shrinked.shape[0], device=cov_shrinked.device))
-                    
         distribs=torch.stack(distribs)
         #print('distribs.shape',distribs.shape)
         cov_matrix_inv=torch.stack(cov_matrix_inv)
@@ -1086,7 +1010,7 @@ class SCAR(BaseMethod):
             th = .8
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1097,7 +1021,6 @@ class SCAR(BaseMethod):
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
         #print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.synthetic_retain_emb_loader))
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -1167,11 +1090,10 @@ class SCAR(BaseMethod):
                     #print(f'n_batch_ret:{n_batch_ret} ,loss FGT:{loss_fgt}, loss RET:{loss_ret}')
                     loss.backward()
                     optimizer.step()
-
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-    
+            
 #                    with torch.no_grad():
 #                        self.net.eval()
 #                        if opt.mode=='CR':
@@ -1300,7 +1222,7 @@ class SCAR(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-
+                
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
         log_summary_across_classes(
@@ -1321,13 +1243,10 @@ class SCAR(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
-
-
-
-
         self.net.eval()
         return self.net
+    
+    
 
 class newmethod(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -1344,10 +1263,6 @@ class newmethod(BaseMethod):
         loss = self.criterion(outputs, pred)
         return loss
 
-
-
-
-
 class BoundaryShrink(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
                  retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -1361,7 +1276,7 @@ class BoundaryShrink(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-        
+
     def run(self):
 
         def calculate_AUS(A_test_forget, A_test_retain, Aor):
@@ -1395,7 +1310,7 @@ class BoundaryShrink(BaseMethod):
 
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1405,11 +1320,11 @@ class BoundaryShrink(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-
+        
+                
         epoch_times = []
 
         for epoch in range(opt.epochs_unlearn):
@@ -1434,7 +1349,7 @@ class BoundaryShrink(BaseMethod):
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-                
+            
             retain_accuracy = evaluate_embedding_accuracy(unlearn_model_fc, self.train_retain_loader, opt.device)
             forget_accuracy = evaluate_embedding_accuracy(unlearn_model_fc, self.train_fgt_loader, opt.device)
 
@@ -1536,7 +1451,7 @@ class BoundaryShrink(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-
+                
             
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
                 
@@ -1558,7 +1473,6 @@ class BoundaryShrink(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
 
 
         self.model = self.net
@@ -1634,7 +1548,7 @@ class BoundaryExpanding(BaseMethod):
 
             
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []  
 
@@ -1644,14 +1558,11 @@ class BoundaryExpanding(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-
-
+                
         epoch_times = []
-
         for epoch in range(opt.epochs_unlearn):
             start_time = time.time()
 
@@ -1669,6 +1580,7 @@ class BoundaryExpanding(BaseMethod):
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
+
 
             
             retain_accuracy = evaluate_embedding_accuracy(widen_model, self.train_retain_loader, opt.device)
@@ -1772,7 +1684,7 @@ class BoundaryExpanding(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-            
+                
                 
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
@@ -1794,8 +1706,6 @@ class BoundaryExpanding(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
-
                         
         # Prune the shadow class to return a normal classifier
         pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
@@ -1812,6 +1722,7 @@ class BoundaryExpanding(BaseMethod):
     
 
 
+
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         
@@ -1820,6 +1731,8 @@ class SCRUB(BaseMethod):
         self.teacher = net  # The original FC layer
         self.student = deepcopy(net)  # Clone of the original FC layer
         self.class_to_remove = class_to_remove
+
+
 
 
     def run(self):
@@ -1886,8 +1799,8 @@ class SCRUB(BaseMethod):
         betha=0.1
 
     
-        retain_synth_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
-        forget_synth_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
+        retain_real_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
+        forget_real_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
 
 
         student_fc.to(opt.device)
@@ -1907,7 +1820,7 @@ class SCRUB(BaseMethod):
             print(f"student {name}: requires_grad={param.requires_grad}")
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         results = []
         aus_history = []  
@@ -1920,8 +1833,8 @@ class SCRUB(BaseMethod):
         # Evaluate student model before training (Epoch 0)
         student_fc.eval()
 
-        retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
-        forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+        retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_real_loader_train, opt.device)
+        forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_real_loader_train, opt.device)
 
         retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
         forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
@@ -1955,16 +1868,14 @@ class SCRUB(BaseMethod):
             "AUS": round(AUS, 4)
         })
 
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-        
         epoch_times = []
+
 
         for epoch in range(opt.epochs_unlearn):
             start_time = time.time()
-
             student_fc.train()
             optimizer.zero_grad()
 
@@ -1990,17 +1901,14 @@ class SCRUB(BaseMethod):
             # Backpropagation
             loss.backward()
             optimizer.step()
-            
-            
             end_time = time.time()
             duration = end_time - start_time
-            epoch_times.append(duration)
+            epoch_times.append(duration)        
             
-                
             student_fc.eval()
             
-            retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
-            forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_synth_loader_train, opt.device)
+            retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_real_loader_train, opt.device)
+            forget_accuracy = evaluate_embedding_accuracy(student_fc, forget_real_loader_train, opt.device)
 
             retainfull_val_acc = evaluate_embedding_accuracy(student_fc, retainfull_loader_val, opt.device)
             forgetfull_val_acc = evaluate_embedding_accuracy(student_fc, forgetfull_loader_val, opt.device)
@@ -2106,7 +2014,6 @@ class SCRUB(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-            
                 
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
@@ -2128,13 +2035,9 @@ class SCRUB(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
-        
         self.student.fc = student_fc
 
         return self.student
-
-
 
 
 class DUCK(BaseMethod):
@@ -2142,8 +2045,7 @@ class DUCK(BaseMethod):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
         self.class_to_remove = class_to_remove
 
-    
-        
+
     def pairwise_cos_dist(self, x, y):
         """Compute pairwise cosine distance between two tensors"""
         x_norm = torch.norm(x, dim=1).unsqueeze(1)
@@ -2203,7 +2105,7 @@ class DUCK(BaseMethod):
         patience = opt.patience
         
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
-        zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
+        zero_acc_patience = 50    # Stop if this happens for 50+ consecutive epochs
         
         aus_history = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
@@ -2219,13 +2121,12 @@ class DUCK(BaseMethod):
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
-        
+                
         epoch_times = []
 
         print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.train_retain_loader))
         for epoch in tqdm(range(opt.epochs_unlearn)):
             start_time = time.time()
-
             for n_batch, (emb_fgt, lab_fgt) in enumerate(self.train_fgt_loader):
                 for n_batch_ret, (emb_ret, lab_ret) in enumerate(self.train_retain_loader):
                     emb_ret, lab_ret,emb_fgt, lab_fgt  = emb_ret.to(opt.device), lab_ret.to(opt.device),emb_fgt.to(opt.device), lab_fgt.to(opt.device)
@@ -2263,9 +2164,7 @@ class DUCK(BaseMethod):
             duration = end_time - start_time
             epoch_times.append(duration)
 
-
-
-            # evaluate accuracy on forget set every batch
+                # evaluate accuracy on forget set every batch
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -2386,18 +2285,16 @@ class DUCK(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count,
-            unlearning_time_until_best=round(unlearning_time_until_best,4))
-        
+            unlearning_time_until_best=round(unlearning_time_until_best,4))    
 
         self.net.eval()
         return self.net
-
-
+    
 
 class RetrainedEmbedding(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
-
+        
         self.fc_layer = nn.Linear(512, opt.num_classes).to('cuda')
 
         self.optimizer = optim.SGD(self.fc_layer.parameters(), lr=opt.lr_unlearn, weight_decay=5e-5)
@@ -2461,8 +2358,6 @@ class RetrainedEmbedding(BaseMethod):
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -2470,7 +2365,6 @@ class RetrainedEmbedding(BaseMethod):
 
         for epoch in tqdm(range(self.epochs)):
             start_time = time.time()
-
             self.fc_layer.train()
             running_loss = 0.0
             correct = 0
@@ -2488,11 +2382,9 @@ class RetrainedEmbedding(BaseMethod):
                 _, predicted = outputs.max(1)
                 total += labels.size(0)
                 correct += predicted.eq(labels).sum().item()
-
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-    
             #train_loss = running_loss / len(self.train_retain_loader)
             #train_acc = 100. * correct / total
             self.scheduler.step()
@@ -2612,7 +2504,7 @@ class RetrainedEmbedding(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-            
+    
                 
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
@@ -2634,16 +2526,13 @@ class RetrainedEmbedding(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
-        
-        
         print(f"Best Epoch {best_epoch+1}: Train Acc {best_train_acc:.2f}%, Val Acc {best_acc:.2f}%")
 
         self.net.fc = self.fc_layer
         
         return self.net
     
-    
+
 class LAU(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
@@ -2651,9 +2540,14 @@ class LAU(BaseMethod):
         self.teacher = deepcopy(self.net.fc).to(opt.device)
         self.student = self.net.fc  # Only modify fc layer
 
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
 
-     
         self.criterion_ce = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.student.parameters(), lr=opt.lr_unlearn, momentum=0.9, weight_decay=5e-4)
         self.scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
@@ -2705,10 +2599,9 @@ class LAU(BaseMethod):
         aus_history = []
         a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         zero_acc_fgt_counter = 0
-        zero_acc_patience = 1000
+        zero_acc_patience = 200
 
         self.teacher.eval()
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -2737,7 +2630,6 @@ class LAU(BaseMethod):
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
-
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -2802,9 +2694,9 @@ class LAU(BaseMethod):
                     retain_count=retain_count,
                     forget_count=forget_count,
                     total_count=total_count)
-                
-                
+
             self.scheduler.step()
+
 
         unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
 
@@ -2826,8 +2718,167 @@ class LAU(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-        
-        
         self.net.load_state_dict(best_model_state)
         self.net.eval()
         return self.net
+    
+    
+
+
+class MaximeMethod(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
+                 retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader,
+                         test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+
+        self.train_retain_loader = train_retain_loader
+        self.train_fgt_loader = train_fgt_loader
+        self.test_retain_loader = test_retain_loader
+        self.test_fgt_loader = test_fgt_loader
+        self.retainfull_loader_real = retainfull_loader_real
+        self.forgetfull_loader_real = forgetfull_loader_real
+        self.class_to_remove = class_to_remove
+      
+        
+    def run(self):
+        
+        def calculate_AUS(A_test_forget, A_test_retain, Aor):
+            A_test_forget = A_test_forget / 100
+            A_test_retain = A_test_retain / 100
+            Aor = Aor / 100
+            """
+            Calculate the AUS based on the given accuracy values.
+
+            Args:
+                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
+                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
+                Aor (float): Constant value for A_or (default is 84.72).
+
+            Returns:
+                float: The calculated AUS value.
+            """
+            # Calculate Delta
+            delta = abs(0 - A_test_forget)
+            
+            # Calculate AUS
+            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
+            
+            return AUS
+    
+
+        # def forget_class_for_yasi(M: torch.tensor,
+        #                           B: torch.tensor,
+        #                           p: int,
+        #                           num_classes: int):
+        #     M = torch.clone(M)
+        #     B = torch.clone(B)
+        #     q = choice([i for i in range(num_classes) if i != p])
+        #     M[:, p] = M[:, q]
+        #     B[p] = B[q]-1e-3
+        #     return M, B
+    
+    
+        def forget_class_for_yasi(M: torch.Tensor,
+                                B: torch.Tensor,
+                                forget_classes: list,
+                                num_classes: int):
+            M = M.clone()
+            B = B.clone()
+            for p in forget_classes:
+                q = choice([i for i in range(num_classes) if i not in forget_classes and i != p])
+                M[p, :] = M[q, :]
+                B[p] = B[q] - 1e-3
+            return M, B
+
+    
+    
+        # Extract the last Linear layer from self.net.fc, whether it's Sequential or Linear
+        def find_final_linear(module):
+            if isinstance(module, nn.Linear):
+                return module
+            elif isinstance(module, nn.Sequential):
+                for layer in reversed(module):
+                    if isinstance(layer, nn.Linear):
+                        return layer
+            raise ValueError("No nn.Linear layer found in self.net.fc")
+
+        final_linear = find_final_linear(self.net.fc)
+        embedding_dim = final_linear.in_features
+        num_classes = final_linear.out_features
+
+        weight_np = final_linear.weight.detach().cpu().numpy()
+        bias_np = final_linear.bias.detach().cpu().numpy()
+
+        weight_tensor = torch.tensor(weight_np, dtype=torch.float32, device=opt.device)
+        bias_tensor = torch.tensor(bias_np, dtype=torch.float32, device=opt.device)
+
+        M, B = forget_class_for_yasi(weight_tensor, bias_tensor, self.class_to_remove, num_classes)
+
+        # Widen model with an extra output for the shadow class
+        widen_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+        with torch.no_grad():
+            widen_model.weight[:num_classes] = M
+            widen_model.bias[:num_classes] = B
+
+
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+                
+
+        epoch = 0
+        duration = 0
+            
+        retain_accuracy = evaluate_embedding_accuracy(widen_model, self.train_retain_loader, opt.device)
+        forget_accuracy = evaluate_embedding_accuracy(widen_model, self.train_fgt_loader, opt.device)
+
+        retainfull_val_acc = evaluate_embedding_accuracy(widen_model, self.retainfull_loader_real, opt.device)
+        forgetfull_val_acc = evaluate_embedding_accuracy(widen_model, self.forgetfull_loader_real, opt.device)
+
+        retaintest_val_acc = evaluate_embedding_accuracy(widen_model, self.test_retain_loader, opt.device)
+        forgettest_val_acc = evaluate_embedding_accuracy(widen_model, self.test_fgt_loader, opt.device)
+        
+
+        AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)  # Calculate AUS using the accuracies
+
+        # wandb.log({"retainfull_val_acc": retainfull_val_acc, "forgetfull_val_acc": forgetfull_val_acc,
+        #            "retaintest_val_acc": retaintest_val_acc, "forgettest_val_acc": forgettest_val_acc, "AUS": AUS})
+
+
+        print(f"Train Retain Acc: {retain_accuracy:.2f}% | Train Forget Acc: {forget_accuracy:.2f}% | "
+            f"Val Retain full Acc: {retainfull_val_acc:.2f}% | Val Forget full Acc: {forgetfull_val_acc:.2f}%  | "
+            f"Val Retain Test Acc: {retaintest_val_acc:.2f}% | Val Forget Test Acc: {forgettest_val_acc:.2f}% | "
+            f"AUS: {AUS:.2f}"
+            )
+
+                
+        log_summary_across_classes(
+            best_epoch=round(epoch,4),
+            train_retain_acc=round(retain_accuracy / 100,4),
+            train_fgt_acc=round(forget_accuracy / 100,4),
+            val_test_retain_acc=round(retaintest_val_acc / 100,4),
+            val_test_fgt_acc=round(forgettest_val_acc / 100,4),
+            val_full_retain_acc=round(retainfull_val_acc / 100,4),
+            val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+            AUS=round(AUS,4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count)
+                        
+        # Prune the shadow class to return a normal classifier
+        pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+        with torch.no_grad():
+            pruned_model.weight = torch.nn.Parameter(widen_model.weight[:num_classes])
+            pruned_model.bias = torch.nn.Parameter(widen_model.bias[:num_classes])
+
+        self.net.fc = pruned_model
+        self.model = self.net
+        
+        return self.model
+

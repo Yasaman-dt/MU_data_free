@@ -53,7 +53,6 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
     #original_pretr_model = original_pretr_model_total.fc
     original_model.to(opt.device)
     original_model.eval()
-    opt.class_to_rem_curr = class_to_remove
     if opt.run_original:
         if opt.mode =="CR":
              # df_or_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
@@ -77,6 +76,10 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
 
         timestamp1 = time.time()
 
+
+        print("forget_class:",forget_class)
+        print("class_to_remove:",class_to_remove)
+        
         # Step 1: Generate synthetic retain samples in feature space
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
     
