@@ -10,7 +10,8 @@ from error_propagation import Complex
 import os
 import torch
 import numpy as np
-from generate_emb_samples import generate_emb_samples_balanced
+#from generate_emb_samples import generate_emb_samples_balanced
+from generate_emb_samples_randomly import generate_emb_samples_balanced
 #from generate_emb_samples_resnet18_balanced import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
@@ -261,10 +262,14 @@ if __name__ == "__main__":
             original_pretr_model.eval()
 
             all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+                num_classes, opt.samples_per_class, original_pretr_model, device=device
             )
-                
+            
             # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
+            #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
+            # )
+                
+            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples(
             #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             # )
             
