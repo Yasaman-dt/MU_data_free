@@ -267,6 +267,10 @@ if __name__ == "__main__":
             if dataset_name_lower == "cifar10":
                 train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
                 test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
+                
+            if dataset_name_lower == "cifar100":
+                train_dataset_real = CIFAR100(root="./data", train=True, download=True, transform=transform_train)
+                test_dataset_real = CIFAR100(root="./data", train=False, download=True, transform=transform_test)
 
 
 
