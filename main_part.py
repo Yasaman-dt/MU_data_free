@@ -22,6 +22,7 @@ from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from torchvision.datasets import CIFAR10, CIFAR100
 from torch.utils.data import Subset
+from torchvision import datasets, transforms
 
 
 

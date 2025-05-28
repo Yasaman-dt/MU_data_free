@@ -144,8 +144,8 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
         for i in range(batch_size):
             class_name = int(predicted_labels[i].item())
             if class_counts[class_name] < samples_per_class:
-                class_features[class_name].append(feature_samples[i].unsqueeze(0))
-                class_soft_targets[class_name].append(soft_targets[i].unsqueeze(0))
+                class_features[class_name].append(feature_samples[i].unsqueeze(0).cpu())
+                class_soft_targets[class_name].append(soft_targets[i].unsqueeze(0).cpu())
                 class_counts[class_name] += 1
 
         del feature_samples, logits, soft_targets, predicted_labels
@@ -166,6 +166,9 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
         all_labels.append(labels)
         all_soft_targets.append(targets)
 
+        del feats, targets, labels
+        torch.cuda.empty_cache()
+    
     sample_features = torch.cat(all_features, dim=0)
     sample_labels = torch.cat(all_labels, dim=0)
     probability_array = torch.cat(all_soft_targets, dim=0).cpu().numpy()
