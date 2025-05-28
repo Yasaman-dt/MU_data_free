@@ -122,12 +122,12 @@ def main(train_retain_loader_img,
         print("forget_class:",forget_class)
         print("class_to_remove:",class_to_remove)
 
-        forgetfull_mask_synth = (all_labels_synth == forget_class)
+        forgetfull_mask_synth = (all_labels_synth == forget_class).to(all_features_synth.device)
         forgetfull_features_synth = all_features_synth[forgetfull_mask_synth]
         forgetfull_labels_synth = all_labels_synth[forgetfull_mask_synth]
         
         # Retain set
-        retainfull_mask_synth = (all_labels_synth != forget_class)
+        retainfull_mask_synth = (all_labels_synth != forget_class).to(all_features_synth.device)
         retainfull_features_synth = all_features_synth[retainfull_mask_synth]
         retainfull_labels_synth = all_labels_synth[retainfull_mask_synth]
 
