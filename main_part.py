@@ -384,42 +384,85 @@ if __name__ == "__main__":
             from torchvision import transforms
 
             mean = {
-                    'cifar10': (0.4914, 0.4822, 0.4465),
-                    'cifar100': (0.5071, 0.4867, 0.4408),
+                    'CIFAR10': (0.4914, 0.4822, 0.4465),
+                    'CIFAR100': (0.5071, 0.4867, 0.4408),
                     'TinyImageNet': (0.485, 0.456, 0.406),
                     }
 
             std = {
-                    'cifar10': (0.2023, 0.1994, 0.2010),
-                    'cifar100': (0.2675, 0.2565, 0.2761),
+                    'CIFAR10': (0.2023, 0.1994, 0.2010),
+                    'CIFAR100': (0.2675, 0.2565, 0.2761),
                     'TinyImageNet': (0.229, 0.224, 0.225),
                     }
 
 
 
-            transform_train = transforms.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, padding=4),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
-            ])
+            transform_train = {
+                'CIFAR10': transforms.Compose([
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['CIFAR10'], std=std['CIFAR10'])
+                ]),
+                'CIFAR100': transforms.Compose([
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomCrop(32, padding=4),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['CIFAR100'], std=std['CIFAR100'])
+                ]),
+                'TinyImageNet': transforms.Compose([
+                    transforms.RandomCrop(64, padding=4),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.RandomRotation(15),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
+                ])
+            }
 
-            transform_test = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
-            ])
-            
+            transform_test = {
+                'CIFAR10': transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['CIFAR10'], std=std['CIFAR10'])
+                ]),
+                'CIFAR100': transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['CIFAR100'], std=std['CIFAR100'])
+                ]),
+                'TinyImageNet': transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
+                ])
+            }
+
+            transform_val = {
+                'TinyImageNet': transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
+                ])
+            }
+
+            # Select appropriate transformations
+            train_transform = transform_train.get(dataset_name_upper, transform_test.get(dataset_name_upper, None))
+            test_transform = transform_test.get(dataset_name_upper, train_transform)
+            val_transform = transform_val.get(dataset_name_upper, train_transform)
+
+
             if dataset_name_lower == "cifar10":
-                train_dataset_real = CIFAR10(root="./data", train=True, download=True, transform=transform_train)
-                test_dataset_real = CIFAR10(root="./data", train=False, download=True, transform=transform_test)
-
+                train_dataset_real = CIFAR10(root="./data/CIFAR10", train=True, download=True, transform=train_transform)
+                test_dataset_real = CIFAR10(root="./data/CIFAR10", train=False, download=True, transform=test_transform)
+                
             if dataset_name_lower == "cifar100":
-                train_dataset_real = CIFAR100(root="./data", train=True, download=True, transform=transform_train)
-                test_dataset_real = CIFAR100(root="./data", train=False, download=True, transform=transform_test)
+                train_dataset_real = CIFAR100(root="./data/CIFAR100", train=True, download=True, transform=train_transform)
+                test_dataset_real = CIFAR100(root="./data/CIFAR100", train=False, download=True, transform=test_transform)
 
-        
-        
-            
+            if dataset_name_lower == "TinyImageNet":
+                train_dir = os.path.join("./data/TinyImageNet", "train")
+                val_dir = os.path.join("./data/TinyImageNet", "val")
+
+
+                train_dataset_real = datasets.ImageFolder(train_dir, transform=train_transform)
+                test_dataset_real = datasets.ImageFolder(val_dir, transform=val_transform)
+
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
