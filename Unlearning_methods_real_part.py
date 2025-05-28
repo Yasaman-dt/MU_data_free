@@ -652,21 +652,21 @@ class NGFT_weighted(BaseMethod):
         self.optimizer = torch.optim.Adam(self.Remainingmodel.parameters(), lr=opt.lr_unlearn)
 
 
-        # for images, labels in self.train_retain_loader:
-        #     print("train_retain_loader_synth:", images.shape, labels.shape)
-        #     break
+        for images, labels in self.train_retain_loader_img:
+            print("train_retain_loader_img:", images.shape, labels.shape)
+            break
 
-        # for images, labels in self.train_fgt_loader:
-        #     print("train_fgt_loader_synth:", images.shape, labels.shape)
-        #     break
+        for images, labels in self.train_fgt_loader_img:
+            print("train_fgt_loader_img:", images.shape, labels.shape)
+            break
 
-        # for images, labels in self.test_retain_loader_img:
-        #     print("test_retain_loader_img:", images.shape, labels.shape)
-        #     break
+        for images, labels in self.test_retain_loader_img:
+            print("test_retain_loader_img:", images.shape, labels.shape)
+            break
 
-        # for images, labels in self.test_fgt_loader_img:
-        #     print("test_fgt_loader_img:", images.shape, labels.shape)
-        #     break
+        for images, labels in self.test_fgt_loader_img:
+            print("test_fgt_loader_img:", images.shape, labels.shape)
+            break
         
         merged_model = copy.deepcopy(self.net)
 
