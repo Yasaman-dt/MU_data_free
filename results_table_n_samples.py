@@ -6,8 +6,7 @@ import matplotlib.pyplot as plt
 
 # === Setup paths ===
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/"
-sources = ["results_n_samples/results_synth"]
-original_path = os.path.join(parent_dir, "results/results_original.csv")
+original_path = os.path.join(parent_dir, "results_real/results_original.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -51,10 +50,15 @@ method_map = {
 all_data = []
 
 
+sources = [
+    ("results_n_samples/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
+    ("results_n_samples/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
+]
 
 
-for source in sources:
-    base_dir = os.path.join(parent_dir, source)
+
+for folder_name, sigma, source_type in sources:
+    base_dir = os.path.join(parent_dir, folder_name)
     
     # Loop over samples_per_class_* directories
     spc_dirs = [d for d in os.listdir(base_dir) if d.startswith("samples_per_class_")]
@@ -98,8 +102,9 @@ for source in sources:
                     df["model_num"] = model_num
                     df["lr"] = lr_value
                     df["method"] = method_map.get(method, method)  # Replace if in map, else keep original
-                    df["source"] = "real" if source == "results_real" else "synth"
+                    df["source"] = "synth"
                     df["samples_per_class"] = samples_per_class
+                    df["sigma"] = sigma
 
 
                     acc_cols = [
@@ -124,9 +129,22 @@ def normalize_keys(df):
     return df
 
 
+columns_to_ignore = {"retain_count", "forget_count", "total_count"}
 
 # === Combine all ===
 if all_data:
+    
+    all_columns = set()
+    for df in all_data:
+        all_columns.update(col for col in df.columns if col not in columns_to_ignore)
+    
+    # Step 2: Ensure every DataFrame has all columns
+    for i in range(len(all_data)):
+        for col in all_columns:
+            if col not in all_data[i].columns:
+                all_data[i][col] = 0  # or np.nan
+            
+    
     final_df = pd.concat(all_data, ignore_index=True)
 
     # Save merged raw results
