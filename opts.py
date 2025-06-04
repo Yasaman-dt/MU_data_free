@@ -42,6 +42,12 @@ def get_args():
     parser.add_argument("--samples_per_class", type=int, default=1000, help="Number of synthetic samples per class to generate for unlearning.")
     parser.add_argument("--n_model", type=int, default=0, help="Model number")
     
+    parser.add_argument('--noise_type', type=str, default='gaussian',
+                        choices=['gaussian', 'bernoulli', 'uniform', 'laplace', 'gumbel'],
+                        help='Type of noise distribution for synthetic feature generation')
+
+    
+    
     options = parser.parse_args()
     return options
 
@@ -54,6 +60,7 @@ class OPT:
     patience = args.patience
     samples_per_class = args.samples_per_class
     n_model = args.n_model
+    noise_type = args.noise_type
     
     mode = args.mode
     if args.mode == 'HR':

@@ -16,6 +16,7 @@ import pandas as pd
 from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
 import time
+from collections import defaultdict
 
 n_model = opt.n_model
  
@@ -54,7 +55,35 @@ def choose_method(name):
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
-    
+
+def compute_avg_fc_gradients_per_class(net, dataloader, device):
+    """
+    Computes average gradient norm for each row (class neuron) of the FC layer.
+    """
+    net.eval()
+    fc_weight_grads = defaultdict(list)
+
+    for inputs, targets in dataloader:
+        inputs, targets = inputs.to(device), targets.to(device)
+        net.zero_grad()
+        
+        # Forward and backward
+        outputs = net.fc(inputs)
+        loss = F.cross_entropy(outputs, targets)
+        loss.backward()
+
+        # Extract FC layer gradients
+        grads = net.fc.weight.grad.detach()  # [num_classes, emb_dim]
+
+        for cls_idx in range(grads.size(0)):
+            fc_weight_grads[cls_idx].append(grads[cls_idx].norm().item())
+
+    # Compute average
+    avg_grads = {cls: sum(glist)/len(glist) for cls, glist in fc_weight_grads.items()}
+    return avg_grads
+
+
+
 def count_samples(dataloader):
     return sum(inputs.size(0) for inputs, _ in dataloader)
         
@@ -91,14 +120,14 @@ def evaluate_embedding_accuracy(model, dataloader, device):
 
 
 def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
-    os.makedirs(f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
+    os.makedirs(f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
     if isinstance(class_to_remove, list):
         class_name = '_'.join(map(str, class_to_remove))
     else:
         class_name = class_to_remove if class_to_remove is not None else 'all'
 
-    csv_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    csv_path = f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
@@ -108,8 +137,8 @@ def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_tes
         writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
 
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count, unlearning_time_until_best):
-    os.makedirs('results_synth', exist_ok=True)
-    summary_path = f'results_synth/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
+    os.makedirs('results_synth_{opt.noise_type}', exist_ok=True)
+    summary_path = f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
     file_exists = os.path.isfile(summary_path)
 
     if isinstance(class_to_remove, list):
@@ -656,6 +685,18 @@ class NGFT_weighted(BaseMethod):
             duration = end_time - start_time
             epoch_times.append(duration)
 
+
+            if epoch % 10 == 0:  # e.g., log every 10 epochs
+                print(f"--- Gradient norms at epoch {epoch} ---")
+                avg_grads_fgt = compute_avg_fc_gradients_per_class(self.net, self.train_fgt_loader, device=opt.device)
+                avg_grads_ret = compute_avg_fc_gradients_per_class(self.net, self.train_retain_loader, device=opt.device)
+
+                forget_classes = set(self.class_to_remove) if isinstance(self.class_to_remove, list) else {self.class_to_remove}
+                for class_name in sorted(avg_grads_fgt.keys()):
+                    status = "FORGET" if class_name in forget_classes else "RETAIN"
+                    print(f" Class {class_name:2d} [{status}]: "
+                        f"Fgt Grad = {avg_grads_fgt[class_name]:.4f}, "
+                        f"Ret Grad = {avg_grads_ret.get(class_name, 0):.4f}")
 
 
 

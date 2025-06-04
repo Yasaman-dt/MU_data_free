@@ -6,7 +6,7 @@ from create_embeddings_utils import get_model
 from torch.utils.data import DataLoader, TensorDataset
 
 
-def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, device='cuda'):
+def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, noise_type, device='cuda'):
     
     batch_size = 2000
     bbone = torch.nn.Sequential(*(list(resnet_model.children())[:-1]))
@@ -15,7 +15,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
     embedding_dim = embedding.shape[1]
     resnet_model.eval()
     fc_layer = resnet_model.fc
-    
+    all_sample_probs = []
   
     class_counts = {i: 0 for i in range(num_classes)}
     class_features = {i: [] for i in range(num_classes)}
@@ -25,19 +25,41 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
 
     while any(class_counts[c] < samples_per_class for c in range(num_classes)):
         # Generate random synthetic samples
-        feature_samples = torch.randn(batch_size, embedding_dim, device=device)
-        
+        if noise_type == "gaussian":
+            feature_samples = torch.randn(batch_size, embedding_dim, device=device)
+
+        elif noise_type == "bernoulli":
+            feature_samples = torch.bernoulli(torch.full((batch_size, embedding_dim), 0.5, device=device))
+
+        elif noise_type == "uniform":
+            feature_samples = torch.empty(batch_size, embedding_dim, device=device).uniform_(-1, 1)
+
+        elif noise_type == "laplace":
+            feature_samples = torch.distributions.Laplace(0.0, 1.0).sample((batch_size, embedding_dim)).to(device)
+
+
+        # Compute probability density under standard normal
+        norm_squared = feature_samples.pow(2).sum(dim=1)  # ||x||^2 for each sample
+        log_prob = -0.5 * (embedding_dim * np.log(2 * np.pi) + norm_squared.cpu().numpy())
+        probabilities = log_prob  
+        #probabilities = np.exp(log_prob)  # p(x)
+
+
+
         with torch.no_grad():
             logits = fc_layer(feature_samples)
             soft_targets = F.softmax(logits, dim=1)
             predicted_labels = torch.argmax(soft_targets, dim=1)
 
+        
+    
         for i in range(batch_size):
             class_name = int(predicted_labels[i].item())
             if class_counts[class_name] < samples_per_class:
                 class_features[class_name].append(feature_samples[i].unsqueeze(0))
                 class_soft_targets[class_name].append(soft_targets[i].unsqueeze(0))
                 class_counts[class_name] += 1
+                all_sample_probs.append(probabilities[i])
 
         print(f"Current class counts: {class_counts}")
 
@@ -59,7 +81,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
     sample_labels = torch.cat(all_labels, dim=0)
     probability_array = torch.cat(all_soft_targets, dim=0).cpu().numpy()
 
-    return sample_features, sample_labels, probability_array
+    return sample_features, sample_labels, probability_array, all_sample_probs
 
 
 
@@ -84,27 +106,27 @@ def evaluate_model(model, data_loader, device):
     return accuracy        
         
         
-# # ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
-# DIR = "/projets/Zdehghani/MU_data_free"
-# checkpoint_folder = "checkpoints"
-# weights_folder = "weights"
-# embeddings_folder = "embeddings"
-# dataset_name = "cifar10"
-# model_name = "resnet18"
-# num_classes = 10
-# n_model=3
-# if dataset_name.lower() in ["cifar10", "cifar100"]:
-#     dataset_name_upper = dataset_name.upper()
-# else:
-#     dataset_name_upper = dataset_name  # keep original capitalization for "tinyImagenet"
+# ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
+DIR = "/projets/Zdehghani/MU_data_free"
+checkpoint_folder = "checkpoints"
+weights_folder = "weights"
+embeddings_folder = "embeddings"
+dataset_name = "cifar10"
+model_name = "resnet18"
+num_classes = 10
+n_model=1
+if dataset_name.lower() in ["cifar10", "cifar100"]:
+    dataset_name_upper = dataset_name.upper()
+else:
+    dataset_name_upper = dataset_name  # keep original capitalization for "tinyImagenet"
     
-# if dataset_name in ["cifar10", "cifar100"]:
-#     dataset_name_lower = dataset_name.lower()
-# else:
-#     dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
+if dataset_name in ["cifar10", "cifar100"]:
+    dataset_name_lower = dataset_name.lower()
+else:
+    dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-# checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
-# model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
+checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
+model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
             
 # # Load the saved matrix_B_224
 # matrix_B_224 = f"{DIR}/{weights_folder}/chks_{dataset_name}/original/matrix_B_224_m{n_model}.npy"
@@ -113,7 +135,7 @@ def evaluate_model(model, data_loader, device):
 # # Parameters
 # samples_per_class = 100  # Generate 1000 samples per class
 # sigma_range = np.linspace(0.5, 6, 3)  # Range for sigma optimization
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # # Run the function
 # train_emb_synth, train_labels_synth, probability_array = generate_emb_samples_balanced(B_numpy, num_classes, samples_per_class, sigma_range, model, device=device)
 # # Print summary statistics
@@ -221,3 +243,80 @@ def evaluate_model(model, data_loader, device):
 # plt.savefig("tsne_real_vs_synthetic_separate.png", dpi=300)  # <- Add this line
 
 # plt.show()
+import torch
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+model.eval()
+fc_layer = model.fc.to(device)
+
+# Define embedding_dim
+bbone = torch.nn.Sequential(*(list(model.children())[:-1])).to(device)
+embedding_dim = bbone(torch.randn(1, 3, 64, 64).to(device)).shape[1]
+
+# ------------------ Noise Sampling ------------------
+def sample_noise(noise_type, size, device='cuda'):
+    if noise_type == "gaussian":
+        return torch.randn(size, device=device)
+    elif noise_type == "bernoulli":
+        return torch.bernoulli(torch.full(size, 0.5, device=device))
+    elif noise_type == "uniform":
+        return torch.empty(size, device=device).uniform_(-1, 1)
+    elif noise_type == "laplace":
+        return torch.distributions.Laplace(0.0, 1.0).sample(size).to(device)
+    elif noise_type == "gumbel":
+        return torch.distributions.Gumbel(0.0, 1.0).sample(size).to(device)
+    else:
+        raise ValueError(f"Unsupported noise type: {noise_type}")
+
+
+# ------------------ Analysis Function ------------------
+def analyze_class_probabilities_from_noise(fc_layer, embedding_dim, device, num_samples, noise_type):
+    size = (num_samples, embedding_dim)
+    feature_samples = sample_noise(noise_type, size, device)
+    print(f"\n=== Class prediction distribution over {noise_type} noise ===")
+
+    with torch.no_grad():
+        logits = fc_layer(feature_samples)
+        preds = torch.argmax(logits, dim=1)
+
+    class_counts = torch.bincount(preds, minlength=fc_layer.out_features).cpu().numpy()
+    class_probs = class_counts / num_samples
+
+    for i, (count, prob) in enumerate(zip(class_counts, class_probs)):
+        print(f"Class {i}: count={count}, proportion={prob:.4f}")
+
+    return class_probs
+
+# ------------------ Run for All Noise Types ------------------
+noise_types = ["gaussian", "bernoulli", "uniform", "laplace", "gumbel"]
+all_class_probs = {}
+
+for noise in noise_types:
+    class_probs = analyze_class_probabilities_from_noise(fc_layer, embedding_dim, device, 1000000, noise)
+    all_class_probs[noise] = class_probs
+
+# ------------------ Plotting ------------------
+def plot_all_distributions(all_class_probs):
+    num_classes = len(next(iter(all_class_probs.values())))
+    x = np.arange(num_classes)
+    width = 0.15
+
+    plt.figure(figsize=(14, 6))
+    for i, (noise_type, probs) in enumerate(all_class_probs.items()):
+        offset = (i - len(all_class_probs)/2) * width + width/2
+        plt.bar(x + offset, probs, width, label=noise_type.capitalize())
+
+    plt.xlabel("Class")
+    plt.ylabel("Proportion of Predictions")
+    plt.title("Class Prediction Distribution Across Different Noise Types")
+    plt.xticks(x)
+    plt.ylim(top=0.210)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"class_distribution_all_noises_{dataset_name}_{n_model}.png")
+    plt.show()
+
+plot_all_distributions(all_class_probs)

@@ -47,7 +47,37 @@ def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
 
-  
+def analyze_sample_probabilities(labels_tensor, probs_array, num_classes):
+    """
+    Given tensor of labels and array of per-sample densities, compute mean/max/min/std per class.
+    """
+    print("labels_tensor shape:", labels_tensor.shape)
+    print("probs_array shape:", np.array(probs_array).shape)
+
+    stats = {}
+    labels_np = labels_tensor.cpu().numpy() if torch.is_tensor(labels_tensor) else labels_tensor
+    probs_np = np.array(probs_array)
+
+    assert len(labels_np) == len(probs_np), "Mismatch between number of labels and probability entries!"
+
+    for class_name in range(num_classes):
+        cls_mask = labels_np == class_name
+        cls_probs = probs_np[cls_mask]
+
+        if len(cls_probs) == 0:
+            print(f"Warning: No samples found for class {class_name}")
+            stats[class_name] = {"mean": None, "max": None, "min": None, "std": None}
+        else:
+            stats[class_name] = {
+                "mean": float(np.mean(cls_probs)),
+                "max": float(np.max(cls_probs)),
+                "min": float(np.min(cls_probs)),
+                "std": float(np.std(cls_probs)),
+                "count": int(len(cls_probs))
+            }
+
+    return stats
+
 def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
@@ -171,7 +201,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
-                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
 
             unlearned_model = get_trained_model().to(opt.device)
             unlearned_model.load_state_dict(unlearned_model_dict)
@@ -183,7 +213,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         #save model
         #if opt.save_model:
         #    if opt.mode == "CR":
-        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
+        #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
 #
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
@@ -233,7 +263,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
     if opt.run_unlearn:
         if opt.save_df:
             if opt.mode == "CR":
-                v_unlearn.to_csv(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                v_unlearn.to_csv(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
     return v_orig, v_unlearn, v_rt
 
 if __name__ == "__main__":
@@ -242,12 +272,12 @@ if __name__ == "__main__":
     df_orig_total=[]
     
     #create output folders
-    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
-        #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/models")
-        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
-    if not os.path.exists(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
-        #os.makedirs(opt.root_folder+"out_synth/"+opt.mode+"/"+opt.dataset+"/dfs")
-        os.makedirs(f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
+    if not os.path.exists(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models"):
+        #os.makedirs(opt.root_folder+"out_synth_{opt.noise_type}/"+opt.mode+"/"+opt.dataset+"/models")
+        os.makedirs(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models")
+    if not os.path.exists(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs"):
+        #os.makedirs(opt.root_folder+"out_synth_{opt.noise_type}/"+opt.mode+"/"+opt.dataset+"/dfs")
+        os.makedirs(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs")
 
     for i in opt.seed:
         set_seed(i)
@@ -261,10 +291,16 @@ if __name__ == "__main__":
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
-            all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, original_pretr_model, device=device
+            all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
+                num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
             )
             
+            print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
+            prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
+            for class_name, s in prob_stats.items():
+                print(f"Class {class_name}: mean={s['mean']:.2e}, max={s['max']:.2e}, min={s['min']:.2e}, std={s['std']:.2e}")
+
+
             # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
             #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             # )
