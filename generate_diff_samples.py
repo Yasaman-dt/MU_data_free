@@ -17,9 +17,9 @@ model_name = "resnet18"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 datasets = {
-    "cifar10": 10,
+    #"cifar10": 10,
     #"cifar100": 100,
-    #"TinyImageNet": 200,
+    "TinyImageNet": 200,
 }
 
 # List of model indices to run
@@ -57,10 +57,15 @@ def analyze_class_probabilities_from_noise(fc_layer, embedding_dim, device, num_
 for dataset_name, num_classes in datasets.items():
     print(f"Processing {dataset_name.upper()}")
     records = []
-
+    if dataset_name.lower() in ["cifar10", "cifar100"]:
+        dataset_name_upper = dataset_name.upper()
+    else:
+        dataset_name_upper = dataset_name  # e.g., "TinyImageNet"
+        
+        
     for n_model in model_indices:
         checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
-        model = get_model(model_name, dataset_name.upper(), num_classes, checkpoint_path=checkpoint_path_model)
+        model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model)
         model.eval()
 
         fc_layer = model.fc.to(device)
@@ -85,6 +90,14 @@ for dataset_name, num_classes in datasets.items():
     if os.path.exists(output_csv_path):
         existing_df = pd.read_csv(output_csv_path)
         all_results_df = pd.concat([existing_df, all_results_df], ignore_index=True)
+
+    # Define epsilon (you can change this value as needed)
+    epsilon = 0.01
+
+    # Calculate N for each proportion
+    all_results_df['N_min'] = np.log(epsilon) / np.log(1 - all_results_df['Proportion'])
+    all_results_df['N'] = np.ceil(all_results_df['N_min']).astype(int)
+        
     
     all_results_df.to_csv(output_csv_path, index=False)
     print(f"Saved all results to: {output_csv_path}")
@@ -93,22 +106,36 @@ for dataset_name, num_classes in datasets.items():
 
 
 
-all_results_df = pd.read_csv("all_class_probabilities.csv")
+# import seaborn as sns
+# import matplotlib.pyplot as plt
+
+# # Filter for CIFAR10 only
+# subset = all_results_df[all_results_df["Dataset"] == "cifar10"]
+
+# plt.figure(figsize=(16, 7))
+# sns.barplot(
+#     data=subset,
+#     x="Class", y="Proportion", hue="Noise Type",
+#     errorbar="sd"
+# )
+# plt.title("Mean Proportion per Class with Std Dev for Each Noise Type (CIFAR10)")
+# plt.xlabel("Class")
+# plt.ylabel("Mean Proportion")
+# plt.grid(True, axis='y')
+# plt.tight_layout()
+# plt.savefig("barplot_class_distribution_cifar10.png")  # Optional: save the plot
+# plt.show()
 
 
-# Filter for CIFAR10 only
-subset = all_results_df[all_results_df["Dataset"] == "cifar10"]
+# filepath = 'all_class_probabilities.csv'
+# df = pd.read_csv(filepath)
 
-plt.figure(figsize=(16, 7))
-sns.barplot(
-    data=subset,
-    x="Class", y="Proportion", hue="Noise Type",
-    errorbar="sd"
-)
-plt.title("Mean Proportion per Class with Std Dev for Each Noise Type (CIFAR10)")
-plt.xlabel("Class")
-plt.ylabel("Mean Proportion")
-plt.grid(True, axis='y')
-plt.tight_layout()
-plt.savefig("barplot_class_distribution_cifar10.png")  # Optional: save the plot
-plt.show()
+df = all_results_df
+
+# Compute mean and variance of N for each combination of Dataset, Model, and Noise Type
+stats_df = df.groupby(['Dataset', 'Model', 'Noise Type'])['N'].agg(['mean', 'std']).reset_index()
+stats_df.rename(columns={'mean': 'N_mean', 'std': 'N_std'}, inplace=True)
+
+# Save the grouped statistics to a new CSV file
+output_filepath = 'avg_var_N_by_group.csv'
+stats_df.to_csv(output_filepath, index=False)
