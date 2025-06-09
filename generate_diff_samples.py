@@ -136,6 +136,75 @@ df = all_results_df
 stats_df = df.groupby(['Dataset', 'Model', 'Noise Type'])['N'].agg(['mean', 'std']).reset_index()
 stats_df.rename(columns={'mean': 'N_mean', 'std': 'N_std'}, inplace=True)
 
-# Save the grouped statistics to a new CSV file
+# Save the grouped statistics to a new CSV file with 2 decimal places
 output_filepath = 'avg_var_N_by_group.csv'
-stats_df.to_csv(output_filepath, index=False)
+stats_df.to_csv(output_filepath, index=False, float_format='%.2f')
+
+
+
+import pandas as pd
+
+df = pd.read_csv("avg_var_N_by_group.csv")
+
+# Define custom dataset order
+dataset_order = ["cifar10", "cifar100", "TinyImageNet"]
+df["Dataset"] = pd.Categorical(df["Dataset"], categories=dataset_order, ordered=True)
+
+model_names = sorted(df["Model"].unique())
+cols = ["Dataset", "Noise Type"] + model_names
+
+latex_rows = []
+
+# Header
+header = " & ".join(map(str, cols)) + " \\\\"
+latex_rows.append("\\toprule")
+latex_rows.append(header)
+latex_rows.append("\\midrule")
+
+for dataset in dataset_order:
+    df_subset = df[df["Dataset"] == dataset]
+    noise_types = sorted(df_subset["Noise Type"].unique())
+    n = len(noise_types)
+    center_row = n // 2
+
+    for idx, noise in enumerate(noise_types):
+        row = []
+        row.append(dataset if idx == center_row else "")
+        row.append(noise)
+        for model in model_names:
+            sub = df_subset[(df_subset["Model"] == model) & (df_subset["Noise Type"] == noise)]
+            if not sub.empty:
+                mean_val = sub["N_mean"].values[0]
+                std_val = sub["N_std"].values[0]
+                row.append(f"${mean_val:.1f} \\scriptstyle\\pm \\scriptsize{{{std_val:.1f}}}$")
+            else:
+                row.append("—")
+        latex_rows.append(" & ".join(row) + " \\\\")
+
+        # Add a midrule *after* the "uniform" noise type
+        if noise == "uniform" and dataset != "TinyImageNet":
+            latex_rows.append("\\midrule")
+
+# Wrap LaTeX table
+latex_body = "\n".join(latex_rows)
+
+latex_wrapped = (
+    "\\begin{table}[htbp]\n"
+    "\\centering\n"
+    "\\resizebox{\\textwidth}{!}{%\n"
+    "\\begin{tabular}{" + "l|l|" + "c" * len(model_names) + "}\n"
+    + latex_body + "\n"
+    "\n\\bottomrule"
+    "\\end{tabular}%\n"
+    "}\n"
+    "\\caption{Mean ± standard deviation of synthetic‐embedding counts across five independent runs (columns 1–5) for each noise distribution on CIFAR‐10, CIFAR‐100 and TinyImageNet.}\n"
+    "\\label{tab:n_sample}\n"
+    "\\end{table}\n"
+)
+
+# Save to file
+with open("N_sample_latextable.tex", "w", encoding='utf-8') as f:
+    f.write(latex_wrapped)
+
+# Optional: print preview
+print(latex_wrapped)
