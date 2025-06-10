@@ -150,6 +150,7 @@ df = pd.read_csv("results_diff_sampling/avg_var_N_by_group.csv")
 # Define custom dataset order
 dataset_order = ["cifar10", "cifar100", "TinyImageNet"]
 df["Dataset"] = pd.Categorical(df["Dataset"], categories=dataset_order, ordered=True)
+df["Noise Type"] = df["Noise Type"].str.capitalize()
 
 model_names = sorted(df["Model"].unique())
 cols = ["Dataset", "Noise Type"] + model_names
@@ -192,7 +193,7 @@ for dataset in dataset_order:
         latex_rows.append(" & ".join(row) + " \\\\")
 
         # Add a midrule *after* the "uniform" noise type
-        if noise == "uniform" and dataset != "TinyImageNet":
+        if noise == "Uniform" and dataset != "TinyImageNet":
             latex_rows.append("\\midrule")
 
 # Wrap LaTeX table
