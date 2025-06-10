@@ -85,7 +85,7 @@ for dataset_name, num_classes in datasets.items():
                 })
 
     all_results_df = pd.DataFrame(records)
-    output_csv_path = os.path.join(DIR, f"all_class_probabilities.csv")
+    output_csv_path = os.path.join(DIR, f"results_diff_sampling/all_class_probabilities.csv")
     
     if os.path.exists(output_csv_path):
         existing_df = pd.read_csv(output_csv_path)
@@ -127,7 +127,7 @@ for dataset_name, num_classes in datasets.items():
 # plt.show()
 
 
-# filepath = 'all_class_probabilities.csv'
+# filepath = 'results_diff_sampling/all_class_probabilities.csv'
 # df = pd.read_csv(filepath)
 
 df = all_results_df
@@ -137,14 +137,14 @@ stats_df = df.groupby(['Dataset', 'Model', 'Noise Type'])['N'].agg(['mean', 'std
 stats_df.rename(columns={'mean': 'N_mean', 'std': 'N_std'}, inplace=True)
 
 # Save the grouped statistics to a new CSV file with 2 decimal places
-output_filepath = 'avg_var_N_by_group.csv'
+output_filepath = 'results_diff_sampling/avg_var_N_by_group.csv'
 stats_df.to_csv(output_filepath, index=False, float_format='%.2f')
 
 
 
 import pandas as pd
 
-df = pd.read_csv("avg_var_N_by_group.csv")
+df = pd.read_csv("results_diff_sampling/avg_var_N_by_group.csv")
 
 
 # Define custom dataset order
@@ -213,7 +213,7 @@ latex_wrapped = (
 )
 
 # Save to file
-with open("N_sample_latextable.tex", "w", encoding='utf-8') as f:
+with open("results_diff_sampling/N_sample_latextable.tex", "w", encoding='utf-8') as f:
     f.write(latex_wrapped)
 
 # Optional: print preview
