@@ -13,6 +13,7 @@ sources = [
     ("results_diff_sampling/results_synth_gaussian", "synth"),
     ("results_diff_sampling/results_synth_laplace", "synth"),
     ("results_diff_sampling/results_synth_uniform", "synth"),
+    ("results_diff_sampling/results_synth_gumbel", "synth"),
 ]
 
 
