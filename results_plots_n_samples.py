@@ -13,12 +13,12 @@ palette = sns.color_palette("colorblind", 8)  # Adjustable for various color the
 sns.set_context("paper", font_scale=1.5)  # Scale to increase font size
 
 # If additional precision is needed, manually adjust elements
-plt.rc('axes', titlesize=18)         # Larger title font size if using titles
-plt.rc('axes', labelsize=18)         # Axis labels font size
-plt.rc('xtick', labelsize=16)         # X-tick labels font size
-plt.rc('ytick', labelsize=16)         # Y-tick labels font size
-plt.rc('legend', fontsize=14)         # Legend font size
-plt.rc('font', size=14)              # Base font size
+plt.rc('axes', titlesize=16)         # Larger title font size if using titles
+plt.rc('axes', labelsize=16)         # Axis labels font size
+plt.rc('xtick', labelsize=14)         # X-tick labels font size
+plt.rc('ytick', labelsize=14)         # Y-tick labels font size
+plt.rc('legend', fontsize=12)         # Legend font size
+plt.rc('font', size=12)              # Base font size
 plt.rc('axes', labelcolor='black')        # Makes x and y axis labels black
 plt.rc('xtick', color='black')            # Makes x-tick labels black
 plt.rc('ytick', color='black')            # Makes y-tick labels black
@@ -26,10 +26,10 @@ plt.rc('xtick', labelcolor='black')       # Makes x-tick numbers black
 plt.rc('ytick', labelcolor='black')       # Makes y-tick numbers black
 plt.rc('axes', edgecolor='black')         # Sets the axis edges to black
 plt.rc('legend', labelcolor='black')  # Ensures legend text is black
-# plt.rcParams.update({
-#     'text.usetex': True,
+plt.rcParams.update({
+     'text.usetex': False,
 #     'font.family': 'serif',
-# })
+})
 
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/"
 
@@ -143,10 +143,10 @@ if g._legend is not None:
 
 for i, ax_row in enumerate(g.axes):
     if i == 0:  
-        ax_row[0].set_ylabel("Forget Test Accuracy \%")
+        ax_row[0].set_ylabel("Forget Test Accuracy %")
         #ax_row[0].set_ylabel("$\mathcal{A}_f^t$ (Forget Test Accuracy \%)")
     elif i == 1:  
-        ax_row[0].set_ylabel("Retain Test Accuracy \%")
+        ax_row[0].set_ylabel("Retain Test Accuracy %")
         #ax_row[0].set_ylabel("$\mathcal{A}_r^t$ (Retain Test Accuracy \%)")
     elif i == 2:  
         ax_row[0].set_ylabel("AUS")

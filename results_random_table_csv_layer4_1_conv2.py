@@ -428,7 +428,7 @@ for _, row in stats_df.iterrows():
 # === Build LaTeX table
 latex_table = r"""\begin{table}[ht]
 \centering
-\caption{Negative Gradient + Method performance on original and synthetic data (CIFAR10, CIFAR100),
+\caption{Negative Gradient + Method performance on original and synthetic data (CIFAR10, CIFAR100, and TinyImageNet),
          when generating random samples in layer 4 before the last convolution.
          We fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
         Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
@@ -439,7 +439,7 @@ latex_table = r"""\begin{table}[ht]
 \begin{tabular}{l|c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{Reference} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow\\
 \midrule
 \midrule

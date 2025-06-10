@@ -9,11 +9,9 @@ import numpy as np
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 sources = [
     ("results_real", "real"),
-    ("results_diff_sampling/results_synth_bernoulli", "synth"),
     ("results_diff_sampling/results_synth_gaussian", "synth"),
     ("results_diff_sampling/results_synth_laplace", "synth"),
     ("results_diff_sampling/results_synth_uniform", "synth"),
-    ("results_diff_sampling/results_synth_gumbel", "synth"),
 ]
 
 
@@ -452,14 +450,14 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table}[ht]
 \centering
 \caption{Impact of noise distribution on data-free unlearning performance.  
-We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Bernoulli, Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR10, CIFAR100 and TinyImageNet.  
+We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR10, CIFAR100 and TinyImageNet.  
 Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
 \label{tab:main_results}
 \resizebox{\textwidth}{!}{
 \begin{tabular}{l|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{Reference} & \multirow{2}{*}{Samples} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{Samples} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow\\
 \midrule
 \midrule
