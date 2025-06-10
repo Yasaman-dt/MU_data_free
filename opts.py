@@ -98,7 +98,7 @@ class OPT:
     run_rt_model = args.run_rt_model
     
     # Data
-    data_path = os.path.expanduser('/projets/Zdehghani/MU_scar/data')
+    data_path = os.path.expanduser('/projets/Zdehghani/MU_data_free/data')
 
     # num_retain_samp sets the percentage of retain or retain surrogate data to use during unlearning
     # the num of Samples used is bsize*num_retain_samp
