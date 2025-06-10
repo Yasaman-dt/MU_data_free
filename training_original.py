@@ -83,9 +83,9 @@ def trainer(removed=None):
     elif opt.dataset == 'TinyImageNet':
         #dataloader
         os.makedirs(f'./weights/chks_TinyImageNet/original', exist_ok=True)
-        trainset = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/train',transform=transform_train_tiny)
-        #testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/val/images',transform=transform_test_tiny)
-        testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/tiny-imagenet-200/val', transform=transform_test_tiny)
+        trainset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/train',transform=transform_train_tiny)
+        #testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val/images',transform=transform_test_tiny)
+        testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val', transform=transform_test_tiny)
 
         if 'resnet' in opt.model:
             model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')

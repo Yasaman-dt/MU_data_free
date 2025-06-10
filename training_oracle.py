@@ -122,13 +122,15 @@ def trainer(class_to_remove, seed):
         if 'resnet' in opt.model:    
             model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
             model.maxpool = nn.Identity()
+            model.fc = nn.Sequential(nn.Dropout(0.4), nn.Linear(model.fc.in_features, opt.num_classes)).to('cuda')
+
     elif opt.dataset == 'TinyImageNet':
         os.makedirs('./weights/chks_TinyImageNet', exist_ok=True)
         #dataloader
         if 'resnet' in opt.model:
+            model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
+            model.maxpool = nn.Identity()
             model.fc = nn.Sequential(nn.Dropout(0.4), nn.Linear(model.fc.in_features, opt.num_classes)).to('cuda')
-
-
 
     epochs=300
     criterion = nn.CrossEntropyLoss(label_smoothing=0.4)
@@ -142,7 +144,7 @@ def trainer(class_to_remove, seed):
     # Train the network
     best_acc = 0.0
     patience_counter = 0  # Counter to track epochs without improvement
-    patience = 10 
+    patience = 30 
     best_epoch = -1
     best_train_acc = 0.0
     best_train_loss = 0.0
