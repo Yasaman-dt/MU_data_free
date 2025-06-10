@@ -451,7 +451,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table}[ht]
 \centering
 \caption{Impact of noise distribution on data-free unlearning performance.  
-We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Bernoulli, Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR-10, CIFAR-100 and TinyImageNet.  
+We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Bernoulli, Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR10, CIFAR100 and TinyImageNet.  
 Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
 \label{tab:main_results}
 \resizebox{\textwidth}{!}{
