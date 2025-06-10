@@ -146,12 +146,21 @@ import pandas as pd
 
 df = pd.read_csv("avg_var_N_by_group.csv")
 
+
 # Define custom dataset order
 dataset_order = ["cifar10", "cifar100", "TinyImageNet"]
 df["Dataset"] = pd.Categorical(df["Dataset"], categories=dataset_order, ordered=True)
 
 model_names = sorted(df["Model"].unique())
 cols = ["Dataset", "Noise Type"] + model_names
+
+
+display_names = {
+    "cifar10":   "CIFAR10",
+    "cifar100":  "CIFAR100",
+    "TinyImageNet": "TinyImageNet"
+}
+
 
 latex_rows = []
 
@@ -169,7 +178,8 @@ for dataset in dataset_order:
 
     for idx, noise in enumerate(noise_types):
         row = []
-        row.append(dataset if idx == center_row else "")
+        label = display_names[dataset] if idx == center_row else ""
+        row.append(label)
         row.append(noise)
         for model in model_names:
             sub = df_subset[(df_subset["Model"] == model) & (df_subset["Noise Type"] == noise)]
