@@ -127,13 +127,13 @@ for dataset_name, num_classes in datasets.items():
 # plt.show()
 
 
-import pandas as pd
-import math 
+# import pandas as pd
+# import math 
 
-filepath = 'results_diff_sampling/all_class_probabilities.csv'
-df = pd.read_csv(filepath)
+# filepath = 'results_diff_sampling/all_class_probabilities.csv'
+# df = pd.read_csv(filepath)
 
-#df = all_results_df
+df = all_results_df
 
 
 
