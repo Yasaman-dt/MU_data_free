@@ -474,7 +474,9 @@ for key in grouped_methods.keys():
     source_noise = key.split(" (")[1].replace(")", "")
     source, noise = source_noise.split(", ")
     noise_cell = noise.capitalize() if noise not in ["real", "none"] else r"\text{--}"
+    method_counts[base_method] += 1
 
+printed_methods = set()
 
 for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     base_method = key.split(" (")[0]
@@ -514,6 +516,9 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     else:
         ref = "Ours"  # use "Ours" for synthetic cases
 
+    ref_cell = ref
+
+
     if base_method == "original":
         method_cell = rf"\multirow{{2}}{{*}}{{\centering {method_display_base}}}"
         ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
@@ -534,15 +539,14 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         
         continue  # skip rest of loop
 
-    if method_counts[base_method] > 1:
-        if source == "real":
+    if base_method not in printed_methods:
+        if method_counts[base_method] > 1:
             method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{\centering {method_display_base}}}"
         else:
-            method_cell = ""
-        ref_cell = ref
+            method_cell = method_display_base
+        printed_methods.add(base_method)
     else:
-        method_cell = method_display_base
-        ref_cell = ref
+        method_cell = ""
 
     if noise in ["real", "-"]:
         noise_cell = r"\text{--}"
