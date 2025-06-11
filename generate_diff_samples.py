@@ -127,25 +127,33 @@ for dataset_name, num_classes in datasets.items():
 # plt.show()
 
 
-# filepath = 'results_diff_sampling/all_class_probabilities.csv'
-# df = pd.read_csv(filepath)
+import pandas as pd
+import math 
 
-df = all_results_df
+filepath = 'results_diff_sampling/all_class_probabilities.csv'
+df = pd.read_csv(filepath)
 
-# Compute mean and variance of N for each combination of Dataset, Model, and Noise Type
-stats_df = df.groupby(['Dataset', 'Model', 'Noise Type'])['N'].agg(['mean', 'std']).reset_index()
-stats_df.rename(columns={'mean': 'N_mean', 'std': 'N_std'}, inplace=True)
+#df = all_results_df
+
+
+
+grouped_df = df.groupby(["Dataset", "Model", "Noise Type"]).agg(
+    N_mean=("N", "mean"),
+    N_std=("N", "std"),
+    N_min=("N", "min"),
+    N_max=("N", "max")
+).reset_index()
 
 # Save the grouped statistics to a new CSV file with 2 decimal places
-output_filepath = 'results_diff_sampling/avg_var_N_by_group.csv'
-stats_df.to_csv(output_filepath, index=False, float_format='%.2f')
+output_filepath = 'results_diff_sampling/avg_var_with_Nmin_Nmax.csv'
+grouped_df.to_csv(output_filepath, index=False, float_format='%.2f')
 
 
+df = grouped_df
 
-import pandas as pd
+#df = pd.read_csv("results_diff_sampling//avg_var_with_Nmin_Nmax.csv")
 
-df = pd.read_csv("results_diff_sampling/avg_var_N_by_group.csv")
-
+df = df[df["Model"] == 1]
 
 # Define custom dataset order
 dataset_order = ["cifar10", "cifar100", "TinyImageNet"]
@@ -153,8 +161,9 @@ df["Dataset"] = pd.Categorical(df["Dataset"], categories=dataset_order, ordered=
 df["Noise Type"] = df["Noise Type"].str.capitalize()
 
 model_names = sorted(df["Model"].unique())
-cols = ["Dataset", "Noise Type"] + model_names
-
+cols = ["Dataset", "Noise Type"]
+for model in model_names:
+    cols.extend([f"{model} Min", f"{model} Mean", f"{model} Max"])
 
 display_names = {
     "cifar10":   "CIFAR10",
@@ -166,56 +175,53 @@ display_names = {
 latex_rows = []
 
 # Header
-header = " & ".join(map(str, cols)) + " \\\\"
 latex_rows.append("\\toprule")
-latex_rows.append(header)
+latex_rows.append("Dataset & Noise Type & Min & Mean & Max  \\\\")
 latex_rows.append("\\midrule")
 
 for dataset in dataset_order:
-    df_subset = df[df["Dataset"] == dataset]
-    noise_types = sorted(df_subset["Noise Type"].unique())
-    n = len(noise_types)
-    center_row = n // 2
+    df_subset = df[(df["Dataset"] == dataset) & (df["Model"] == 1)]
+    noise_types = ["Gaussian", "Laplace", "Uniform"]
 
-    for idx, noise in enumerate(noise_types):
+    for i, noise in enumerate(noise_types):
+        sub = df_subset[df_subset["Noise Type"] == noise]
+        min_val = sub["N_min"].values[0]
+        mean_val = sub["N_mean"].values[0]
+        max_val = sub["N_max"].values[0]
+
         row = []
-        label = display_names[dataset] if idx == center_row else ""
-        row.append(label)
-        row.append(noise)
-        for model in model_names:
-            sub = df_subset[(df_subset["Model"] == model) & (df_subset["Noise Type"] == noise)]
-            if not sub.empty:
-                mean_val = sub["N_mean"].values[0]
-                std_val = sub["N_std"].values[0]
-                row.append(f"${mean_val:.1f} \\scriptstyle\\pm \\scriptsize{{{std_val:.1f}}}$")
-            else:
-                row.append("—")
+
+        if i == 0:
+            # Add \multirow only once for the first row of the dataset block
+            row.append(f"\\multirow{{3}}{{*}}{{{display_names[dataset]}}}")
+        else:
+            row.append("")  # Leave empty to align with multirow
+
+        # Use ceil for mean value
+        mean_val_rounded = math.ceil(mean_val)
+
+        row.extend([noise, f"{min_val:.0f}", f"{mean_val_rounded}", f"{max_val:.0f}"])
         latex_rows.append(" & ".join(row) + " \\\\")
+    
+    latex_rows.append("\\midrule")
 
-        # Add a midrule *after* the "uniform" noise type
-        if noise == "Uniform" and dataset != "TinyImageNet":
-            latex_rows.append("\\midrule")
 
-# Wrap LaTeX table
-latex_body = "\n".join(latex_rows)
-
+# Wrap in full LaTeX table
 latex_wrapped = (
     "\\begin{table}[htbp]\n"
+    "\\caption{Mean ± standard deviation of synthetic‐embedding counts across five independent runs (columns 1–5) for each noise distribution on CIFAR10, CIFAR100 and TinyImageNet.}\n"
     "\\centering\n"
-    "\\resizebox{\\textwidth}{!}{%\n"
-    "\\begin{tabular}{" + "l|l|" + "c" * len(model_names) + "}\n"
-    + latex_body + "\n"
-    "\n\\bottomrule"
-    "\\end{tabular}%\n"
-    "}\n"
-    "\\caption{Mean ± standard deviation of synthetic‐embedding counts across five independent runs (columns 1–5) for each noise distribution on CIFAR‐10, CIFAR‐100 and TinyImageNet.}\n"
+    "\\begin{tabular}{lcccr}\n"
+    + "\n".join(latex_rows) + "\n"
+    "\\bottomrule\n"
+    "\\end{tabular}\n"
     "\\label{tab:n_sample}\n"
-    "\\end{table}\n"
+    "\\end{table}"
 )
 
-# Save to file
+# Save LaTeX
 with open("results_diff_sampling/N_sample_latextable.tex", "w", encoding='utf-8') as f:
     f.write(latex_wrapped)
 
-# Optional: print preview
+# Optional preview
 print(latex_wrapped)
