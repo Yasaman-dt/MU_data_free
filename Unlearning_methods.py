@@ -56,30 +56,54 @@ def choose_method(name):
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
 
-def compute_avg_fc_gradients_per_class(net, dataloader, device):
+def compute_avg_fc_gradients_per_class(net, dataloader, device, num_classes=None):
     """
-    Computes average gradient norm for each row (class neuron) of the FC layer.
+    Computes, for each class index 0..num_classes-1, the average L2 norm of the gradient
+    on the final linear’s weight row for that class. 
+    If a class never appears in `dataloader`, its avg‐grad is set to 0.0.
     """
     net.eval()
-    fc_weight_grads = defaultdict(list)
+    fc_grads = defaultdict(list)
+
+    # Find the actual nn.Linear inside net.fc (or raise if none found)
+    # — this assumes there is exactly one Linear layer in net.fc.modules().
+    linear_layer = None
+    for m in net.fc.modules():
+        if isinstance(m, nn.Linear):
+            linear_layer = m
+    if linear_layer is None:
+        raise RuntimeError("compute_avg_fc_gradients_per_class: no nn.Linear found inside net.fc")
+
+    # If the caller didn’t pass num_classes, infer from linear.weight shape
+    if num_classes is None:
+        num_classes = linear_layer.weight.shape[0]
 
     for inputs, targets in dataloader:
         inputs, targets = inputs.to(device), targets.to(device)
         net.zero_grad()
-        
-        # Forward and backward
+
+        # forward+backward
         outputs = net.fc(inputs)
         loss = F.cross_entropy(outputs, targets)
         loss.backward()
 
-        # Extract FC layer gradients
-        grads = net.fc.weight.grad.detach()  # [num_classes, emb_dim]
+        # grad is [num_classes × emb_dim]
+        grad = linear_layer.weight.grad.detach()
+        # accumulate L2‐norm of each row
+        for class_name in torch.unique(targets).tolist():
+            # Only measure gradient‐norm for the classes actually in this batch
+            grad_norm = grad[class_name].norm().item()
+            fc_grads[class_name].append(grad_norm)
 
-        for cls_idx in range(grads.size(0)):
-            fc_weight_grads[cls_idx].append(grads[cls_idx].norm().item())
+    # average (or 0.0 if never seen)
+    avg_grads = {}
+    for class_name in range(num_classes):
+        glist = fc_grads.get(class_name, [])
+        if len(glist) > 0:
+            avg_grads[class_name] = sum(glist) / len(glist)
+        else:
+            avg_grads[class_name] = 0.0
 
-    # Compute average
-    avg_grads = {cls: sum(glist)/len(glist) for cls, glist in fc_weight_grads.items()}
     return avg_grads
 
 
