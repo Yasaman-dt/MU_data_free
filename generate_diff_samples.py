@@ -108,9 +108,36 @@ for dataset_name, num_classes in datasets.items():
 
 # import seaborn as sns
 # import matplotlib.pyplot as plt
+# import pandas as pd
+
+# palette = sns.color_palette("colorblind", 8)  # Adjustable for various color themes
+
+# sns.set_context("paper", font_scale=1.5)  # Scale to increase font size
+
+# # If additional precision is needed, manually adjust elements
+# plt.rc('axes', titlesize=16)         # Larger title font size if using titles
+# plt.rc('axes', labelsize=16)         # Axis labels font size
+# plt.rc('xtick', labelsize=14)         # X-tick labels font size
+# plt.rc('ytick', labelsize=14)         # Y-tick labels font size
+# plt.rc('legend', fontsize=12)         # Legend font size
+# plt.rc('font', size=12)              # Base font size
+# plt.rc('axes', labelcolor='black')        # Makes x and y axis labels black
+# plt.rc('xtick', color='black')            # Makes x-tick labels black
+# plt.rc('ytick', color='black')            # Makes y-tick labels black
+# plt.rc('xtick', labelcolor='black')       # Makes x-tick numbers black
+# plt.rc('ytick', labelcolor='black')       # Makes y-tick numbers black
+# plt.rc('axes', edgecolor='black')         # Sets the axis edges to black
+# plt.rc('legend', labelcolor='black')  # Ensures legend text is black
+# plt.rcParams.update({
+#      'text.usetex': False,
+# #     'font.family': 'serif',
+# })
+
+# all_results_df = pd.read_csv('results_diff_sampling/all_class_probabilities.csv')
 
 # # Filter for CIFAR10 only
 # subset = all_results_df[all_results_df["Dataset"] == "cifar10"]
+# subset["Noise Type"] = subset["Noise Type"].str.capitalize()
 
 # plt.figure(figsize=(16, 7))
 # sns.barplot(
@@ -127,11 +154,6 @@ for dataset_name, num_classes in datasets.items():
 # plt.show()
 
 
-# import pandas as pd
-# import math 
-
-# filepath = 'results_diff_sampling/all_class_probabilities.csv'
-# df = pd.read_csv(filepath)
 
 df = all_results_df
 
