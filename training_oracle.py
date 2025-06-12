@@ -171,10 +171,10 @@ def trainer(class_to_remove, seed):
         train_scheduler.step()
         save_dir = f'weights/chks_{opt.dataset}/retrained'
         os.makedirs(f'weights/chks_{opt.dataset}/retrained', exist_ok=True)
-        if opt.mode == 'CR':
-            torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/best_checkpoint_without_{class_to_remove}.pth')
-        elif opt.mode == 'HR':
-            torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/chks_{opt.dataset}_seed_{seed}.pth')
+        # if opt.mode == 'CR':
+        #     torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/best_checkpoint_without_{class_to_remove}.pth')
+        # elif opt.mode == 'HR':
+        #     torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/chks_{opt.dataset}_seed_{seed}.pth')
 
         if epoch % 1 == 0:        
             model.eval()
@@ -206,7 +206,7 @@ def trainer(class_to_remove, seed):
                 best_val_loss = val_loss
                 patience_counter = 0  # Reset patience counter
                 os.makedirs(f'weights/chks_{opt.dataset}/retrained', exist_ok=True)
-                torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/best_checkpoint_{opt.model}.pth')
+                torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/best_checkpoint_{opt.model}_without_{class_to_remove}.pth')
                 print(f"New best model saved with Val Acc: {best_acc:.3f}")
             else:
                 patience_counter += 1  # No improvement
