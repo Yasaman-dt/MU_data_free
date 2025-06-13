@@ -305,14 +305,14 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", r"–"),
-    "retrained": (r"\begin{tabular}{@{}@{}}Retrained \\ (Full Model)\end{tabular}", r"–"),
-    "RE": (r"\begin{tabular}{@{}@{}}Retrained \\ (FC Only)\end{tabular}", r"–"),
-    "FT": ("Fine Tuning", r"\citep{golatkar2020eternal} Ours"),
-    "NG": ("Neg. Grad.", r"\citep{golatkar2020eternal} Ours"),
-    "NGFTW": ("Neg. Grad. +", r"\citep{golatkar2020eternal} Ours"),
-    "RL": ("Rand. Lab.", r"\citep{hayase2020selective} Ours"),
-    "BS": ("Boundary S.", r"\citep{chen2023boundary} Ours"),
-    "BE": ("Boundary E.", r"\citep{chen2023boundary} Ours"),
+    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
+    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
+    "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
+    "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
+    "NGFTW": ("NG+", r"\citep{golatkar2020eternal} Ours"),
+    "RL": ("RL", r"\citep{hayase2020selective} Ours"),
+    "BS": ("BS", r"\citep{chen2023boundary} Ours"),
+    "BE": ("BE", r"\citep{chen2023boundary} Ours"),
     "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
     "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
     "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
@@ -436,7 +436,7 @@ latex_table = r"""\begin{table}[ht]
 \label{tab:main_results}
 
 \resizebox{\textwidth}{!}{
-\begin{tabular}{l|c|cc|ccc|ccc|ccc}
+\begin{tabular}{c|c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
 \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\

@@ -37,14 +37,14 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", r"–"),
-    "retrained": (r"\begin{tabular}{@{}@{}}Retrained \\ (Full Model)\end{tabular}", r"–"),
-    "RE": (r"\begin{tabular}{@{}@{}}Retrained \\ (FC Only)\end{tabular}", r"–"),
-    "FT": ("Fine Tuning", r"\citep{golatkar2020eternal} Ours"),
-    "NG": ("Neg. Grad.", r"\citep{golatkar2020eternal} Ours"),
-    "NGFTW": ("Neg. Grad. +", r"\citep{golatkar2020eternal} Ours"),
-    "RL": ("Rand. Lab.", r"\citep{hayase2020selective} Ours"),
-    "BS": ("Boundary S.", r"\citep{chen2023boundary} Ours"),
-    "BE": ("Boundary E.", r"\citep{chen2023boundary} Ours"),
+    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
+    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
+    "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
+    "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
+    "NGFTW": ("NG+", r"\citep{golatkar2020eternal} Ours"),
+    "RL": ("RL", r"\citep{hayase2020selective} Ours"),
+    "BS": ("BS", r"\citep{chen2023boundary} Ours"),
+    "BE": ("BE", r"\citep{chen2023boundary} Ours"),
     "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
     "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
     "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
@@ -171,7 +171,7 @@ Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the metho
 \label{tab:main_results}
 
 \resizebox{\textwidth}{!}{
-\begin{tabular}{l|c|cc|ccc|ccc|ccc}
+\begin{tabular}{c|c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
 \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
@@ -271,6 +271,259 @@ with open("results_random_fc/table_total_random.tex", "w", encoding="utf-8") as 
 print("✅ LaTeX table saved to combined_table.tex")
 
 
+# Load the uploaded data
+df_latex_input = pd.read_csv("results_random_fc/mean_std_results_by_class_model_dataset_method_source.csv")
+
+# Filter only for CIFAR-10 dataset
+cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
+
+# # Keep only relevant columns
+# columns_to_keep = ["Forget Class", "source", "train_retain_acc_mean", "train_retain_acc_std", 
+#                    "val_test_retain_acc_mean", "val_test_retain_acc_std", 
+#                    "val_test_fgt_acc_mean", "val_test_fgt_acc_std", 
+#                    "AUS_mean", "AUS_std"]
+
+#cifar10_df = cifar10_df[columns_to_keep]
+
+
+#cifar10_df.to_csv("results_random_fc/cifar10_results.csv", index=False)
+
+# === Step 1: Preprocess table ===
+# df_filtered = cifar10_df[
+#     cifar10_df["dataset"] == "cifar10"
+# ][["Forget Class", "method", "source",
+#    "val_test_fgt_acc_mean","val_test_fgt_acc_std",
+#    "val_test_retain_acc_mean", "val_test_retain_acc_std",
+#    "AUS_mean","AUS_std"]]
+
+df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
+
+# Add display name (human-readable method name)
+df_filtered["Display Name"] = df_filtered["method"].map(lambda m: method_name_and_ref[m][0])
 
 
 
+
+from collections import defaultdict
+
+# Track best value (max or min) for each class and metric
+best_per_class = defaultdict(lambda: defaultdict(dict))  # e.g., best_per_class[dataset][metric][class_id]
+
+# Only process for current dataset, e.g., CIFAR10
+dataset_name = "cifar10"
+df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
+
+for prefix, label in columns_to_display:
+    metric_mean = f"{prefix}_mean"
+    for class_name in range(10):  # For CIFAR-10 classes 0-9
+        class_subset = df_filtered[df_filtered["Forget Class"] == class_name]
+        values = class_subset[metric_mean].dropna()
+
+        if "retain" in prefix or prefix == "AUS":
+            best_value = values.max() if not values.empty else None
+        # elif "fgt" in prefix:
+        #     best_value = values.min() if not values.empty else None
+        else:
+            best_value = None
+
+        best_per_class[dataset_name][prefix][class_name] = best_value
+        
+        
+# === Step 2: Build rows with Source and Metric ===
+columns_to_display = [
+    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
+    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
+    ("AUS", r"AUS $\uparrow$")
+]
+
+records = []
+for (method, source), group in df_filtered.groupby(["method", "source"]):
+    display_name = method_name_and_ref[method][0]
+    is_single_value = method.lower() in ["retrained"]
+
+    for prefix, metric_name in columns_to_display:
+        mean_key = f"{prefix}_mean"
+        std_key = f"{prefix}_std"
+        fallback_key = prefix  # for Retrained, if only value is available
+
+        row = {
+            "Method": display_name,
+            "Source": source,
+            "Metric": metric_name
+        }
+        ref_citation = method_name_and_ref.get(method, ("", "–"))[1]
+        if method.lower() in ["original", "retrained"]:
+            ref = "–"
+        elif source == "synth":
+            ref = "Ours"
+        else:
+            ref = ref_citation.replace(" Ours", "")
+        row["Ref"] = ref
+
+        for _, row_df in group.iterrows():
+            forget_class = int(row_df["Forget Class"])
+        
+            if is_single_value:
+                value = row_df.get(fallback_key, row_df.get(mean_key, float("nan")))
+                if pd.notna(value):
+                    # Check if it's the best for that class
+                    is_best = value == best_per_class["cifar10"][prefix][forget_class]
+                    if prefix == "AUS":
+                        value_fmt = f"{value:.3f}"
+                    else:
+                        value_fmt = f"{value:.2f}"
+                        if value < 10:
+                            value_fmt = "0" + value_fmt
+                    row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                else:
+                    row[forget_class] = "-"
+            else:
+                mean = row_df.get(mean_key, float("nan"))
+                std = row_df.get(std_key, float("nan"))
+                
+                if pd.notna(mean) and pd.notna(std):
+                    is_best = mean == best_per_class["cifar10"][prefix][forget_class]
+                    if prefix == "AUS":
+                        mean_fmt = f"{mean:.3f}"
+                        std_fmt = f"{std:.3f}"
+                    else:
+                        mean_fmt = f"{mean:.2f}"
+                        std_fmt = f"{std:.2f}"
+                        if mean < 10:
+                            mean_fmt = "0" + mean_fmt
+                        if std < 10:
+                            std_fmt = "0" + std_fmt
+                    
+                    if is_best:
+                        row[forget_class] = fr"\textbf{{{mean_fmt}}}$\text{{\scriptsize \,$\pm$\,{std_fmt}}}$"
+                    else:
+                        row[forget_class] = fr"{mean_fmt}$\text{{\scriptsize \,$\pm$\,{std_fmt}}}$"
+
+                else:
+                    row[forget_class] = "-"
+
+        records.append(row)
+
+
+
+
+# === Step 3: Create final DataFrame and format to 2 decimal places ===
+final_df = pd.DataFrame(records)
+
+for col in range(10):  # forget classes 0 to 9
+    if col in final_df.columns:
+        final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
+
+
+method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
+
+# Step 2: Convert method_order to display names
+method_order_display = [method_name_map[m] for m in method_order if m in method_name_map]
+
+# Step 3: Apply CategoricalDtype to enforce order
+method_dtype = pd.CategoricalDtype(categories=method_order_display, ordered=True)
+final_df["Method"] = final_df["Method"].astype(method_dtype)
+
+
+
+# Step 4: Sort
+final_df = final_df.sort_values(["Method", "Source", "Metric"]).reset_index(drop=True)
+
+latex_lines = []
+prev_method = prev_source = None
+
+SHOW_SOURCE_COL = False
+
+# Convert to LaTeX lines manually
+header = ["Method", "Source", "Ref", "Metric"] + list(range(10))
+column_format = "c|c|c|c|" + "c" * 10
+
+# --- pre-compute how many rows each Method will occupy (needed for \multirow) ---
+method_row_counts = final_df.groupby("Method", observed=False).size().to_dict()
+
+latex = []
+latex.append(r"\resizebox{\textwidth}{!}{%")
+latex.append(r"\begin{tabular}{" + column_format + "}")
+latex.append(r"\toprule")
+latex.append(r"& & & \multicolumn{10}{c}{Forget Class} \\")
+# Original header with Method | Source | Metric | 0..9
+header_cells = header[:4] + [fr"\multicolumn{{1}}{{c}}{{{class_name}}}" for class_name in header[4:]]
+latex.append(" & ".join(header_cells) + r" \\")
+latex.append(r"\midrule")
+
+method_source_row_counts = df_filtered.groupby(["method", "source"]).size().to_dict()
+
+prev_method = None
+prev_source_key = None
+prev_ref_key = None
+
+for i, row in final_df.iterrows():
+    method = row["Method"]
+    source = row["Source"]
+    
+    base_method = [k for k, v in method_name_and_ref.items() if v[0] == method]
+    base_method = base_method[0] if base_method else method.lower()
+    ref_text = method_name_and_ref.get(base_method, ("", "–"))[1]
+    if base_method != "original":
+        if source == "synth":
+            ref = "Ours"
+        else:
+            ref = ref_text.replace(" Ours", "")
+    else:
+        ref = ref_text
+    
+    # Handle proper source display for 'original' and 'retrained'
+    source_display = "-" if method in ["Original", "Retrained"] else source
+    source_key = (method, source_display)    
+        
+    
+    
+    source_display = "-" if method in ["Original", "Retrained"] else source
+    source_key = (method, source_display)  # unique per display value
+
+    if prev_method is not None and method != prev_method:
+        latex.append(r"\midrule")
+
+    if prev_source_key is not None and source_key != prev_source_key and method == prev_method:
+        latex.append(r"\cmidrule(lr){2-" + str(len(header)) + r"}")
+
+    cells = []
+    
+    if method == prev_method:
+        cells.append("")
+    else:
+        n_rows = method_row_counts[method]
+        cells.append(fr"\multirow{{{n_rows}}}{{*}}{{{method}}}")
+    
+    if source_key == prev_source_key:
+        cells.append("")
+    else:
+        n_rows = method_source_row_counts.get((method.lower(), source), 1)
+        cells.append(fr"\multirow{{{n_rows}}}{{*}}{{\centering {source_display}}}")
+    
+    
+    # Add reference (no merging)
+    ref_key = (method, source_display)
+    
+    if ref_key == prev_ref_key:
+        cells.append("")
+    else:
+        cells.append(fr"\multirow[c]{{{n_rows}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
+    
+
+    
+    prev_ref_key = ref_key    
+    cells.append(row["Metric"])
+    cells.extend([row.get(col, "") for col in header[4:]])
+
+    latex.append(" & ".join(map(str, cells)) + r" \\")
+    prev_method = method
+    prev_source_key = source_key
+
+
+latex.append(r"\bottomrule")
+latex.append(r"\end{tabular}")
+latex.append(r"}")  # closing resizebox
+
+with open("results_random_fc/cifar10_unlearning_table_per_class.tex", "w") as f:
+    f.write("\n".join(latex))

@@ -258,12 +258,21 @@ if all_data:
         group_df.to_csv(output_file, index=False)
         #print(f"✅ Saved {output_file}")    
     
-
-    
     # === Combine original + best_df
     combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
     combined_df.to_csv("results_random_fc/results_total.csv", index=False)
 
+
+    # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
+    numeric_cols1 = combined_df.select_dtypes(include='number').columns
+    stats_df1 = combined_df.groupby(['Forget Class', "dataset", "method", "model", "source"])[numeric_cols1].agg(['mean', 'std']).reset_index()
+
+    # Flatten multi-level column names
+    stats_df1.columns = ['_'.join(col).strip('_') for col in stats_df1.columns.values]
+
+    stats_path1 = os.path.join(parent_dir, "results_random_fc/mean_std_results_by_class_model_dataset_method_source.csv")
+    stats_df1.to_csv(stats_path1, index=False)
+    print("✅ Mean and std of all numeric columns saved.")
 
 
     print("✅ Merged original results with current best results.")
@@ -281,3 +290,5 @@ if all_data:
 
 else:
     print("❌ No data loaded.")
+    
+    
