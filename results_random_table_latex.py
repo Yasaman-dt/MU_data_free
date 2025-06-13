@@ -56,15 +56,11 @@ method_name_and_ref = {
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
-
-
-# === Define displayed metrics
 columns_to_display = [
-    ("val_test_retain_acc", "\mathcal{A}^t_r"),
-    ("val_test_fgt_acc", "\mathcal{A}^t_f"),
-    ("AUS", "AUS")
+    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
+    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
+    ("AUS", r"AUS $\uparrow$")
 ]
-
 
 def sort_key(key):
     base_method = key.split(" (")[0]
@@ -329,12 +325,7 @@ for prefix, label in columns_to_display:
         best_per_class[dataset_name][prefix][class_name] = best_value
         
         
-# === Step 2: Build rows with Source and Metric ===
-columns_to_display = [
-    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
-    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
-    ("AUS", r"AUS $\uparrow$")
-]
+
 
 records = []
 for (method, source), group in df_filtered.groupby(["method", "source"]):
@@ -417,13 +408,15 @@ for col in range(10):  # forget classes 0 to 9
 
 method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
 
-# Step 2: Convert method_order to display names
-method_order_display = [method_name_map[m] for m in method_order if m in method_name_map]
+# Apply metric order BEFORE sorting
+metric_order = [m[1] for m in columns_to_display]
+metric_dtype = pd.CategoricalDtype(categories=metric_order, ordered=True)
+final_df["Metric"] = final_df["Metric"].astype(metric_dtype)
 
-# Step 3: Apply CategoricalDtype to enforce order
+# Apply method order
+method_order_display = [method_name_map[m] for m in method_order if m in method_name_map]
 method_dtype = pd.CategoricalDtype(categories=method_order_display, ordered=True)
 final_df["Method"] = final_df["Method"].astype(method_dtype)
-
 
 
 # Step 4: Sort
@@ -445,10 +438,20 @@ latex = []
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
 latex.append(r"\toprule")
-latex.append(r"& & & \multicolumn{10}{c}{Forget Class} \\")
-# Original header with Method | Source | Metric | 0..9
-header_cells = header[:4] + [fr"\multicolumn{{1}}{{c}}{{{class_name}}}" for class_name in header[4:]]
-latex.append(" & ".join(header_cells) + r" \\")
+latex.append(
+    r"\multirow[c]{2}{*}{Method} & "
+    r"\multirow[c]{2}{*}{Source} & "
+    r"\multirow[c]{2}{*}{Ref} & "
+    r"\multirow[c]{2}{*}{Metric} & "
+    r"\multicolumn{10}{c}{Forget Class} \\"
+)
+
+latex.append(
+    r"& & & & " +      # four empty columns under the multi-rows
+    " & ".join(map(str, range(10))) +  # 0 … 9
+    r" \\"
+)
+
 latex.append(r"\midrule")
 
 method_source_row_counts = df_filtered.groupby(["method", "source"]).size().to_dict()
