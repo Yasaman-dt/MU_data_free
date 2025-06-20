@@ -89,7 +89,7 @@ for dataset_name, num_classes in datasets.items():
             else:
                 dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-            checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
+            checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/best_checkpoint_{model_name}_m{n_model}.pth"  # Set your actual checkpoint path
             model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path_model) 
 
             fc_layer = model.fc
@@ -99,13 +99,13 @@ for dataset_name, num_classes in datasets.items():
 
 
             # Define file paths for train and test embeddings and labels
-            train_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_train_m{n_model}.npz"
+            train_path = f"{DIR}/{embeddings_folder}/{dataset_name}/{model_name}_train_m{n_model}.npz"
 
             if dataset_name == "TinyImageNet":
-                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_val_m{n_model}.npz"
+                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/{model_name}_val_m{n_model}.npz"
             else:
-                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_test_m{n_model}.npz"
-            full_path = f"{DIR}/{embeddings_folder}/{dataset_name}/resnet18_full_m{n_model}.npz"
+                test_path = f"{DIR}/{embeddings_folder}/{dataset_name}/{model_name}_test_m{n_model}.npz"
+            full_path = f"{DIR}/{embeddings_folder}/{dataset_name}/{model_name}_full_m{n_model}.npz"
 
                             
             train_embeddings_data = np.load(train_path)
@@ -250,7 +250,7 @@ for dataset_name, num_classes in datasets.items():
                 "Forget Class": forget_class,
                 "Mode": "original",
                 "Dataset": dataset_name,
-                "Model": "resnet18",
+                "Model": {model_name},
                 "Model Num": n_model,
                 "Train Acc": train_accuracy,
                 "Test Acc": test_accuracy,
