@@ -8,6 +8,7 @@ import numpy as np
 from torch.utils.data import Subset
 from models.allcnn import AllCNN
 from torch import nn
+from models.ViT import ViT_16_mod
 
 from opts import OPT as opt
 import os 
@@ -63,7 +64,9 @@ def trainer(removed=None):
         model = torchvision.models.resnet50(pretrained=True).to('cuda')
     elif opt.model=='AllCNN':
         model = AllCNN(n_channels=3, num_classes=opt.num_classes).to('cuda')
-    
+    elif opt.model == 'ViT':           # NEW -------------------------
+        model = ViT_16_mod(n_classes=opt.num_classes).to('cuda')
+        
     if opt.dataset == 'cifar10':
         os.makedirs(f'./weights/chks_cifar10/original', exist_ok=True)
         # Load CIFAR-10 data
