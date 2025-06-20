@@ -7,9 +7,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from torch.utils.data import Subset
 from models.allcnn import AllCNN
-from torch import nn
 from models.ViT import ViT_16_mod
-
 from opts import OPT as opt
 import os 
 import wandb
@@ -54,6 +52,24 @@ transform_test_tiny = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
     ])
+
+
+if opt.model == 'ViT':
+    transform_train = transforms.Compose([
+        transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset]),
+    ])
+    transform_test = transforms.Compose([
+        transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset]),
+    ])
+
+
+
+
 def trainer(removed=None):
     # Initialize the model
     if opt.model == 'resnet18':
@@ -72,12 +88,15 @@ def trainer(removed=None):
         # Load CIFAR-10 data
         trainset = torchvision.datasets.CIFAR10(root=opt.data_path, train=True, download=True, transform=transform_train)
         testset = torchvision.datasets.CIFAR10(root=opt.data_path, train=False, download=True, transform=transform_test)
-        model.fc = nn.Linear(model.fc.in_features, opt.num_classes).to('cuda')
+        
+        if 'resnet' in opt.model:    
+            model.fc = nn.Linear(model.fc.in_features, opt.num_classes).to('cuda')
 
     elif opt.dataset == 'cifar100':
         os.makedirs(f'./weights/chks_cifar100/original', exist_ok=True)
         trainset = torchvision.datasets.CIFAR100(root=opt.data_path, train=True, download=True, transform=transform_train)
         testset = torchvision.datasets.CIFAR100(root=opt.data_path, train=False, download=True, transform=transform_test)
+        
         if 'resnet' in opt.model:    
             model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
             model.maxpool = nn.Identity()
@@ -94,6 +113,13 @@ def trainer(removed=None):
             model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
             model.maxpool = nn.Identity()
             model.fc = nn.Sequential(nn.Dropout(0.4), nn.Linear(model.fc.in_features, opt.num_classes)).to('cuda')
+            
+        elif opt.model == 'ViT':
+            model.heads[-1] = nn.Linear(model.heads[-1].in_features, opt.num_classes).to('cuda')
+
+        elif opt.model == 'AllCNN':                     
+            model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, opt.num_classes).to('cuda')            
+            
     #dataloader
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=256, shuffle=True, num_workers=opt.num_workers)
     testloader = torch.utils.data.DataLoader(testset, batch_size=256, shuffle=False, num_workers=opt.num_workers)
