@@ -159,26 +159,36 @@ class OPT:
             
      
     elif model == 'resnet50':
+        if dataset== 'cifar10':
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_resnet50_m{n_model}.pth'
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_resnet50_m{n_model}.pth'
         if dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/new_model_resnet50_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_resnet50_m{n_model}.pth'
     
     elif model == 'resnet34':
+        if dataset== 'cifar10':
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_resnet34_m{n_model}.pth'
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_resnet34_m{n_model}.pth'
         if dataset== 'TinyImageNet':
             or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_resnet34_m{n_model}.pth'
     
     elif model == 'ViT':
+        if dataset== 'cifar10':
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_ViT_m{n_model}.pth'
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_ViT_m{n_model}.pth'
-        
+        if dataset== 'TinyImageNet':
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_ViT_m{n_model}.pth'
+            
     elif model == 'AllCNN':
+        if dataset== 'cifar10':
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_AllCNN_m{n_model}.pth'
         if dataset== 'cifar100':
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_AllCNN_m{n_model}.pth'
         if dataset== 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_model_tiny_AllCNN_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_tiny_AllCNN_m{n_model}.pth'
     else:
         raise NotImplementedError
     
