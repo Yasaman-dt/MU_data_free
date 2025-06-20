@@ -56,11 +56,16 @@ method_name_and_ref = {
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
+
+
 columns_to_display = [
-    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
-    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
-    ("AUS", r"AUS $\uparrow$")
+    ("val_test_retain_acc", "\mathcal{A}^t_r"),
+    ("val_test_fgt_acc", "\mathcal{A}^t_f"),
+    ("AUS", "AUS")
 ]
+
+
+
 
 def sort_key(key):
     base_method = key.split(" (")[0]
@@ -298,7 +303,11 @@ df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
 df_filtered["Display Name"] = df_filtered["method"].map(lambda m: method_name_and_ref[m][0])
 
 
-
+columns_to_display = [
+    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
+    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
+    ("AUS", r"AUS $\uparrow$")
+]
 
 from collections import defaultdict
 
@@ -435,6 +444,10 @@ column_format = "c|c|c|c|" + "c" * 10
 method_row_counts = final_df.groupby("Method", observed=False).size().to_dict()
 
 latex = []
+latex.append(r"\begin{table}[ht]")
+latex.append(r"\centering")
+latex.append(r"\caption{Per-class forgetting accuracy on CIFAR-10 using ResNet-18, averaged over 5 random trials.}")
+latex.append(r"\label{tab:cifar10_forget}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
 latex.append(r"\toprule")
@@ -527,6 +540,7 @@ for i, row in final_df.iterrows():
 latex.append(r"\bottomrule")
 latex.append(r"\end{tabular}")
 latex.append(r"}")  # closing resizebox
+latex.append(r"\end{table}")
 
 with open("results_random_fc/cifar10_unlearning_table_per_class.tex", "w") as f:
     f.write("\n".join(latex))

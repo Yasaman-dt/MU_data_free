@@ -452,7 +452,7 @@ latex_table = r"""\begin{table}[ht]
 \caption{Impact of noise distribution on data-free unlearning performance.  
 We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR10, CIFAR100 and TinyImageNet.  
 Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
-\label{tab:main_results}
+\label{tab:results_ngftw_diff_sampling}
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule

@@ -433,7 +433,7 @@ latex_table = r"""\begin{table}[ht]
          We fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
         Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
 
-\label{tab:main_results}
+\label{tab:results_ngftw_real_vs_synth_layer4_1_conv2}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}
@@ -530,7 +530,7 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("results_random_layer4_1_conv2/results_ngftw_real_vs_synth.tex", "w", encoding="utf-8") as f:
+with open("results_random_layer4_1_conv2/results_ngftw_real_vs_synth_layer4_1_conv2.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to combined_table.tex")
