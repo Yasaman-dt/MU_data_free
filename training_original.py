@@ -69,7 +69,7 @@ def trainer(removed=None):
         # Load CIFAR-10 data
         trainset = torchvision.datasets.CIFAR10(root=opt.data_path, train=True, download=True, transform=transform_train)
         testset = torchvision.datasets.CIFAR10(root=opt.data_path, train=False, download=True, transform=transform_test)
-        model.fc = nn.Linear(512, opt.num_classes).to('cuda')
+        model.fc = nn.Linear(model.fc.in_features, opt.num_classes).to('cuda')
 
     elif opt.dataset == 'cifar100':
         os.makedirs(f'./weights/chks_cifar100/original', exist_ok=True)
