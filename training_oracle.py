@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from models.allcnn import AllCNN
 import csv
-
+from models.ViT import ViT_16_mod
 from opts import OPT as opt
 import os 
 
@@ -55,6 +55,23 @@ transform_test_tiny = transforms.Compose([
         transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset])
     ])
 
+
+
+if opt.model == 'ViT':
+    transform_train = transforms.Compose([
+        transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset]),
+    ])
+    transform_test = transforms.Compose([
+        transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean[opt.dataset], std=std[opt.dataset]),
+    ])
+
+
+
 def log_epoch_to_csv(epoch, train_acc, train_loss, val_acc, val_loss, mode, dataset, model, class_to_remove, seed):
     os.makedirs(f'results/{mode}/epoch_logs', exist_ok=True)
 
@@ -99,7 +116,10 @@ def trainer(class_to_remove, seed):
         model = torchvision.models.resnet50(pretrained=True).to('cuda')
     elif opt.model=='AllCNN':
         model = AllCNN(n_channels=3, num_classes=opt.num_classes).to('cuda')
-
+    elif opt.model == 'ViT':
+        model = ViT_16_mod(n_classes=opt.num_classes).to('cuda')
+        
+        
     if opt.mode == 'HR':
         if opt.dataset == "cifar10":
             num=5000
@@ -117,6 +137,7 @@ def trainer(class_to_remove, seed):
 
     if opt.dataset == 'cifar10':
         os.makedirs('./weights/chks_cifar10', exist_ok=True)
+        
     elif opt.dataset == 'cifar100':
         os.makedirs('./weights/chks_cifar100', exist_ok=True)
         if 'resnet' in opt.model:    
