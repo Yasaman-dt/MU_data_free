@@ -15,6 +15,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import copy
 from create_embeddings_utils import get_model
 import pandas as pd
+import os
 
 DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
@@ -44,7 +45,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Configuration
 datasets = {
-    "CIFAR10": 10,
+    #"CIFAR10": 10,
     "CIFAR100": 100,
     "TinyImageNet": 200,
 }
@@ -264,9 +265,9 @@ for dataset_name, num_classes in datasets.items():
             }
             results.append(result)
             
-            
-# Convert to DataFrame
-results_df = pd.DataFrame(results)
-
-# Save to CSV
-results_df.to_csv(f"results_original_{model_name}.csv", index=False)
+            pd.DataFrame([result]).to_csv(
+                f"results_original_{model_name}.csv",
+                mode="a",
+                header=not os.path.exists(f"results_original_{model_name}.csv"),
+                index=False
+            )
