@@ -41,7 +41,7 @@ def main(download: bool = True, *_, **__):  # Set download to True
             else:
                 dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-            checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_resnet18_m{n_model}.pth"  # Set your actual checkpoint path
+            checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_{model_name}_m{n_model}.pth"  # Set your actual checkpoint path
             model = CustomBackboneModel(model_name, dataset_name, checkpoint_path=checkpoint_path)      
             if not os.path.exists(checkpoint_path):
                 logger.warning(f"Checkpoint not found at {checkpoint_path}. Skipping...")
