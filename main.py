@@ -159,7 +159,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         forget_loader_synth = DataLoader(TensorDataset(forgetfull_features_synth, forgetfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
         retain_loader_synth = DataLoader(TensorDataset(retainfull_features_synth, retainfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
         
-        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
     
         data = np.load(data_path)
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
@@ -385,13 +385,13 @@ if __name__ == "__main__":
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
                 forget_class = class_to_remove[0]
-                train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+                train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_train_m{n_model}.npz"
                 
                 if dataset_name_lower == "TinyImageNet":
-                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_val_m{n_model}.npz"
+                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_val_m{n_model}.npz"
                 else:
-                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_test_m{n_model}.npz"
-                full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_test_m{n_model}.npz"
+                full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
 
                 train_embeddings_data = np.load(train_path)
                 test_embeddings_data = np.load(test_path)
