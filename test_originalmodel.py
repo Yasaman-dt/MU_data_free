@@ -20,6 +20,7 @@ DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
 weights_folder = "weights"
 embeddings_folder = "embeddings"
+model_name = 'resnet50'
 
 # -------------------- Configuration --------------------
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -74,7 +75,6 @@ for dataset_name, num_classes in datasets.items():
     for n_model in n_models:
         for forget_class in range(0, num_classes):  # just a subset for demo
 
-            model_name = 'resnet18'   # This can also be dynamically selected
 
 
             if dataset_name.lower() in ["cifar10", "cifar100"]:
@@ -138,7 +138,7 @@ for dataset_name, num_classes in datasets.items():
             test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
 
-            data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+            data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{model_name}_full_m{n_model}.npz"
 
             data = np.load(data_path)
             embeddings_real = data["embeddings"]  # Shape: (N, 512)
@@ -250,7 +250,7 @@ for dataset_name, num_classes in datasets.items():
                 "Forget Class": forget_class,
                 "Mode": "original",
                 "Dataset": dataset_name,
-                "Model": {model_name},
+                "Model": model_name,
                 "Model Num": n_model,
                 "Train Acc": train_accuracy,
                 "Test Acc": test_accuracy,
