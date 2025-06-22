@@ -81,7 +81,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         print("class_to_remove:",class_to_remove)
         
         # Step 1: Generate synthetic retain samples in feature space
-        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
     
         data = np.load(data_path)
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
