@@ -196,7 +196,7 @@ def get_resnet_trained():
         model.maxpool = nn.Identity()
         model.fc = nn.Sequential(nn.Dropout(0), nn.Linear(model.fc.in_features, opt.num_classes)) 
     else:
-        model.fc = nn.Linear(512, opt.num_classes)
+        model.fc = nn.Linear(model.fc.in_features, opt.num_classes)
     
     #print(weights_pretrained)
     model.load_state_dict(weights_pretrained)
