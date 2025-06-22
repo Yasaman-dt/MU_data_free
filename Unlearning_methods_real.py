@@ -2177,7 +2177,7 @@ class RetrainedEmbedding(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         
-        self.fc_layer = nn.Linear(512, opt.num_classes).to('cuda')
+        self.fc_layer = nn.Linear(net.fc.in_features, opt.num_classes).to('cuda')
 
         self.optimizer = optim.SGD(self.fc_layer.parameters(), lr=opt.lr_unlearn, weight_decay=5e-5)
         self.criterion = nn.CrossEntropyLoss(label_smoothing=0.4)
