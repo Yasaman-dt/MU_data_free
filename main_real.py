@@ -81,7 +81,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         print("class_to_remove:",class_to_remove)
         
         # Step 1: Generate synthetic retain samples in feature space
-        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
+        data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
     
         data = np.load(data_path)
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
@@ -209,13 +209,13 @@ if __name__ == "__main__":
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
                 forget_class = class_to_remove[0]
-                train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_train_m{n_model}.npz"
+                train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
                 
                 if dataset_name_lower == "TinyImageNet":
-                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_val_m{n_model}.npz"
+                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_val_m{n_model}.npz"
                 else:
-                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_test_m{n_model}.npz"
-                full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
+                    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_test_m{n_model}.npz"
+                full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
 
                 train_embeddings_data = np.load(train_path)
                 test_embeddings_data = np.load(test_path)
