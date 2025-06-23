@@ -21,7 +21,7 @@ MODELS = {
     #'mnasnet':models.mnasnet1_0,
     #'mobilenet':models.mobilenet_v2,
     'resnet18':models.resnet18,
-    #'resnet50':models.resnet50,
+    'resnet50':models.resnet50,
     #'shufflenet':models.shufflenet_v2_x1_0
 }
 
