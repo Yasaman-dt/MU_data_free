@@ -46,7 +46,7 @@ n_model = opt.n_model
 DIR = "/projets/Zdehghani/MU_data_free"
 weights_folder = "weights"
 
-matrix_B_224 = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/matrix_B_224_m{n_model}.npy"
+#matrix_B_224 = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/matrix_B_224_m{n_model}.npy"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
@@ -188,25 +188,21 @@ def main(train_retain_loader_img,
             #set tollerance for stopping criteria
             opt.target_accuracy = 0.00
 
-            if opt.method == 'NGFTW':
-                approach = choose_method(opt.method)(pretr_model,
-                                                     train_retain_loader_img,
-                                                     train_fgt_loader_img,
-                                                     test_retain_loader_img,
-                                                     test_fgt_loader_img,
-                                                     retain_loader_synth,
-                                                     forget_loader_synth,
-                                                     test_retain_loader,
-                                                     test_fgt_loader,
-                                                     retainfull_loader_real,
-                                                     forgetfull_loader_real,
-                                                     class_to_remove=class_to_remove)  #generated samples
+            approach = choose_method(opt.method)(pretr_model,
+                                                    train_retain_loader_img,
+                                                    train_fgt_loader_img,
+                                                    test_retain_loader_img,
+                                                    test_fgt_loader_img,
+                                                    retain_loader_synth,
+                                                    forget_loader_synth,
+                                                    test_retain_loader,
+                                                    test_fgt_loader,
+                                                    retainfull_loader_real,
+                                                    forgetfull_loader_real,
+                                                    class_to_remove=class_to_remove)  #generated samples
 
-            else:
-                approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-                #approach = choose_method(opt.method)(pretr_model, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
 
-            
+        
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
@@ -295,7 +291,7 @@ if __name__ == "__main__":
         if opt.mode == "CR":
             
             print("Generating synthetic embeddings ONCE...")
-            B_numpy = np.load(matrix_B_224)
+            #B_numpy = np.load(matrix_B_224)
             sigma_range = [5.0]
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()

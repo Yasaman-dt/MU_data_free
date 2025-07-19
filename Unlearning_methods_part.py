@@ -160,14 +160,31 @@ class BaseMethod:
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
 
-
+        self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
+        self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
 
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.net.fc.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        self.optimizer = optim.SGD(self.Remainingmodel.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
         self.epochs = opt.epochs_unlearn
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
 
+        for images, labels in self.train_retain_loader:
+            print("train_retain_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.train_fgt_loader:
+            print("train_fgt_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_retain_loader_img:
+            print("test_retain_loader_img:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_fgt_loader_img:
+            print("test_fgt_loader_img:", images.shape, labels.shape)
+            break
+        
         print(f"Train Retain Samples: {len(self.train_retain_loader.dataset)}")
         print(f"Test Retain Samples: {len(self.test_retain_loader.dataset)}")
         print(f"Real Retain Full Samples: {len(self.retainfull_loader_real.dataset)}")
@@ -179,22 +196,42 @@ class BaseMethod:
         return None
 
     def run(self):
-        self.net.train()
+        for param in self.Truncatedmodel.parameters():
+            param.requires_grad = False
+            
+        for param in self.Remainingmodel.parameters():
+            param.requires_grad = True        
+        
+        self.Remainingmodel.train()
         best_model_state = None
         best_aus = -float('inf')
         best_epoch = -1
         patience_counter = 0
         patience = opt.patience
 
+
+
+        merged_model = copy.deepcopy(self.net)
+
+        # === Overwrite the parts that were trained in RemainingResNet ===
+        merged_model.layer4[1].conv2 = self.Remainingmodel.layer4_1_conv2
+        merged_model.layer4[1].bn2 = self.Remainingmodel.layer4_1_bn2
+        merged_model.avgpool = self.Remainingmodel.avgpool
+        merged_model.fc = self.Remainingmodel.fc
+
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
         zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
 
         aus_history = []
         results = []
-        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-
-        retain_count = count_samples(self.train_retain_loader)
-        forget_count = count_samples(self.train_fgt_loader)
+        a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
+        print(a_or_value)
+        
+        a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)/100
+        print(a_or_value)
+        
+        retain_count = count_samples(self.train_retain_loader_img)
+        forget_count = count_samples(self.train_fgt_loader_img)
         total_count = retain_count + forget_count
         epoch_times = []
 
@@ -215,12 +252,12 @@ class BaseMethod:
 
             with torch.no_grad():
                 self.net.eval()
-                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
-                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
-                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
-                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
-                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+                acc_train_ret = evaluate_embedding_accuracy(self.Remainingmodel, self.train_retain_loader, opt.device)/100
+                acc_train_fgt = evaluate_embedding_accuracy(self.Remainingmodel, self.train_fgt_loader, opt.device)/100
+                acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
+                acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)/100
+                acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)/100
+                acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)/100
 
 
 
@@ -346,8 +383,8 @@ class BaseMethod:
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
-        self.net.eval()
-        return self.net
+        merged_model.eval()
+        return merged_model
     
     def evalNet(self):
         #compute model accuracy on self.loader
@@ -388,15 +425,38 @@ class BaseMethod:
             return correct/total,correct2/total2,correct3/total3
     
 class FineTuning(BaseMethod):
-    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
-        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+    def __init__(self,
+                 net,
+                 train_retain_loader_img,
+                 train_fgt_loader_img,
+                 test_retain_loader_img,
+                 test_fgt_loader_img,
+                 train_retain_loader,
+                 train_fgt_loader,
+                 test_retain_loader,
+                 test_fgt_loader,
+                 retainfull_loader_real,
+                 forgetfull_loader_real,
+                 class_to_remove=None):
+        
+        super().__init__(net,
+                         train_retain_loader_img,
+                         train_fgt_loader_img,
+                         test_retain_loader_img,
+                         test_fgt_loader_img,
+                         train_retain_loader,
+                         train_fgt_loader,
+                         test_retain_loader,
+                         test_fgt_loader,
+                         retainfull_loader_real,
+                         forgetfull_loader_real)
+        
         self.loader = self.train_retain_loader
         self.target_accuracy=0.0
         self.class_to_remove = class_to_remove
 
-    def loss_f(self, inputs, targets,test=None):
-        outputs = self.net.fc(inputs)
-        loss = self.criterion(outputs, targets)
+    def loss_f(self, inputs_r, targets_r ,test=None):
+        loss = self.criterion(self.Remainingmodel(inputs_r), targets_r)
         return loss
 
 class RandomLabels(BaseMethod):
@@ -416,14 +476,55 @@ class RandomLabels(BaseMethod):
         return loss
 
 class NegativeGradient(BaseMethod):
-    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
-        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+    def __init__(self,
+                 net,
+                 train_retain_loader_img,
+                 train_fgt_loader_img,
+                 test_retain_loader_img,
+                 test_fgt_loader_img,
+                 train_retain_loader,
+                 train_fgt_loader,
+                 test_retain_loader,
+                 test_fgt_loader,
+                 retainfull_loader_real,
+                 forgetfull_loader_real,
+                 class_to_remove=None):
+        super().__init__(net,
+                         train_retain_loader_img,
+                         train_fgt_loader_img,
+                         test_retain_loader_img,
+                         test_fgt_loader_img,
+                         train_retain_loader,
+                         train_fgt_loader,
+                         test_retain_loader,
+                         test_fgt_loader,
+                         retainfull_loader_real,
+                         forgetfull_loader_real)
+        
+        self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
+        self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         self.loader = self.train_fgt_loader
-        self.class_to_remove = class_to_remove
 
-    def loss_f(self, inputs, targets):
-        outputs = self.net.fc(inputs)
-        loss = self.criterion(outputs, targets) * (-1)
+
+        for images, labels in self.train_retain_loader:
+            print("train_retain_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.train_fgt_loader:
+            print("train_fgt_loader_synth:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_retain_loader_img:
+            print("test_retain_loader_img:", images.shape, labels.shape)
+            break
+
+        for images, labels in self.test_fgt_loader_img:
+            print("test_fgt_loader_img:", images.shape, labels.shape)
+            break
+
+
+    def loss_f(self, inputs_f, targets_f):
+        loss = self.criterion(self.Remainingmodel(inputs_f), targets_f) * (-1)
         return loss
 
 class NGFT(BaseMethod):
