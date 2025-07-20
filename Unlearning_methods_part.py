@@ -460,16 +460,40 @@ class FineTuning(BaseMethod):
         return loss
 
 class RandomLabels(BaseMethod):
-    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
-        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+    def __init__(self,
+                 net,
+                 train_retain_loader_img,
+                 train_fgt_loader_img,
+                 test_retain_loader_img,
+                 test_fgt_loader_img,
+                 train_retain_loader,
+                 train_fgt_loader,
+                 test_retain_loader,
+                 test_fgt_loader,
+                 retainfull_loader_real,
+                 forgetfull_loader_real,
+                 class_to_remove=None):
+        super().__init__(net,
+                         train_retain_loader_img,
+                         train_fgt_loader_img,
+                         test_retain_loader_img,
+                         test_fgt_loader_img,
+                         train_retain_loader,
+                         train_fgt_loader,
+                         test_retain_loader,
+                         test_fgt_loader,
+                         retainfull_loader_real,
+                         forgetfull_loader_real)
         self.loader = self.train_fgt_loader
         self.class_to_remove = class_to_remove
-
+        self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
+        self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
+        
         if opt.mode == "CR":
             self.random_possible = torch.tensor([i for i in range(opt.num_classes) if i not in self.class_to_remove]).to(opt.device).to(torch.float32)
 
     def loss_f(self, inputs, targets):
-        outputs = self.net.fc(inputs)
+        outputs = self.Remainingmodel(inputs)
         #create a random label tensor of the same shape as the outputs chosing values from self.possible_labels
         random_labels = self.random_possible[torch.randint(low=0, high=self.random_possible.shape[0], size=targets.shape)].to(torch.int64).to(opt.device)
         loss = self.criterion(outputs, random_labels)
