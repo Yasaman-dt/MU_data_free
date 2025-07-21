@@ -132,23 +132,19 @@ def main(train_retain_loader_img,
         if opt.mode == "CR":
             #set tollerance for stopping criteria
             opt.target_accuracy = 0.00
-            if opt.method == 'NGFTW':
-                approach = choose_method(opt.method)(pretr_model,
-                                                     train_retain_loader_img,
-                                                     train_fgt_loader_img,
-                                                     test_retain_loader_img,
-                                                     test_fgt_loader_img,
-                                                     train_retain_loader_real,
-                                                     train_fgt_loader_real,
-                                                     test_retain_loader,
-                                                     test_fgt_loader,
-                                                     retainfull_loader_real,
-                                                     forgetfull_loader_real,
-                                                     class_to_remove=class_to_remove)  #generated samples
+            approach = choose_method(opt.method)(pretr_model,
+                                                    train_retain_loader_img,
+                                                    train_fgt_loader_img,
+                                                    test_retain_loader_img,
+                                                    test_fgt_loader_img,
+                                                    train_retain_loader_real,
+                                                    train_fgt_loader_real,
+                                                    test_retain_loader,
+                                                    test_fgt_loader,
+                                                    retainfull_loader_real,
+                                                    forgetfull_loader_real,
+                                                    class_to_remove=class_to_remove)  #generated samples
 
-            else:
-                #approach = choose_method(opt.method)(pretr_model, retain_loader_synth, forget_loader_synth, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove)  #generated samples
-                approach = choose_method(opt.method)(pretr_model, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=class_to_remove) #real samples
 
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
