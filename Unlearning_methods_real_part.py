@@ -155,8 +155,8 @@ class BaseMethod:
         self.train_fgt_loader_img = train_fgt_loader_img
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
-        
-        
+        self.class_to_remove = class_to_remove
+
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         self.criterion = nn.CrossEntropyLoss()
@@ -166,12 +166,12 @@ class BaseMethod:
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
 
 
-        for images, labels in self.train_retain_loader:
-            print("train_retain_loader_synth:", images.shape, labels.shape)
+        for images, labels in self.train_retain_loader_img:
+            print("train_retain_loader_img:", images.shape, labels.shape)
             break
 
-        for images, labels in self.train_fgt_loader:
-            print("train_fgt_loader_synth:", images.shape, labels.shape)
+        for images, labels in self.train_fgt_loader_img:
+            print("train_fgt_loader_img:", images.shape, labels.shape)
             break
 
         for images, labels in self.test_retain_loader_img:
@@ -188,7 +188,8 @@ class BaseMethod:
         print(f"Train forget Samples: {len(self.train_fgt_loader.dataset)}")
         print(f"Test forget Samples: {len(self.test_fgt_loader.dataset)}")
         print(f"Real forget Full Samples: {len(self.forgetfull_loader_real.dataset)}")
-    def loss_f(self, net, inputs, targets):
+        
+    def loss_f(self, merged_model, inputs, targets):
         return None
 
     def run(self):
@@ -198,21 +199,13 @@ class BaseMethod:
         for param in self.Remainingmodel.parameters():
             param.requires_grad = True        
         
-        
-        
-        
-        
-        
-        
-        
+       
         self.Remainingmodel.train()
         best_model_state = None
         best_aus = -float('inf')
         best_epoch = -1
         patience_counter = 0
         patience = opt.patience
-
-
 
         merged_model = copy.deepcopy(self.net)
 
@@ -233,10 +226,8 @@ class BaseMethod:
         results = []
         epoch_times = []
 
-        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
-
-        retain_count = count_samples(self.train_retain_loader)
-        forget_count = count_samples(self.train_fgt_loader)
+        retain_count = count_samples(self.train_retain_loader_img)
+        forget_count = count_samples(self.train_fgt_loader_img)
         total_count = retain_count + forget_count
         
         for epoch in tqdm(range(self.epochs)):
@@ -245,7 +236,7 @@ class BaseMethod:
             for inputs, targets in self.loader:
                 inputs, targets = inputs.to(opt.device), targets.to(opt.device)
                 self.optimizer.zero_grad()
-                loss = self.loss_f(inputs, targets)
+                loss = self.loss_f(merged_model, inputs, targets)
                 loss.backward()
                 self.optimizer.step()
 
@@ -446,14 +437,14 @@ class FineTuning(BaseMethod):
                          retainfull_loader_real,
                          forgetfull_loader_real)     
         
-        self.loader = self.train_retain_loader
+        self.loader = self.train_retain_loader_img
         self.target_accuracy=0.0
         self.class_to_remove = class_to_remove
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         merged_model = copy.deepcopy(self.net)
         
-    def loss_f(self, inputs_r, targets_r ,test=None):
+    def loss_f(self, merged_model, inputs_r, targets_r):
         loss = self.criterion(merged_model(inputs_r), targets_r)
         return loss
 
@@ -484,7 +475,7 @@ class RandomLabels(BaseMethod):
                          retainfull_loader_real,
                          forgetfull_loader_real)   
         
-        self.loader = self.train_fgt_loader
+        self.loader = self.train_fgt_loader_img
         self.class_to_remove = class_to_remove
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
@@ -516,7 +507,7 @@ class RandomLabels(BaseMethod):
             break
 
 
-    def loss_f(self, inputs, targets):
+    def loss_f(self, merged_model, inputs, targets):
         outputs = merged_model(inputs)
         #create a random label tensor of the same shape as the outputs chosing values from self.possible_labels
         random_labels = self.random_possible[torch.randint(low=0, high=self.random_possible.shape[0], size=targets.shape)].to(torch.int64).to(opt.device)
@@ -550,7 +541,7 @@ class NegativeGradient(BaseMethod):
                          retainfull_loader_real,
                          forgetfull_loader_real)       
         
-        self.loader = self.train_fgt_loader
+        self.loader = self.train_fgt_loader_img
         self.class_to_remove = class_to_remove
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
@@ -574,9 +565,9 @@ class NegativeGradient(BaseMethod):
             break
         
         
-        def loss_f(self, inputs_r, targets_r):
-            loss = self.criterion(merged_model(inputs_r), targets_r) * (-1)
-            return loss
+    def loss_f(self, merged_model, inputs_r, targets_r):
+        loss = self.criterion(merged_model(inputs_r), targets_r) * (-1)
+        return loss
 
 
 class NGFT(BaseMethod):
