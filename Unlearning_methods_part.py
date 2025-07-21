@@ -528,6 +528,7 @@ class NegativeGradient(BaseMethod):
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         self.loader = self.train_fgt_loader
+        self.class_to_remove = class_to_remove
 
 
         for images, labels in self.train_retain_loader:
