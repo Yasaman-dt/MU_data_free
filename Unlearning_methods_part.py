@@ -516,11 +516,11 @@ class NegativeGradient(BaseMethod):
 
 
         for images, labels in self.train_retain_loader_img:
-            print("train_retain_loader_synth:", images.shape, labels.shape)
+            print("train_retain_loader_img:", images.shape, labels.shape)
             break
 
         for images, labels in self.train_fgt_loader_img:
-            print("train_fgt_loader_synth:", images.shape, labels.shape)
+            print("train_fgt_loader_img:", images.shape, labels.shape)
             break
 
         for images, labels in self.test_retain_loader_img:
