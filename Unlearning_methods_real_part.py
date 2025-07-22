@@ -36,6 +36,8 @@ def choose_method(name):
         return FineTuning
     elif name=='NG':
         return NegativeGradient
+    elif name=='NGFT':
+        return NGFT
     elif name=='NGFTW':
         return NGFT_weighted
     elif name=='RL':
@@ -237,7 +239,6 @@ class BaseMethod:
                 acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)/100
                 acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)/100
                 acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)/100
-                
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
@@ -435,7 +436,6 @@ class FineTuning(BaseMethod):
         loss = self.criterion(merged_model(inputs_r), targets_r)
         return loss
 
-
 class RandomLabels(BaseMethod):
     def __init__(self,
                  net,
@@ -502,7 +502,6 @@ class RandomLabels(BaseMethod):
         loss = self.criterion(outputs, random_labels)
         return loss
 
-
 class NegativeGradient(BaseMethod):
     def __init__(self,
                  net,
@@ -557,6 +556,7 @@ class NegativeGradient(BaseMethod):
     def loss_f(self, merged_model, inputs_f, targets_f):
         loss = self.criterion(merged_model(inputs_f), targets_f) * (-1)
         return loss
+
 
 
 class NGFT_weighted(BaseMethod):
@@ -789,6 +789,7 @@ class NGFT_weighted(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
         merged_model.eval()
         return merged_model
+
 
 
 class newmethod(BaseMethod):
@@ -1048,6 +1049,8 @@ class RetrainedEmbedding(BaseMethod):
         
         return self.net
     
+
+
 
 class MaximeMethod(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
