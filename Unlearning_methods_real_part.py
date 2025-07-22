@@ -554,8 +554,8 @@ class NegativeGradient(BaseMethod):
             break
         
         
-    def loss_f(self, merged_model, inputs_r, targets_r):
-        loss = self.criterion(merged_model(inputs_r), targets_r) * (-1)
+    def loss_f(self, merged_model, inputs_f, targets_f):
+        loss = self.criterion(merged_model(inputs_f), targets_f) * (-1)
         return loss
 
 
