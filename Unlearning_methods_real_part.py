@@ -36,8 +36,6 @@ def choose_method(name):
         return FineTuning
     elif name=='NG':
         return NegativeGradient
-    elif name=='NGFT':
-        return NGFT
     elif name=='NGFTW':
         return NGFT_weighted
     elif name=='RL':
