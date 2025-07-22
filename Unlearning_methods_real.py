@@ -137,7 +137,7 @@ class BaseMethod:
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.net.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        self.optimizer = optim.SGD(self.net.fc.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
         self.epochs = opt.epochs_unlearn
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
