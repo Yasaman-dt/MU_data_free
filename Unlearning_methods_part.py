@@ -511,15 +511,15 @@ class NegativeGradient(BaseMethod):
         
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
-        self.loader = self.train_fgt_loader
+        self.loader = self.train_fgt_loader_img
         self.class_to_remove = class_to_remove
 
 
-        for images, labels in self.train_retain_loader:
+        for images, labels in self.train_retain_loader_img:
             print("train_retain_loader_synth:", images.shape, labels.shape)
             break
 
-        for images, labels in self.train_fgt_loader:
+        for images, labels in self.train_fgt_loader_img:
             print("train_fgt_loader_synth:", images.shape, labels.shape)
             break
 
