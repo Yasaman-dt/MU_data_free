@@ -9,19 +9,20 @@ from SVC_MIA import SVC_MIA
 import pandas as pd
 import os
 import argparse
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 
 # ------------------ Argparse ------------------
 parser = argparse.ArgumentParser(description="Run SVC MIA pipeline with model and method options.")
 parser.add_argument('--n_model', type=int, default=1, help='Model index (e.g., 1 to 5)')
 parser.add_argument('--method', type=str, default='original', help='Unlearning method to evaluate (e.g., original, retrained, FT, etc.)')
 parser.add_argument('--model_name', type=str, default='resnet18', help='Model name (e.g., resnet18, vit, etc.)')
+parser.add_argument('--source', type=str, default='real', choices=['real', 'synth'], help='Data source: real or synth')
+
 args = parser.parse_args()
 
 n_model = args.n_model
 method = args.method
 model_name = args.model_name
+source = args.source
 
 
 # ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
@@ -33,7 +34,7 @@ dataset_name = "cifar10"
 #model_name = "resnet18"
 num_classes = 10
 forget_classes = list(range(num_classes))  # or a subset if needed
-source = "real" #synth
+#source = "real" #synth
 #n_model=1
 batch_size = 1024
 #method="original"
@@ -49,87 +50,7 @@ if dataset_name in ["cifar10", "cifar100"]:
 else:
     dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-
-mean = {
-        'CIFAR10': (0.4914, 0.4822, 0.4465),
-        'CIFAR100': (0.5071, 0.4867, 0.4408),
-        'TinyImageNet': (0.485, 0.456, 0.406),
-        }
-
-std = {
-        'CIFAR10': (0.2023, 0.1994, 0.2010),
-        'CIFAR100': (0.2675, 0.2565, 0.2761),
-        'TinyImageNet': (0.229, 0.224, 0.225),
-        }
-
-
-
-transform_train = {
-    'CIFAR10': transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['CIFAR10'], std=std['CIFAR10'])
-    ]),
-    'CIFAR100': transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['CIFAR100'], std=std['CIFAR100'])
-    ]),
-    'TinyImageNet': transforms.Compose([
-        transforms.RandomCrop(64, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomRotation(15),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
-    ])
-}
-
-transform_test = {
-    'CIFAR10': transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['CIFAR10'], std=std['CIFAR10'])
-    ]),
-    'CIFAR100': transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['CIFAR100'], std=std['CIFAR100'])
-    ]),
-    'TinyImageNet': transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
-    ])
-}
-
-transform_val = {
-    'TinyImageNet': transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean['TinyImageNet'], std=std['TinyImageNet'])
-    ])
-}
-
-# Select appropriate transformations
-train_transform = transform_train.get(dataset_name_upper, transform_test.get(dataset_name_upper, None))
-test_transform = transform_test.get(dataset_name_upper, train_transform)
-val_transform = transform_val.get(dataset_name_upper, train_transform)
-
-
-if dataset_name_lower == "cifar10":
-    train_dataset = datasets.CIFAR10(root="./data/CIFAR10", train=True, download=True, transform=train_transform)
-    test_dataset = datasets.CIFAR10(root="./data/CIFAR10", train=False, download=True, transform=test_transform)
-    
-if dataset_name_lower == "cifar100":
-    train_dataset = datasets.CIFAR100(root="./data/CIFAR100", train=True, download=True, transform=train_transform)
-    test_dataset = datasets.CIFAR100(root="./data/CIFAR100", train=False, download=True, transform=test_transform)
-
-if dataset_name_lower == "TinyImageNet":
-    train_dir = os.path.join("./data/TinyImageNet", "train")
-    val_dir = os.path.join("./data/TinyImageNet", "val")
-    train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
-    test_dataset = datasets.ImageFolder(val_dir, transform=val_transform)
-
-full_dataset = torch.utils.data.ConcatDataset([train_dataset, test_dataset])
-
+          
 #for n_model in range(1, 6):
 print(f"Processing n_model = {n_model}")            
 train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
@@ -145,45 +66,20 @@ test_embeddings_data = np.load(test_path)
 full_embeddings_data = np.load(full_path)
 
 
-if dataset_name_lower == "cifar10":
-    train_dataset = datasets.CIFAR10(root="./data/CIFAR10", train=True, download=True, transform=train_transform)
-    test_dataset = datasets.CIFAR10(root="./data/CIFAR10", train=False, download=True, transform=test_transform)
-    
-if dataset_name_lower == "cifar100":
-    train_dataset = datasets.CIFAR100(root="./data/CIFAR100", train=True, download=True, transform=train_transform)
-    test_dataset = datasets.CIFAR100(root="./data/CIFAR100", train=False, download=True, transform=test_transform)
+train_data = np.load(train_path)
+test_data = np.load(test_path)
+full_data = np.load(full_path)
 
-if dataset_name_lower == "TinyImageNet":
-    train_dir = os.path.join("./data/TinyImageNet", "train")
-    val_dir = os.path.join("./data/TinyImageNet", "val")
+train_emb = torch.tensor(train_data["embeddings"], dtype=torch.float32)
+train_labels = torch.tensor(train_data["labels"], dtype=torch.long)
+test_emb = torch.tensor(test_data["embeddings"], dtype=torch.float32)
+test_labels = torch.tensor(test_data["labels"], dtype=torch.long)
+full_emb = torch.tensor(full_data["embeddings"], dtype=torch.float32)
+full_labels = torch.tensor(full_data["labels"], dtype=torch.long)
 
-
-    train_dataset = datasets.ImageFolder(train_dir, transform=train_transform)
-    test_dataset = datasets.ImageFolder(val_dir, transform=val_transform)
-
-
-
-def extract_embeddings_through_model_from_dataset(model, dataset, device):
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    all_embeddings, all_labels = [], []
-    
-    model.eval()
-    model.to(device)
-    feature_extractor = torch.nn.Sequential(*list(model.children())[:-1]).to(device)
-
-    with torch.no_grad():
-        for inputs, labels in loader:
-            inputs = inputs.to(device)
-            feats = feature_extractor(inputs).squeeze()
-            if feats.ndim == 1:
-                feats = feats.unsqueeze(0)
-            all_embeddings.append(feats.cpu())
-            all_labels.append(labels)
-    
-    return torch.cat(all_embeddings), torch.cat(all_labels)
-
-
-
+print("Train:", train_emb.shape, train_labels.shape)
+print("Test:", test_emb.shape, test_labels.shape)
+print("Full:", full_emb.shape, full_labels.shape)
 
 
 # Output directory and file paths
@@ -222,32 +118,6 @@ for forget_class in forget_classes:
   
     model.eval()
     fc_layer = model.fc.to(device)
-
-
-
-    # Replace this block only for the retrained method
-    if method == 'retrained':
-        train_emb, train_labels = extract_embeddings_through_model_from_dataset(model, train_dataset, device)
-        test_emb, test_labels = extract_embeddings_through_model_from_dataset(model, test_dataset, device)
-        full_emb, full_labels = extract_embeddings_through_model_from_dataset(model, full_dataset, device)
-
-    else:
-        # Original loading from precomputed embeddings
-        train_data = np.load(train_path)
-        test_data = np.load(test_path)
-        full_data = np.load(full_path)
-
-        train_emb = torch.tensor(train_data["embeddings"], dtype=torch.float32)
-        train_labels = torch.tensor(train_data["labels"], dtype=torch.long)
-        test_emb = torch.tensor(test_data["embeddings"], dtype=torch.float32)
-        test_labels = torch.tensor(test_data["labels"], dtype=torch.long)
-        full_emb = torch.tensor(full_data["embeddings"], dtype=torch.float32)
-        full_labels = torch.tensor(full_data["labels"], dtype=torch.long)
-
-        print("Train:", train_emb.shape, train_labels.shape)
-        print("Test:", test_emb.shape, test_labels.shape)
-        print("Full:", full_emb.shape, full_labels.shape)
-
 
     # Dataloaders using full data (not filtering forget class)
     train_loader = DataLoader(TensorDataset(train_emb, train_labels), batch_size=batch_size, shuffle=False)
