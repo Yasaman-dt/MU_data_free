@@ -137,7 +137,10 @@ def trainer(class_to_remove, seed):
 
     if opt.dataset == 'cifar10':
         os.makedirs('./weights/chks_cifar10', exist_ok=True)
-        
+        if 'resnet' in opt.model:    
+            model.fc = nn.Linear(model.fc.in_features, opt.num_classes).to('cuda')
+
+
     elif opt.dataset == 'cifar100':
         os.makedirs('./weights/chks_cifar100', exist_ok=True)
         if 'resnet' in opt.model:    
