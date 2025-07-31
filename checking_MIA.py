@@ -9,6 +9,7 @@ from SVC_MIA import SVC_MIA
 import pandas as pd
 import os
 import argparse
+from MIA2 import membership_inference_attack 
 
 # ------------------ Argparse ------------------
 parser = argparse.ArgumentParser(description="Run SVC MIA pipeline with model and method options.")
@@ -39,6 +40,7 @@ forget_classes = list(range(num_classes))  # or a subset if needed
 batch_size = 1024
 #method="original"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+seed=42
 
 if dataset_name.lower() in ["cifar10", "cifar100"]:
     dataset_name_upper = dataset_name.upper()
@@ -88,17 +90,20 @@ os.makedirs(csv_output_dir, exist_ok=True)
 
 privacy_csv_path = os.path.join(csv_output_dir, f"SVC_MIA_training_privacy_{dataset_name}_{method}_m{n_model}.csv")
 efficacy_csv_path = os.path.join(csv_output_dir, f"SVC_MIA_forget_efficacy_{dataset_name}_{method}_m{n_model}.csv")
+MIA2_efficacy_csv_path = os.path.join(csv_output_dir, f"SVC_MIA2_forget_efficacy_{dataset_name}_{method}_m{n_model}.csv")
 
 evaluation_metric_names = ["correctness", "confidence", "entropy", "m_entropy", "prob"]
 
 
 privacy_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model"] + evaluation_metric_names
 efficacy_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model"] + evaluation_metric_names
+MIA2_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model", "cv_score_mean", "cv_score_std"]
 
 
 # Run once to create empty files with headers
 pd.DataFrame(columns=privacy_columns).to_csv(privacy_csv_path, index=False)
 pd.DataFrame(columns=efficacy_columns).to_csv(efficacy_csv_path, index=False)
+pd.DataFrame(columns=MIA2_columns).to_csv(MIA2_efficacy_csv_path, index=False)
 
 for forget_class in forget_classes:
     print(f"  - Forget class {forget_class}")
@@ -111,7 +116,7 @@ for forget_class in forget_classes:
         checkpoint_path_model = f"{DIR}/weights/chks_{dataset_name}/retrained/best_checkpoint_{model_name}_without_[{forget_class}].pth"
     
     else:
-        checkpoint_path_model = f"{DIR}/out_{source}/samples_per_class_5000/CR/{dataset_name}/{method}/models/unlearned_model_{method}_m{n_model}_seed_42_class_{forget_class}.pth"
+        checkpoint_path_model = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt"
 
 
     model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
@@ -240,7 +245,7 @@ for forget_class in forget_classes:
     pd.DataFrame([row_privacy]).to_csv(privacy_csv_path, mode='a', header=False, index=False)
     
     
-    # ------------------ SVC_MIA: Forget Efficacy ------------------
+    # ------------------ MIA1: SVC_MIA: Forget Efficacy ------------------
     mia_forget_result = SVC_MIA(
         shadow_train=train_retain_loader,
         shadow_test=test_loader,
@@ -258,4 +263,30 @@ for forget_class in forget_classes:
         **mia_forget_result
     }
     pd.DataFrame([row_efficacy]).to_csv(efficacy_csv_path, mode='a', header=False, index=False)
+
+
+    # ------------------ MIA2 ------------------
+    MIA2_forget_result = membership_inference_attack(
+        model=fc_layer,
+        t_loader=test_loader,
+        f_loader=train_fgt_loader,
+        seed=42,
+    )
+    
+    # Wrap the score (which is a numpy array) into a dict
+    MIA2_row_efficacy = {
+        "Forget Class": forget_class,
+        "Method": method,
+        "Dataset": dataset_name,
+        "Model": model_name,
+        "n_model": n_model,
+        "cv_score_mean": float(np.mean(MIA2_forget_result)),
+        "cv_score_std": float(np.std(MIA2_forget_result))
+    }
+
+    pd.DataFrame([MIA2_row_efficacy]).to_csv(MIA2_efficacy_csv_path, mode='a', header=False, index=False)
+
+
+
+
 
