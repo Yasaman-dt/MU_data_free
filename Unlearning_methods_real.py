@@ -226,6 +226,16 @@ class BaseMethod:
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
                     
+                    checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
+
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
                 if acc_test_val_fgt == 0.0:
                     zero_acc_fgt_counter += 1
                 else:
@@ -635,6 +645,7 @@ class NGFT_weighted(BaseMethod):
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
+            
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
@@ -1071,6 +1082,19 @@ class SCAR(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
+                best_model_state = deepcopy(self.net.state_dict())
+
+
+                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                checkpoint_path = os.path.join(
+                    checkpoint_dir,
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                )
+
+                torch.save(best_model_state, checkpoint_path)
+                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
                 best_results = {
                     "Epoch": epoch + 1,
                     "Unlearning Train Retain Acc": round(retain_accuracy, 4),
@@ -1296,6 +1320,23 @@ class BoundaryShrink(BaseMethod):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
+                
+                
+                
+                best_model_state = deepcopy(self.net.state_dict())
+
+
+                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                checkpoint_path = os.path.join(
+                    checkpoint_dir,
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                )
+
+                torch.save(best_model_state, checkpoint_path)
+                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
+
                 
                 best_results = {
                     "Epoch": epoch + 1,
@@ -1526,6 +1567,21 @@ class BoundaryExpanding(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
+                
+                
+                best_model_state = deepcopy(self.net.state_dict())
+
+
+                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                checkpoint_path = os.path.join(
+                    checkpoint_dir,
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                )
+
+                torch.save(best_model_state, checkpoint_path)
+                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
                 best_results = {
                     "Epoch": epoch + 1,
                     "Loss": round(loss.item(), 4),
@@ -1848,6 +1904,22 @@ class SCRUB(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
+                
+                
+
+                best_model_state = deepcopy(self.net.state_dict())
+
+
+                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                checkpoint_path = os.path.join(
+                    checkpoint_dir,
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                )
+
+                torch.save(best_model_state, checkpoint_path)
+                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
                 best_results = {
                     "Epoch": epoch + 1,
                     "Loss": round(loss.item(), 4),
@@ -2349,6 +2421,23 @@ class RetrainedEmbedding(BaseMethod):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
+                
+                
+                best_model_state = deepcopy(self.net.state_dict())
+
+
+                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+
+                checkpoint_path = os.path.join(
+                    checkpoint_dir,
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                )
+
+                torch.save(best_model_state, checkpoint_path)
+                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
+
+
                 
                 best_results = {
                     "Epoch": epoch + 1,
