@@ -116,7 +116,8 @@ for forget_class in forget_classes:
         checkpoint_path_model = f"{DIR}/weights/chks_{dataset_name}/retrained/best_checkpoint_{model_name}_without_[{forget_class}].pth"
     
     else:
-        checkpoint_path_model = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt"
+        #checkpoint_path_model = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.1.pt"
+        checkpoint_path_model = f"{DIR}/checkpoints_main_real/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.01.pt"
 
 
     model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
