@@ -146,6 +146,8 @@ class BaseMethod:
         self.test_retain_loader_img = test_retain_loader_img
         self.test_fgt_loader_img = test_fgt_loader_img
 
+        self.class_to_remove = class_to_remove
+
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
 
@@ -271,7 +273,7 @@ class BaseMethod:
                 
                 if aus_value > best_aus:
                     best_aus = aus_value
-                    best_model_state = deepcopy(self.net.state_dict())
+                    best_model_state = deepcopy(merged_model.state_dict())
                     best_epoch = epoch
 
                     best_acc_train_ret = acc_train_ret
@@ -280,7 +282,20 @@ class BaseMethod:
                     best_acc_test_val_fgt = acc_test_val_fgt
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
-                    
+
+
+                    checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
+
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
+
+
 
                 if acc_test_val_fgt == 0.0:
                     zero_acc_fgt_counter += 1
@@ -668,9 +683,6 @@ class NGFT_weighted(BaseMethod):
             epoch_times.append(duration)
 
 
-
-
-
             with torch.no_grad():
                 self.net.eval()
                 acc_train_ret = evaluate_embedding_accuracy(self.Remainingmodel, self.train_retain_loader, opt.device)/100
@@ -700,7 +712,7 @@ class NGFT_weighted(BaseMethod):
 
                 if aus_value > best_aus:
                     best_aus = aus_value
-                    best_model_state = deepcopy(self.net.state_dict())
+                    best_model_state = deepcopy(merged_model.state_dict())
                     best_epoch = epoch
                     best_acc_train_ret = acc_train_ret
                     best_acc_train_fgt = acc_train_fgt
@@ -708,6 +720,24 @@ class NGFT_weighted(BaseMethod):
                     best_acc_test_val_fgt = acc_test_val_fgt
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
+
+
+                    checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
+
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
+
+
+
+
+
+
 
                 if acc_test_val_fgt == 0.0:
                     zero_acc_fgt_counter += 1
@@ -750,6 +780,9 @@ class NGFT_weighted(BaseMethod):
                     forget_count=forget_count,
                     total_count=total_count)
 
+
+
+
             self.scheduler.step()
 
         unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
@@ -772,6 +805,9 @@ class NGFT_weighted(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
+
+
+
 
         merged_model.eval()
         return merged_model
