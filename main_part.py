@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 from torchvision.datasets import CIFAR10, CIFAR100
 from torch.utils.data import Subset
 from torchvision import datasets, transforms
+from generate_part_samples_randomly import TruncatedResNet, RemainingResNet
 
 
 
@@ -54,9 +55,55 @@ def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
 
-  
+def extract_embeddings_from_loader(dataloader, model, device):
+    all_feats = []
+    all_labels = []
+    model.eval()
+    with torch.no_grad():
+        for imgs, labels in dataloader:
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            feats = model(imgs)  # Truncated output
+            all_feats.append(feats.cpu())
+            all_labels.append(labels.cpu())
+    return torch.cat(all_feats), torch.cat(all_labels)
 
-  
+
+
+def select_n_per_class(embeddings, labels, num_per_class, num_classes):
+    selected_embeddings = []
+    selected_labels = []
+
+    for num_class in range(num_classes):
+        cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
+        if len(cls_indices) >= num_per_class:
+            chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
+            selected_embeddings.append(embeddings[chosen_indices])
+            selected_labels.append(labels[chosen_indices])
+        else:
+            print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
+
+    selected_embeddings = torch.cat(selected_embeddings, dim=0)
+    selected_labels = torch.cat(selected_labels, dim=0)
+    return selected_embeddings, selected_labels
+
+def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
+    selected_embeddings = []
+    selected_labels = []
+
+    for class_idx in range(num_classes):
+        cls_indices = np.where(labels == class_idx)[0]
+        if len(cls_indices) >= num_per_class:
+            chosen_indices = np.random.permutation(cls_indices)[:num_per_class]
+            selected_embeddings.append(embeddings[chosen_indices])
+            selected_labels.append(labels[chosen_indices])
+        else:
+            print(f"Warning: Not enough synthetic samples for class {class_idx}. Found only {len(cls_indices)}")
+
+    selected_embeddings = np.concatenate(selected_embeddings, axis=0)
+    selected_labels = np.concatenate(selected_labels, axis=0)
+    return selected_embeddings, selected_labels
+
 def main(train_retain_loader_img,
         train_fgt_loader_img,
         test_retain_loader_img,
@@ -79,6 +126,69 @@ def main(train_retain_loader_img,
     #original_pretr_model = original_pretr_model_total.fc
     original_model.to(opt.device)
     original_model.eval()
+
+    resnet_model = get_trained_model().to(opt.device)
+    resnet_model.eval()
+
+    Truncatedmodel = TruncatedResNet(resnet_model).to(opt.device)
+    Remainingmodel = RemainingResNet(resnet_model).to(opt.device)
+    Truncatedmodel.eval()
+    Remainingmodel.eval()   
+
+
+    
+    real_feats_retain, real_lbls_retain = extract_embeddings_from_loader(train_retain_loader_img, Truncatedmodel, opt.device)
+    real_feats_forget, real_lbls_forget = extract_embeddings_from_loader(train_fgt_loader_img, Truncatedmodel, opt.device)
+
+    real_feats_all = torch.cat([real_feats_retain, real_feats_forget], dim=0)
+    real_lbls_all = torch.cat([real_lbls_retain, real_lbls_forget], dim=0)
+
+    print("Combined Real Embeddings:", real_feats_all.shape)
+    print("Combined Real Labels:", real_lbls_all.shape)
+
+                
+
+    N_REAL = 50   # real per class
+
+    real_embeddings, real_labels = select_n_per_class(real_feats_all, real_lbls_all, num_per_class=N_REAL, num_classes=num_classes)
+    print(real_embeddings.shape)  
+    print(real_labels.shape)      
+
+
+    #save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N_REAL}.npz"
+
+    # np.savez_compressed(
+    #     save_path,
+    #     real_embeddings=real_embeddings.numpy(),
+    #     real_labels=real_labels.numpy()
+    # )
+
+
+    #print(f"Saved selected samples to {save_path}")
+
+
+    # # Flatten if 4D (e.g., images)
+    # if real_embeddings.dim() == 4:
+    #     real_embeddings_flat = real_embeddings.view(real_embeddings.size(0), -1)
+    # else:
+    #     real_embeddings_flat = real_embeddings
+
+    # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+
+    # real_embeddings_2d = tsne.fit_transform(real_embeddings_flat.cpu().numpy())
+
+    # plt.figure(figsize=(8, 6))
+    # scatter = plt.scatter(real_embeddings_2d[:, 0], real_embeddings_2d[:, 1], c=real_labels, cmap="tab10", s=20)
+    # plt.colorbar(scatter, ticks=range(10))
+    # plt.title("t-SNE of Optimized Embeddings")
+    # plt.xlabel("Dimension 1")
+    # plt.ylabel("Dimension 2")
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_layer4_1_conv2.png", dpi=300)
+    # plt.close()
+    
+    
     if opt.run_original:
         if opt.mode =="CR":
              # df_or_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
@@ -216,10 +326,10 @@ def main(train_retain_loader_img,
 
         unlearned_model.eval()
         #save model
-        #if opt.save_model:
+        # if opt.save_model:
         #    if opt.mode == "CR":
         #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
-#
+
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
 
@@ -301,6 +411,15 @@ if __name__ == "__main__":
                 num_classes, opt.samples_per_class, original_pretr_model, device=device
             )
             
+            print("Synthetic Features Shape:", all_features_synth.shape)
+            print("Synthetic Labels Shape:", all_labels_synth.shape)
+            print("Synthetic Probabilities Shape:", all_probability_synth.shape)
+
+                        
+         
+                        
+
+            
             # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
             #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             # )
@@ -309,74 +428,61 @@ if __name__ == "__main__":
             #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
             # )
             
-            # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
+            os.makedirs(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots", exist_ok=True)
 
-            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # optimized_embeddings_2d = tsne.fit_transform(all_features_synth)
-
-            # plt.figure(figsize=(8, 6))
-            # scatter = plt.scatter(optimized_embeddings_2d[:, 0], optimized_embeddings_2d[:, 1], c=all_labels_synth, cmap="tab10", s=20)
-            # plt.colorbar(scatter, ticks=range(10))
-            # plt.title("t-SNE of Optimized Embeddings")
-            # plt.xlabel("Dimension 1")
-            # plt.ylabel("Dimension 2")
-            # plt.grid(True)
-            # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_optimized_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
-            # plt.close()
+            train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+            train_embeddings_data = np.load(train_path)
+            real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
+            real_labels = torch.tensor(train_embeddings_data["labels"])
 
 
-            # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
-            # train_embeddings_data = np.load(train_path)
-            # real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
-            # real_labels = torch.tensor(train_embeddings_data["labels"])
+
+            N_SYNTH = 50  # synthetic per class
 
 
-            # def select_n_per_class(embeddings, labels, num_per_class, num_classes):
-            #     selected_embeddings = []
-            #     selected_labels = []
-
-            #     for num_class in range(num_classes):
-            #         cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
-            #         if len(cls_indices) >= num_per_class:
-            #             chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
-            #             selected_embeddings.append(embeddings[chosen_indices])
-            #             selected_labels.append(labels[chosen_indices])
-            #         else:
-            #             print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
-
-            #     selected_embeddings = torch.cat(selected_embeddings, dim=0)
-            #     selected_labels = torch.cat(selected_labels, dim=0)
-            #     return selected_embeddings, selected_labels
+            synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
+                all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=N_SYNTH, num_classes=num_classes
+            )
 
 
-            # real_embeddings_par, real_labels_par = select_n_per_class(real_embeddings, real_labels, num_per_class=opt.samples_per_class, num_classes=num_classes)
-            # print(real_embeddings_par.shape)  
-            # print(real_labels_par.shape)      
+
+            save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N_SYNTH}.npz"
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            np.savez_compressed(
+                save_path,
+                synthetic_embeddings=synthetic_embeddings,
+                synthetic_labels=synthetic_labels
+            )
 
 
-            # synthetic_embeddings = torch.tensor(all_features_synth, dtype=torch.float32)
-            # synthetic_labels = all_labels_synth + num_classes 
+            print(f"Saved selected samples to {save_path}")
 
-            # # === Combine Real and Synthetic Embeddings ===
-            # combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
-            # combined_labels = torch.cat([real_labels_par, torch.tensor(synthetic_labels)], dim=0)
 
-            # # === Reduce to 2D using t-SNE ===
-            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # combined_2d = tsne.fit_transform(combined_embeddings.numpy())
+            # Flatten if 4D (e.g., images)
+            if synthetic_embeddings.ndim == 4:
+                synthetic_embeddings_tensor = torch.tensor(synthetic_embeddings)
+                synthetic_embeddings_flat = synthetic_embeddings_tensor.view(synthetic_embeddings_tensor.size(0), -1)
+            else:
+                synthetic_embeddings_flat = synthetic_embeddings
 
-            # plt.figure(figsize=(10, 7))
-            # scatter = plt.scatter(combined_2d[:, 0], combined_2d[:, 1], c=combined_labels, cmap='tab20', s=10)
-            # plt.colorbar(scatter, ticks=range(20), label='Class')
-            # plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
-            # plt.xlabel("Dimension 1")
-            # plt.ylabel("Dimension 2")
-            # plt.grid(True)
-            # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_combined_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
-            # plt.close()
-                    
+            tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+
+            synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_flat.cpu().numpy())
+
+
+            plt.figure(figsize=(8, 6))
+            scatter = plt.scatter(synthetic_embeddings_2d[:, 0], synthetic_embeddings_2d[:, 1], c=synthetic_labels, cmap="tab10", s=20)
+            plt.colorbar(scatter, ticks=range(10))
+            plt.title("t-SNE of Optimized Embeddings")
+            plt.xlabel("Dimension 1")
+            plt.ylabel("Dimension 2")
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_layer4_1_conv2.png", dpi=300)
+            plt.close()
+
+
 
             from torchvision import transforms
 
@@ -461,6 +567,8 @@ if __name__ == "__main__":
                 test_dataset_real = datasets.ImageFolder(val_dir, transform=val_transform)
 
             for class_to_remove in opt.class_to_remove:
+
+                
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
                 forget_class = class_to_remove[0]
@@ -600,7 +708,9 @@ if __name__ == "__main__":
 
                 test_retain_loader_img = DataLoader(test_retain_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)
                 test_fgt_loader_img = DataLoader(test_fgt_dataset_img, batch_size=opt.batch_size, shuffle=False, num_workers=4)                
-                    
+
+
+
                 row_orig, row_unl, row_ret=main(train_retain_loader_img=train_retain_loader_img,
                                                 train_fgt_loader_img=train_fgt_loader_img,
                                                 test_retain_loader_img=test_retain_loader_img,
@@ -614,7 +724,8 @@ if __name__ == "__main__":
                                                 train_loader=all_train_loader,
                                                 test_loader=all_test_loader,
                                                 seed=i,
-                                                class_to_remove=class_to_remove)
+                                                class_to_remove=class_to_remove,
+                                                )
 
                 #print results
                 

@@ -13,6 +13,9 @@ import numpy as np
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods_real import calculate_accuracy
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
 
 DATASET_NUM_CLASSES = {
     "CIFAR10": 10,
@@ -42,7 +45,29 @@ def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
 
-  
+
+
+def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
+    labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+    embeddings = embeddings.cpu().numpy() if torch.is_tensor(embeddings) else embeddings
+
+    selected_embeddings = []
+    selected_labels = []
+
+    for class_idx in range(num_classes):
+        cls_indices = np.where(labels == class_idx)[0]
+        if len(cls_indices) >= num_per_class:
+            chosen_indices = np.random.choice(cls_indices, size=num_per_class, replace=False)
+            selected_embeddings.append(embeddings[chosen_indices])
+            selected_labels.append(labels[chosen_indices])
+        else:
+            print(f"Warning: Class {class_idx} has only {len(cls_indices)} samples")
+    
+    selected_embeddings = np.concatenate(selected_embeddings, axis=0)
+    selected_labels = np.concatenate(selected_labels, axis=0)
+    return selected_embeddings, selected_labels
+
+
 def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
     v_orig, v_unlearn, v_rt = None, None, None
@@ -132,10 +157,10 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
 
         unlearned_model.eval()
         #save model
-        #if opt.save_model:
+        # if opt.save_model:
         #    if opt.mode == "CR":
         #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_real/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
-#
+
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
 
@@ -204,6 +229,52 @@ if __name__ == "__main__":
         set_seed(i)
 
         print(f"Seed {i}")
+        
+        
+        
+
+        N=50
+        train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+        train_embeddings_data = np.load(train_path)
+        real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
+        real_labels = torch.tensor(train_embeddings_data["labels"])
+
+        real_embeddings_par, real_labels_par = select_n_per_class_numpy(real_embeddings, real_labels, num_per_class=N, num_classes=num_classes)
+        print(real_embeddings_par.shape)  
+        print(real_labels_par.shape)      
+
+
+        
+        save_path = f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+        np.savez_compressed(
+            save_path,
+            real_embeddings=real_embeddings_par,
+            real_labels=real_labels_par
+        )
+
+        os.makedirs(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots", exist_ok=True)
+
+        # === Reduce to 2D using t-SNE ===
+        tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+        real_embeddings_2d = tsne.fit_transform(real_embeddings_par)
+
+        plt.figure(figsize=(10, 7))
+        scatter = plt.scatter(real_embeddings_2d[:, 0], real_embeddings_2d[:, 1], c=real_labels_par, cmap='tab20', s=10)
+        plt.colorbar(scatter, ticks=range(20), label='Class')
+        plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
+        plt.xlabel("Dimension 1")
+        plt.ylabel("Dimension 2")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
+        plt.close()
+                
+                
+    
+      
+        
         if opt.mode == "CR":
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')

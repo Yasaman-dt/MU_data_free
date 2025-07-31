@@ -43,6 +43,29 @@ weights_folder = "weights"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
+def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
+    labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+    embeddings = embeddings.cpu().numpy() if torch.is_tensor(embeddings) else embeddings
+
+    selected_embeddings = []
+    selected_labels = []
+
+    for class_idx in range(num_classes):
+        cls_indices = np.where(labels == class_idx)[0]
+        if len(cls_indices) >= num_per_class:
+            chosen_indices = np.random.choice(cls_indices, size=num_per_class, replace=False)
+            selected_embeddings.append(embeddings[chosen_indices])
+            selected_labels.append(labels[chosen_indices])
+        else:
+            print(f"Warning: Class {class_idx} has only {len(cls_indices)} samples")
+    
+    selected_embeddings = np.concatenate(selected_embeddings, axis=0)
+    selected_labels = np.concatenate(selected_labels, axis=0)
+    return selected_embeddings, selected_labels
+
+
+
+
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
@@ -77,6 +100,9 @@ def analyze_sample_probabilities(labels_tensor, probs_array, num_classes):
             }
 
     return stats
+
+
+
 
 def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
@@ -211,10 +237,10 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
 
         unlearned_model.eval()
         #save model
-        #if opt.save_model:
+        # if opt.save_model:
         #    if opt.mode == "CR":
         #        torch.save(unlearned_model.state_dict(), f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.pth")
-#
+
         unlearn_time = time.time() - timestamp1
         print("BEGIN SVC FIT")
 
@@ -296,9 +322,9 @@ if __name__ == "__main__":
             )
             
             print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
-            prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
-            for class_name, s in prob_stats.items():
-                print(f"Class {class_name}: mean={s['mean']:.2e}, max={s['max']:.2e}, min={s['min']:.2e}, std={s['std']:.2e}")
+            #prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
+            #for class_name, s in prob_stats.items():
+            #    print(f"Class {class_name}: mean={s['mean']:.2e}, max={s['max']:.2e}, min={s['min']:.2e}, std={s['std']:.2e}")
 
 
             # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
@@ -310,21 +336,41 @@ if __name__ == "__main__":
             # )
             
             # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
+            
+            N = 50
+            NUM_CLASSES = 10  # Change if not CIFAR-10
+            synthetic_embeddings_np = all_features_synth  # shape: (50000, D)
+            synthetic_labels_np = all_labels_synth  # shape: (50000,)
+
+            # Select 50 per class
+            synthetic_embeddings_par, synthetic_labels_par = select_n_per_class_numpy(
+                synthetic_embeddings_np, synthetic_labels_np, num_per_class=N, num_classes=NUM_CLASSES
+            )            
+            
+            # save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+            # os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # np.savez_compressed(
+            #     save_path,
+            #     synthetic_embeddings=synthetic_embeddings_par,
+            #     synthetic_labels=synthetic_labels_par
+            # )
 
             # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # optimized_embeddings_2d = tsne.fit_transform(all_features_synth)
+            # synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_par)
+
+            # os.makedirs(f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/plots", exist_ok=True)
 
             # plt.figure(figsize=(8, 6))
-            # scatter = plt.scatter(optimized_embeddings_2d[:, 0], optimized_embeddings_2d[:, 1], c=all_labels_synth, cmap="tab10", s=20)
+            # scatter = plt.scatter(synthetic_embeddings_2d[:, 0], synthetic_embeddings_2d[:, 1], c=synthetic_labels_par, cmap="tab10", s=20)
             # plt.colorbar(scatter, ticks=range(10))
             # plt.title("t-SNE of Optimized Embeddings")
             # plt.xlabel("Dimension 1")
             # plt.ylabel("Dimension 2")
             # plt.grid(True)
             # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_optimized_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
+            # plt.savefig(f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_fc.png", dpi=300)
             # plt.close()
-
 
             # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
             # train_embeddings_data = np.load(train_path)
@@ -332,49 +378,37 @@ if __name__ == "__main__":
             # real_labels = torch.tensor(train_embeddings_data["labels"])
 
 
-            # def select_n_per_class(embeddings, labels, num_per_class, num_classes):
-            #     selected_embeddings = []
-            #     selected_labels = []
+            # real_embeddings_np = real_embeddings  # shape: (50000, D)
+            # real_labels_np = real_labels  # shape: (50000,)
 
-            #     for num_class in range(num_classes):
-            #         cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
-            #         if len(cls_indices) >= num_per_class:
-            #             chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
-            #             selected_embeddings.append(embeddings[chosen_indices])
-            #             selected_labels.append(labels[chosen_indices])
-            #         else:
-            #             print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
+            # # Select 50 per class
+            # real_embeddings_par, real_labels_par = select_n_per_class_numpy(
+            #     real_embeddings_np, real_labels_np, num_per_class=N, num_classes=NUM_CLASSES
+            # )       
 
-            #     selected_embeddings = torch.cat(selected_embeddings, dim=0)
-            #     selected_labels = torch.cat(selected_labels, dim=0)
-            #     return selected_embeddings, selected_labels
+            
+            # save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+            # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-
-            # real_embeddings_par, real_labels_par = select_n_per_class(real_embeddings, real_labels, num_per_class=opt.samples_per_class, num_classes=num_classes)
-            # print(real_embeddings_par.shape)  
-            # print(real_labels_par.shape)      
-
-
-            # synthetic_embeddings = torch.tensor(all_features_synth, dtype=torch.float32)
-            # synthetic_labels = all_labels_synth + num_classes 
-
-            # # === Combine Real and Synthetic Embeddings ===
-            # combined_embeddings = torch.cat([real_embeddings_par, synthetic_embeddings], dim=0)
-            # combined_labels = torch.cat([real_labels_par, torch.tensor(synthetic_labels)], dim=0)
+            # np.savez_compressed(
+            #     save_path,
+            #     real_embeddings=real_embeddings_par,
+            #     real_labels=real_labels_par
+            # )
 
             # # === Reduce to 2D using t-SNE ===
             # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-            # combined_2d = tsne.fit_transform(combined_embeddings.numpy())
+            # real_embeddings_2d = tsne.fit_transform(real_embeddings_par)
 
             # plt.figure(figsize=(10, 7))
-            # scatter = plt.scatter(combined_2d[:, 0], combined_2d[:, 1], c=combined_labels, cmap='tab20', s=10)
+            # scatter = plt.scatter(real_embeddings_2d[:, 0], real_embeddings_2d[:, 1], c=real_labels_par, cmap='tab20', s=10)
             # plt.colorbar(scatter, ticks=range(20), label='Class')
             # plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
             # plt.xlabel("Dimension 1")
             # plt.ylabel("Dimension 2")
             # plt.grid(True)
             # plt.tight_layout()
-            # plt.savefig(f"{opt.root_folder}/plots/tsne_combined_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{opt.samples_per_class}.png", dpi=300)
+            # plt.savefig(f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
             # plt.close()
                     
             
