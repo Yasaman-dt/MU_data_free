@@ -1567,8 +1567,13 @@ class BoundaryExpanding(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
-                
-                
+                pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+                with torch.no_grad():
+                    pruned_model.weight = torch.nn.Parameter(widen_model.weight[:num_classes])
+                    pruned_model.bias = torch.nn.Parameter(widen_model.bias[:num_classes])
+
+                self.net.fc = pruned_model
+                                
                 best_model_state = deepcopy(self.net.state_dict())
 
 
