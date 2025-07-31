@@ -1905,9 +1905,10 @@ class SCRUB(BaseMethod):
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
                 
-                
+                self.student.fc = student_fc
 
-                best_model_state = deepcopy(self.net.state_dict())
+
+                best_model_state = deepcopy(self.student.state_dict())
 
 
                 checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
@@ -2422,7 +2423,7 @@ class RetrainedEmbedding(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
-                
+                self.net.fc = self.fc_layer
                 best_model_state = deepcopy(self.net.state_dict())
 
 
