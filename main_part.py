@@ -69,40 +69,26 @@ def extract_embeddings_from_loader(dataloader, model, device):
     return torch.cat(all_feats), torch.cat(all_labels)
 
 
-
-def select_n_per_class(embeddings, labels, num_per_class, num_classes):
-    selected_embeddings = []
-    selected_labels = []
-
-    for num_class in range(num_classes):
-        cls_indices = (labels == num_class).nonzero(as_tuple=True)[0]
-        if len(cls_indices) >= num_per_class:
-            chosen_indices = cls_indices[torch.randperm(len(cls_indices))[:num_per_class]]
-            selected_embeddings.append(embeddings[chosen_indices])
-            selected_labels.append(labels[chosen_indices])
-        else:
-            print(f"Warning: Not enough samples for class {num_class}. Found only {len(cls_indices)}")
-
-    selected_embeddings = torch.cat(selected_embeddings, dim=0)
-    selected_labels = torch.cat(selected_labels, dim=0)
-    return selected_embeddings, selected_labels
-
 def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
+    labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
+    embeddings = embeddings.cpu().numpy() if torch.is_tensor(embeddings) else embeddings
+
     selected_embeddings = []
     selected_labels = []
 
     for class_idx in range(num_classes):
         cls_indices = np.where(labels == class_idx)[0]
         if len(cls_indices) >= num_per_class:
-            chosen_indices = np.random.permutation(cls_indices)[:num_per_class]
+            chosen_indices = np.random.choice(cls_indices, size=num_per_class, replace=False)
             selected_embeddings.append(embeddings[chosen_indices])
             selected_labels.append(labels[chosen_indices])
         else:
-            print(f"Warning: Not enough synthetic samples for class {class_idx}. Found only {len(cls_indices)}")
-
+            print(f"Warning: Class {class_idx} has only {len(cls_indices)} samples")
+    
     selected_embeddings = np.concatenate(selected_embeddings, axis=0)
     selected_labels = np.concatenate(selected_labels, axis=0)
     return selected_embeddings, selected_labels
+
 
 def main(train_retain_loader_img,
         train_fgt_loader_img,
@@ -148,9 +134,9 @@ def main(train_retain_loader_img,
 
                 
 
-    N_REAL = 50   # real per class
+    N = 50   # real per class
 
-    real_embeddings, real_labels = select_n_per_class(real_feats_all, real_lbls_all, num_per_class=N_REAL, num_classes=num_classes)
+    real_embeddings, real_labels = select_n_per_class_numpy(real_feats_all, real_lbls_all, num_per_class=N, num_classes=num_classes)
     print(real_embeddings.shape)  
     print(real_labels.shape)      
 
@@ -437,16 +423,16 @@ if __name__ == "__main__":
 
 
 
-            N_SYNTH = 50  # synthetic per class
+            N = 5000  # synthetic per class
 
 
             synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
-                all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=N_SYNTH, num_classes=num_classes
+                all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=N, num_classes=num_classes
             )
 
 
 
-            save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N_SYNTH}.npz"
+            save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
             np.savez_compressed(
@@ -456,31 +442,38 @@ if __name__ == "__main__":
             )
 
 
-            print(f"Saved selected samples to {save_path}")
+            # synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
+            #     all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=50, num_classes=num_classes
+            # )
 
 
-            # Flatten if 4D (e.g., images)
-            if synthetic_embeddings.ndim == 4:
-                synthetic_embeddings_tensor = torch.tensor(synthetic_embeddings)
-                synthetic_embeddings_flat = synthetic_embeddings_tensor.view(synthetic_embeddings_tensor.size(0), -1)
-            else:
-                synthetic_embeddings_flat = synthetic_embeddings
-
-            tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-
-            synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_flat.cpu().numpy())
 
 
-            plt.figure(figsize=(8, 6))
-            scatter = plt.scatter(synthetic_embeddings_2d[:, 0], synthetic_embeddings_2d[:, 1], c=synthetic_labels, cmap="tab10", s=20)
-            plt.colorbar(scatter, ticks=range(10))
-            plt.title("t-SNE of Optimized Embeddings")
-            plt.xlabel("Dimension 1")
-            plt.ylabel("Dimension 2")
-            plt.grid(True)
-            plt.tight_layout()
-            plt.savefig(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_layer4_1_conv2.png", dpi=300)
-            plt.close()
+            # print(f"Saved selected samples to {save_path}")
+
+
+            # # Flatten if 4D (e.g., images)
+            # if synthetic_embeddings.ndim == 4:
+            #     synthetic_embeddings_tensor = torch.tensor(synthetic_embeddings)
+            #     synthetic_embeddings_flat = synthetic_embeddings_tensor.view(synthetic_embeddings_tensor.size(0), -1)
+            # else:
+            #     synthetic_embeddings_flat = synthetic_embeddings
+
+            # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+
+            # synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_flat.cpu().numpy())
+
+
+            # plt.figure(figsize=(8, 6))
+            # scatter = plt.scatter(synthetic_embeddings_2d[:, 0], synthetic_embeddings_2d[:, 1], c=synthetic_labels, cmap="tab10", s=20)
+            # plt.colorbar(scatter, ticks=range(10))
+            # plt.title("t-SNE of Optimized Embeddings")
+            # plt.xlabel("Dimension 1")
+            # plt.ylabel("Dimension 2")
+            # plt.grid(True)
+            # plt.tight_layout()
+            # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_layer4_1_conv2.png", dpi=300)
+            # plt.close()
 
 
 
