@@ -2,18 +2,21 @@ DATASET="cifar10"
 METHOD=$1
 N_MODEL=$2
 SOURCE=$3
-gpu=$4
+LR=$4
+GPU=$5
 
-SCREEN_NAME="${DATASET}_${METHOD}_${N_MODEL}_${SOURCE}.sh"
+SCREEN_NAME="${DATASET}_${METHOD}_${N_MODEL}_${SOURCE}"
 
 screen -S $SCREEN_NAME -dm bash -c "
 source ~/.bashrc
 conda activate /projets/Zdehghani/torch_env
 cd /projets/Zdehghani/MU_data_free
-CUDA_VISIBLE_DEVICES=$gpu \
-python checking_MIA.py  \
+CUDA_VISIBLE_DEVICES=$GPU \
+python checking_MIA4.py \
     --method $METHOD \
-    --model_name resnet18 \
+    --model resnet18 \
     --n_model $N_MODEL \
-    --source $SOURCE
+    --source $SOURCE \
+    --lr $LR \
+    --dataset $DATASET
 "
