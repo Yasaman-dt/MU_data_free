@@ -19,7 +19,7 @@ parser.add_argument('--method', type=str, default='original', help='Unlearning m
 parser.add_argument('--model', type=str, default='resnet18', help='Model name (e.g., resnet18, vit, etc.)')
 parser.add_argument('--source', type=str, default='real', choices=['real', 'synth'], help='Data source: real or synth')
 parser.add_argument('--dataset', type=str)
-parser.add_argument('--lr', type=int)
+parser.add_argument('--lr', type=float)
 
 args = parser.parse_args()
 
@@ -28,7 +28,7 @@ method = args.method
 model_name = args.model
 source = args.source
 dataset_name = args.dataset
-lr = lr
+lr = args.lr
 
 # ------------------ Load Pre-Trained ResNet-18 and Run the Function ------------------
 DIR = "/projets/Zdehghani/MU_data_free"
@@ -264,7 +264,7 @@ for forget_class in forget_classes:
     pd.DataFrame([row_privacy]).to_csv(privacy_csv_path, mode='a', header=False, index=False)
     
     
-    # ------------------ MIA1: SVC_MIA: Forget Efficacy ------------------
+    #------------------ MIA1: SVC_MIA: Forget Efficacy ------------------
     mia_forget_result = SVC_MIA(
         shadow_train=train_retain_loader,
         shadow_test=test_loader,
