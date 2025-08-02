@@ -62,6 +62,7 @@ def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
 original_model_path = f"/projets/Zdehghani/MU_data_free/weights/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
 unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt")
 
+
 original_model = load_reamaining(original_model_path)
 unlearned_model = load_reamaining(unlearned_model_path)
 
@@ -94,7 +95,6 @@ synth_embeddings_np, synth_labels_np = select_n_per_class_numpy(
 synth_embeddings = torch.tensor(synth_embeddings_np, dtype=torch.float32).to(device)
 synth_labels = torch.tensor(synth_labels_np, dtype=torch.long).to(device)
 
-
 # Forward pass
 def get_probs(model, embeddings):
     with torch.no_grad():
@@ -109,95 +109,6 @@ synth_probs_unlearned = get_probs(unlearned_model, synth_embeddings)
 
 # t-SNE + Plot
 from matplotlib.lines import Line2D
-
-def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=True):
-    tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-    reduced = tsne.fit_transform(probs.cpu().numpy())
-
-    plt.figure(figsize=(8, 6))
-    cmap = plt.get_cmap("tab10")
-
-    # Plot each class separately
-    for class_idx in range(10):
-        mask = (labels.cpu().numpy() == class_idx)
-        label = f"Class {class_idx}" + (" (forget class)" if class_idx == forget_class else "")
-        plt.scatter(reduced[mask, 0], reduced[mask, 1],
-                    color=cmap(class_idx),
-                    label=label,
-                    s=10, alpha=0.7)
-
-    # Only show legend if requested
-    if show_legend:
-        handles = [
-            Line2D([0], [0], marker='o', color='w',
-                   label=f"Class {i}" + (" (forget)" if i == forget_class else ""),
-                   markerfacecolor=cmap(i), markersize=6)
-            for i in range(10)
-        ]
-        plt.legend(handles=handles, loc='best', fontsize=8)
-
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(f"{root_folder}/plots/class{forget_class}/{save_name}", dpi=300)
-    plt.close()
-# Run plots
-tsne_and_plot(synth_probs_original, synth_labels, "Synthetic - Original", "tsne_synth_original_probs.png", forget_class)
-tsne_and_plot(synth_probs_unlearned, synth_labels, "Synthetic - Unlearned", "tsne_synth_unlearned_probs.png", forget_class)
-
-
-def get_logits(model, embeddings):
-    with torch.no_grad():
-        outputs = model(embeddings)
-    return outputs  # raw logits
-
-
-synth_logits_original = get_logits(original_model, synth_embeddings)
-synth_logits_unlearned = get_logits(unlearned_model, synth_embeddings)
-
-
-tsne_and_plot(synth_logits_original, synth_labels, "Synthetic - Original (Logits)", "tsne_synth_original_logits.png", forget_class)
-tsne_and_plot(synth_logits_unlearned, synth_labels, "Synthetic - Unlearned (Logits)", "tsne_synth_unlearned_logits.png", forget_class)
-
-
-synth_probs_original_np = synth_probs_original.cpu().numpy()
-synth_probs_unlearned_np = synth_probs_unlearned.cpu().numpy()
-synth_labels_np = synth_labels.cpu().numpy()
-
-
-
-
-
-
-def filter_high_confidence(probs, labels, threshold=0.9):
-    confidences, _ = torch.max(probs, dim=1)
-    mask = confidences >= threshold
-    return probs[mask], labels[mask]
-
-
-# Filter high-confidence samples
-highconf_probs_orig, highconf_labels_orig = filter_high_confidence(synth_probs_original, synth_labels, threshold=0.9)
-highconf_probs_unlearned, highconf_labels_unlearned = filter_high_confidence(synth_probs_unlearned, synth_labels, threshold=0.9)
-
-# Plot t-SNE for high-confidence samples
-tsne_and_plot(highconf_probs_orig, highconf_labels_orig, "High-Confidence Synthetic - Original", "tsne_highconf_synth_original_probs.png", forget_class)
-tsne_and_plot(highconf_probs_unlearned, highconf_labels_unlearned, "High-Confidence Synthetic - Unlearned", "tsne_highconf_synth_unlearned_probs.png", forget_class)
-
-
-highconf_labels_orig_np = highconf_labels_orig.cpu().numpy()
-highconf_probs_orig_np = highconf_probs_orig.cpu().numpy()
-highconf_labels_unlearned_np = highconf_labels_unlearned.cpu().numpy()
-highconf_probs_unlearned_np = highconf_probs_unlearned.cpu().numpy()
-
-
-
-orig_counts = torch.bincount(highconf_labels_orig, minlength=num_classes)
-unlearned_counts = torch.bincount(highconf_labels_unlearned, minlength=num_classes)
-
-min_counts_each = torch.minimum(orig_counts, unlearned_counts)
-
-
-global_min = min_counts_each.min().item()
-
 
 def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=True):
     tsne = TSNE(n_components=2, perplexity=30, random_state=42)
@@ -231,6 +142,84 @@ def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=T
     plt.close()
 
 
+
+
+# Run plots
+tsne_and_plot(synth_probs_original, synth_labels, "Synthetic - Original", "tsne_synth_original_probs.png", forget_class)
+tsne_and_plot(synth_probs_unlearned, synth_labels, "Synthetic - Unlearned", "tsne_synth_unlearned_probs.png", forget_class)
+
+
+def get_logits(model, embeddings):
+    with torch.no_grad():
+        outputs = model(embeddings)
+    return outputs  # raw logits
+
+
+synth_logits_original = get_logits(original_model, synth_embeddings)
+synth_logits_unlearned = get_logits(unlearned_model, synth_embeddings)
+
+
+tsne_and_plot(synth_logits_original, synth_labels, "Synthetic - Original (Logits)", "tsne_synth_original_logits.png", forget_class)
+tsne_and_plot(synth_logits_unlearned, synth_labels, "Synthetic - Unlearned (Logits)", "tsne_synth_unlearned_logits.png", forget_class)
+
+
+
+synth_probs_original_np = synth_probs_original.cpu().numpy()
+synth_probs_unlearned_np = synth_probs_unlearned.cpu().numpy()
+synth_labels_np = synth_labels.cpu().numpy()
+
+
+
+def filter_high_confidence(probs, labels, threshold=0.9):
+    confidences, _ = torch.max(probs, dim=1)
+    mask = confidences >= threshold
+    return probs[mask], labels[mask]
+
+
+# Filter high-confidence samples
+highconf_probs_orig, highconf_labels_orig = filter_high_confidence(synth_probs_original, synth_labels, threshold=0.9)
+highconf_probs_unlearned, highconf_labels_unlearned = filter_high_confidence(synth_probs_unlearned, synth_labels, threshold=0.9)
+
+# Plot t-SNE for high-confidence samples
+tsne_and_plot(highconf_probs_orig, highconf_labels_orig, "High-Confidence Synthetic - Original", "tsne_highconf_synth_original_probs.png", forget_class)
+tsne_and_plot(highconf_probs_unlearned, highconf_labels_unlearned, "High-Confidence Synthetic - Unlearned", "tsne_highconf_synth_unlearned_probs.png", forget_class)
+
+
+
+highconf_labels_orig_np = highconf_labels_orig.cpu().numpy()
+highconf_probs_orig_np = highconf_probs_orig.cpu().numpy()
+highconf_labels_unlearned_np = highconf_labels_unlearned.cpu().numpy()
+highconf_probs_unlearned_np = highconf_probs_unlearned.cpu().numpy()
+
+
+
+orig_counts = torch.bincount(highconf_labels_orig, minlength=num_classes)
+unlearned_counts = torch.bincount(highconf_labels_unlearned, minlength=num_classes)
+
+min_counts_each = torch.minimum(orig_counts, unlearned_counts)
+
+
+global_min = min_counts_each.min().item()
+
+
+def sample_fixed_per_class(probs, labels, global_min, num_classes):
+    selected_probs = []
+    selected_labels = []
+
+    for class_name in range(num_classes):
+        # Get indices for the current class
+        cls_indices = (labels == class_name).nonzero(as_tuple=True)[0]
+        if len(cls_indices) >= global_min:
+            # Shuffle and select global_min
+            selected = cls_indices[torch.randperm(len(cls_indices))[:global_min]]
+            selected_probs.append(probs[selected])
+            selected_labels.append(labels[selected])
+        else:
+            print(f"Warning: class {class_name} has only {len(cls_indices)} samples, less than global_min={global_min}")
+
+    # Concatenate all selected
+    return torch.cat(selected_probs), torch.cat(selected_labels)
+
 num_classes = 10  # or detect from data
 
 balanced_probs_orig, balanced_labels_orig = sample_fixed_per_class(
@@ -244,9 +233,9 @@ balanced_probs_unlearned, balanced_labels_unlearned = sample_fixed_per_class(
 print("Balanced shapes:", balanced_probs_orig.shape, balanced_labels_orig.shape)
 
 
-tsne_and_plot(balanced_probs_orig, balanced_labels_orig, "T-SNE before unlearning", "tsne_balanced_highconf_original.png", forget_class, show_legend=False)
+tsne_and_plot(balanced_probs_orig, balanced_labels_orig, "T-SNE of Softmax Probabilities Before Unlearning", "tsne_balanced_highconf_original.png", forget_class, show_legend=False)
 
-tsne_and_plot(balanced_probs_unlearned, balanced_labels_unlearned, "T-SNE after unlearning", "tsne_balanced_highconf_unlearned.png", forget_class, show_legend=True)
+tsne_and_plot(balanced_probs_unlearned, balanced_labels_unlearned, "T-SNE of Softmax Probabilities After Unlearning", "tsne_balanced_highconf_unlearned.png", forget_class, show_legend=True)
 
 
 balanced_synth_embeddings, balanced_synth_labels = sample_fixed_per_class(
@@ -256,15 +245,10 @@ balanced_synth_embeddings, balanced_synth_labels = sample_fixed_per_class(
 print("Balanced synth shape:", balanced_synth_embeddings.shape)
 
 
-
-
-
-
 balanced_probs_orig_np = balanced_probs_orig.cpu().numpy()
 balanced_labels_orig_np = balanced_labels_orig.cpu().numpy()
 balanced_probs_unlearned_np = balanced_probs_unlearned.cpu().numpy()
 balanced_labels_unlearned_np = balanced_labels_unlearned.cpu().numpy()
-
 
 
 
@@ -274,12 +258,5 @@ else:
     balanced_synth_embeddings_flat = balanced_synth_embeddings
 
 tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE synthetic embeddings", "tsne_balanced_synth_embeddings.png", forget_class, show_legend=False)
-
-
-
-
-
-
-
 
 
