@@ -199,23 +199,37 @@ min_counts_each = torch.minimum(orig_counts, unlearned_counts)
 global_min = min_counts_each.min().item()
 
 
-def sample_fixed_per_class(probs, labels, global_min, num_classes):
-    selected_probs = []
-    selected_labels = []
+def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=True):
+    tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+    reduced = tsne.fit_transform(probs.cpu().numpy())
 
-    for class_name in range(num_classes):
-        # Get indices for the current class
-        cls_indices = (labels == class_name).nonzero(as_tuple=True)[0]
-        if len(cls_indices) >= global_min:
-            # Shuffle and select global_min
-            selected = cls_indices[torch.randperm(len(cls_indices))[:global_min]]
-            selected_probs.append(probs[selected])
-            selected_labels.append(labels[selected])
-        else:
-            print(f"Warning: class {class_name} has only {len(cls_indices)} samples, less than global_min={global_min}")
+    plt.figure(figsize=(8, 6))
+    cmap = plt.get_cmap("tab10")
 
-    # Concatenate all selected
-    return torch.cat(selected_probs), torch.cat(selected_labels)
+    # Plot each class separately
+    for class_idx in range(10):
+        mask = (labels.cpu().numpy() == class_idx)
+        label = f"Class {class_idx}" + (" (forget class)" if class_idx == forget_class else "")
+        plt.scatter(reduced[mask, 0], reduced[mask, 1],
+                    color=cmap(class_idx),
+                    label=label,
+                    s=40, alpha=0.7)
+
+    # Only show legend if requested
+    if show_legend:
+        handles = [
+            Line2D([0], [0], marker='o', color='w',
+                   label=f"Class {i}" + (" (forget class)" if i == forget_class else ""),
+                   markerfacecolor=cmap(i), markersize=6)
+            for i in range(10)
+        ]
+        plt.legend(handles=handles, loc='best', fontsize=8)
+
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(f"{root_folder}/plots/class{forget_class}/{save_name}", dpi=300)
+    plt.close()
+
 
 num_classes = 10  # or detect from data
 
