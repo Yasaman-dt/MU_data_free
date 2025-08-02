@@ -108,24 +108,41 @@ synth_probs_original = get_probs(original_model, synth_embeddings)
 synth_probs_unlearned = get_probs(unlearned_model, synth_embeddings)
 
 # t-SNE + Plot
-def tsne_and_plot(probs, labels, title, save_name):
+from matplotlib.lines import Line2D
+
+def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=True):
     tsne = TSNE(n_components=2, perplexity=30, random_state=42)
     reduced = tsne.fit_transform(probs.cpu().numpy())
 
     plt.figure(figsize=(8, 6))
-    scatter = plt.scatter(reduced[:, 0], reduced[:, 1], c=labels.cpu(), cmap="tab10", s=20)
-    plt.colorbar(scatter, ticks=range(10))
+    cmap = plt.get_cmap("tab10")
+
+    # Plot each class separately
+    for class_idx in range(10):
+        mask = (labels.cpu().numpy() == class_idx)
+        label = f"Class {class_idx}" + (" (forget class)" if class_idx == forget_class else "")
+        plt.scatter(reduced[mask, 0], reduced[mask, 1],
+                    color=cmap(class_idx),
+                    label=label,
+                    s=10, alpha=0.7)
+
+    # Only show legend if requested
+    if show_legend:
+        handles = [
+            Line2D([0], [0], marker='o', color='w',
+                   label=f"Class {i}" + (" (forget)" if i == forget_class else ""),
+                   markerfacecolor=cmap(i), markersize=6)
+            for i in range(10)
+        ]
+        plt.legend(handles=handles, loc='best', fontsize=8)
+
     plt.title(title)
-    plt.xlabel("Dimension 1")
-    plt.ylabel("Dimension 2")
-    plt.grid(True)
     plt.tight_layout()
     plt.savefig(f"{root_folder}/plots/class{forget_class}/{save_name}", dpi=300)
     plt.close()
-
 # Run plots
-tsne_and_plot(synth_probs_original, synth_labels, "Synthetic - Original", "tsne_synth_original_probs.png")
-tsne_and_plot(synth_probs_unlearned, synth_labels, "Synthetic - Unlearned", "tsne_synth_unlearned_probs.png")
+tsne_and_plot(synth_probs_original, synth_labels, "Synthetic - Original", "tsne_synth_original_probs.png", forget_class)
+tsne_and_plot(synth_probs_unlearned, synth_labels, "Synthetic - Unlearned", "tsne_synth_unlearned_probs.png", forget_class)
 
 
 def get_logits(model, embeddings):
@@ -138,8 +155,8 @@ synth_logits_original = get_logits(original_model, synth_embeddings)
 synth_logits_unlearned = get_logits(unlearned_model, synth_embeddings)
 
 
-tsne_and_plot(synth_logits_original, synth_labels, "Synthetic - Original (Logits)", "tsne_synth_original_logits.png")
-tsne_and_plot(synth_logits_unlearned, synth_labels, "Synthetic - Unlearned (Logits)", "tsne_synth_unlearned_logits.png")
+tsne_and_plot(synth_logits_original, synth_labels, "Synthetic - Original (Logits)", "tsne_synth_original_logits.png", forget_class)
+tsne_and_plot(synth_logits_unlearned, synth_labels, "Synthetic - Unlearned (Logits)", "tsne_synth_unlearned_logits.png", forget_class)
 
 
 synth_probs_original_np = synth_probs_original.cpu().numpy()
@@ -162,9 +179,8 @@ highconf_probs_orig, highconf_labels_orig = filter_high_confidence(synth_probs_o
 highconf_probs_unlearned, highconf_labels_unlearned = filter_high_confidence(synth_probs_unlearned, synth_labels, threshold=0.9)
 
 # Plot t-SNE for high-confidence samples
-tsne_and_plot(highconf_probs_orig, highconf_labels_orig, "High-Confidence Synthetic - Original", "tsne_highconf_synth_original_probs.png")
-tsne_and_plot(highconf_probs_unlearned, highconf_labels_unlearned, "High-Confidence Synthetic - Unlearned", "tsne_highconf_synth_unlearned_probs.png")
-
+tsne_and_plot(highconf_probs_orig, highconf_labels_orig, "High-Confidence Synthetic - Original", "tsne_highconf_synth_original_probs.png", forget_class)
+tsne_and_plot(highconf_probs_unlearned, highconf_labels_unlearned, "High-Confidence Synthetic - Unlearned", "tsne_highconf_synth_unlearned_probs.png", forget_class)
 
 
 highconf_labels_orig_np = highconf_labels_orig.cpu().numpy()
@@ -214,12 +230,9 @@ balanced_probs_unlearned, balanced_labels_unlearned = sample_fixed_per_class(
 print("Balanced shapes:", balanced_probs_orig.shape, balanced_labels_orig.shape)
 
 
-tsne_and_plot(
-    balanced_probs_orig,
-    balanced_labels_orig,
-    "Balanced High-Confidence (Original Model)",
-    "tsne_balanced_highconf_original.png"
-)
+tsne_and_plot(balanced_probs_orig, balanced_labels_orig, "T-SNE before unlearning", "tsne_balanced_highconf_original.png", forget_class, show_legend=False)
+
+tsne_and_plot(balanced_probs_unlearned, balanced_labels_unlearned, "T-SNE after unlearning", "tsne_balanced_highconf_unlearned.png", forget_class, show_legend=True)
 
 
 balanced_synth_embeddings, balanced_synth_labels = sample_fixed_per_class(
@@ -232,12 +245,6 @@ print("Balanced synth shape:", balanced_synth_embeddings.shape)
 
 
 
-tsne_and_plot(
-    balanced_probs_unlearned,
-    balanced_labels_unlearned,
-    "Balanced High-Confidence (Unlearned Model)",
-    "tsne_balanced_highconf_unlearned.png"
-)
 
 balanced_probs_orig_np = balanced_probs_orig.cpu().numpy()
 balanced_labels_orig_np = balanced_labels_orig.cpu().numpy()
@@ -252,15 +259,7 @@ if balanced_synth_embeddings.ndim > 2:
 else:
     balanced_synth_embeddings_flat = balanced_synth_embeddings
 
-tsne_and_plot(
-    balanced_synth_embeddings_flat,
-    balanced_synth_labels,
-    "Balanced Synthetic Embeddings",
-    "tsne_balanced_synth_embeddings.png"
-)
-
-
-
+tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE synthetic embeddings", "tsne_balanced_synth_embeddings.png", forget_class, show_legend=False)
 
 
 
