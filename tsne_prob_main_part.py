@@ -63,6 +63,7 @@ original_model_path = f"/projets/Zdehghani/MU_data_free/weights/chks_{dataset_na
 unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt")
 
 
+
 original_model = load_reamaining(original_model_path)
 unlearned_model = load_reamaining(unlearned_model_path)
 
@@ -124,19 +125,25 @@ def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=T
         plt.scatter(reduced[mask, 0], reduced[mask, 1],
                     color=cmap(class_idx),
                     label=label,
-                    s=40, alpha=0.7)
+                    s=50, alpha=0.7)
 
-    # Only show legend if requested
+    # Increase font sizes
+    plt.title(title, fontsize=22)
+    # plt.xticks(fontsize=12)
+    # plt.yticks(fontsize=12)
+
+    plt.xticks([])  # Remove x-axis tick labels
+    plt.yticks([])  # Remove y-axis tick labels
+
     if show_legend:
         handles = [
             Line2D([0], [0], marker='o', color='w',
                    label=f"Class {i}" + (" (forget class)" if i == forget_class else ""),
-                   markerfacecolor=cmap(i), markersize=6)
+                   markerfacecolor=cmap(i), markersize=8)
             for i in range(10)
         ]
-        plt.legend(handles=handles, loc='best', fontsize=8)
+        plt.legend(handles=handles, loc='best', fontsize=12)
 
-    plt.title(title)
     plt.tight_layout()
     plt.savefig(f"{root_folder}/plots/class{forget_class}/{save_name}", dpi=300)
     plt.close()
@@ -257,6 +264,6 @@ if balanced_synth_embeddings.ndim > 2:
 else:
     balanced_synth_embeddings_flat = balanced_synth_embeddings
 
-tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE synthetic embeddings", "tsne_balanced_synth_embeddings.png", forget_class, show_legend=False)
+tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE of Synthetic Embeddings", "tsne_balanced_synth_embeddings.png", forget_class, show_legend=False)
 
 
