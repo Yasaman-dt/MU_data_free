@@ -1766,14 +1766,12 @@ class BoundaryExpanding(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
 
-                pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
                 with torch.no_grad():
-                    pruned_model.weight = torch.nn.Parameter(widen_model.weight[:num_classes])
-                    pruned_model.bias = torch.nn.Parameter(widen_model.bias[:num_classes])
-
-                self.net.fc = pruned_model
+                    self.net.fc.weight.copy_(widen_model.weight[:num_classes])
+                    self.net.fc.bias.copy_(widen_model.bias[:num_classes])
 
                 best_model_state = deepcopy(self.net.state_dict())
+
 
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -1785,15 +1783,6 @@ class BoundaryExpanding(BaseMethod):
 
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1889,12 +1878,11 @@ class BoundaryExpanding(BaseMethod):
 
                         
         # Prune the shadow class to return a normal classifier
-        pruned_model = nn.Linear(embedding_dim, num_classes).to(opt.device)
+        # Final pruning before return
         with torch.no_grad():
-            pruned_model.weight = torch.nn.Parameter(widen_model.weight[:num_classes])
-            pruned_model.bias = torch.nn.Parameter(widen_model.bias[:num_classes])
+            self.net.fc.weight.copy_(widen_model.weight[:num_classes])
+            self.net.fc.bias.copy_(widen_model.bias[:num_classes])
 
-        self.net.fc = pruned_model
         self.model = self.net
         
         return self.model
