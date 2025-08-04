@@ -12,14 +12,17 @@ method = "NGFTW"
 seed = 42
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 forget_class = 0
+lr=0.001
+N=50
+
 
 # File paths
 DIR = "/projets/Zdehghani/MU_data_free"
 #DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 
 checkpoint_dir = f"{DIR}/checkpoints_main_real/{dataset_name}/{method}/samples_per_class_5000"
-embedding_file = f"{DIR}/tsne/tsne_main_real/{dataset_name}/{method}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n50.npz"
-synth_file = f"{DIR}/tsne/tsne_main_real/{dataset_name}/{method}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n50.npz"
+embedding_file = f"{DIR}/tsne/tsne_main_real/{dataset_name}/{method}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{N}.npz"
+synth_file = f"{DIR}/tsne/tsne_main_real/{dataset_name}/{method}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{N}.npz"
 root_folder = f"{DIR}/tsne/tsne_main_real/{dataset_name}/{method}"  # new folder for saving plots
 os.makedirs(f"{root_folder}/plots/class{forget_class}", exist_ok=True)
 
@@ -39,7 +42,7 @@ def load_reamaining(model_path):
 
 #original_model_path = f"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/weights/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
 original_model_path = f"/projets/Zdehghani/MU_data_free/weights/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
-unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt")
+unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt")
 
 original_model = load_reamaining(original_model_path)
 unlearned_model = load_reamaining(unlearned_model_path)
