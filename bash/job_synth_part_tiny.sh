@@ -6,8 +6,9 @@ N_MODEL=$3
 SAMPLE_PER_CLASS=$4
 gpu=$5
 epoch=$6
+MODEL=$7
 
-SCREEN_NAME="synth_${RUN_MODEL}_${METHOD}_${N_MODEL}_${lr}_${epoch}_${SAMPLE_PER_CLASS}.sh"
+SCREEN_NAME="synth_${RUN_MODEL}_${METHOD}_${N_MODEL}_${lr}_${epoch}_${SAMPLE_PER_CLASS}_${MODEL}.sh"
 
 screen -S $SCREEN_NAME -dm bash -c "
 source ~/.bashrc
@@ -24,7 +25,7 @@ python main_part.py  \
     --run_unlearn  \
     --num_workers 4 \
     --method $METHOD \
-    --model resnet18 \
+    --model $MODEL \
     --bsize 1024 \
     --lr $lr \
     --epochs $epoch  \
