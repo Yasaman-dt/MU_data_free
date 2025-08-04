@@ -2,15 +2,30 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
-import math
-from matplotlib.ticker import LogFormatter
 import matplotlib.patches as patches
+from matplotlib.ticker import LogLocator, LogFormatterSciNotation
+import matplotlib
 
-
-
-palette = sns.color_palette("colorblind", 8)  # Adjustable for various color themes
+matplotlib.rcParams.update({
+    'text.usetex': False
+})
+sns.set_theme(style="whitegrid") 
+sns.set_context("notebook", font_scale=1) 
+#palette = sns.color_palette("colorblind", 8)  # Adjustable for various color themes
 
 sns.set_context("paper", font_scale=1.5)  # Scale to increase font size
+
+# matplotlib.rcParams.update({
+#     #'text.usetex': True,                # Use LaTeX for all text rendering
+#     #'font.family': 'serif',            # Use serif fonts
+#     #'font.serif': ['Computer Modern Roman'],  # Matches LaTeX default
+#     'axes.labelsize': 18,
+#     'font.size': 15,
+#     'legend.fontsize': 15,
+#     'xtick.labelsize': 17,
+#     'ytick.labelsize': 17,
+#     'axes.titlesize': 18
+# })
 
 # If additional precision is needed, manually adjust elements
 plt.rc('axes', titlesize=16)         # Larger title font size if using titles
@@ -26,10 +41,11 @@ plt.rc('xtick', labelcolor='black')       # Makes x-tick numbers black
 plt.rc('ytick', labelcolor='black')       # Makes y-tick numbers black
 plt.rc('axes', edgecolor='black')         # Sets the axis edges to black
 plt.rc('legend', labelcolor='black')  # Ensures legend text is black
-plt.rcParams.update({
-     'text.usetex': False,
-#     'font.family': 'serif',
-})
+
+# plt.rcParams.update({
+#      'text.usetex': False,
+# #     'font.family': 'serif',
+# })
 
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/"
 
@@ -53,14 +69,27 @@ melted_df = df.melt(id_vars=["dataset", "method", "model", "model_num", "source"
                      var_name="metric",
                      value_name="value")
 
+
+# custom_palette = {"#0000FF",       # Blue
+#                   "#FF0000",      # Red
+#                   "#008000",      # Green
+#                   "#7f7f7f"  # Gray
+# }
+
+# colors = ['Red', 'Blue', 'Green', 'Yellow', 'Orange']
+# frequency = [20, 15, 25, 18, 12]
+
+#palette = sns.crayon_palette(colors)
+
 g = sns.relplot(
     data=melted_df,
     x="samples_per_class",
     y="value",
     hue="method",
     style="method",
-    markers=True,
+    markers="o",
     dashes=True,
+    palette='tab10',
     row="metric",
     col="dataset",
     col_order=["cifar10", "cifar100", "tinyimagenet"],  
@@ -69,10 +98,14 @@ g = sns.relplot(
     err_style="band",
     errorbar=('ci', 95),
     markeredgewidth=0,
-    linewidth=2,
+    linewidth=3,
 )
-
-
+for ax in g.axes.flat:
+    for collection in ax.collections:
+        collection.set_alpha(0.1)
+for ax in g.axes.flat:
+    for line in ax.lines:
+        line.set_markersize(8) 
 
 def plot_with_black_box(plot_obj, filename):
     # Check if `plot_obj` is a Seaborn FacetGrid or a Matplotlib Figure
@@ -92,7 +125,7 @@ def plot_with_black_box(plot_obj, filename):
             pos = ax.get_position()
             rect = patches.Rectangle(
                 (pos.x0, pos.y0), pos.width, pos.height,
-                linewidth=1.5, edgecolor='black', facecolor='none',
+                linewidth=1, edgecolor='black', facecolor='none',
                 transform=plt.gcf().transFigure
             )
             plt.gcf().add_artist(rect)
@@ -112,7 +145,7 @@ for col, ax in enumerate(g.axes[0]):  # Loop through top row only
         display_title = "CIFAR100"
     elif title.lower() == "tinyimagenet":
         display_title = "TinyImageNet"
-    ax.set_title(display_title)  # Bold the dataset name without "dataset="
+    ax.set_title(r"$\mathbf{" + display_title + "}$")  # Bold the dataset name without "dataset="
     #ax.set_title(r"$\mathbf{" + display_title + "}$")  # Bold the dataset name without "dataset="
 
 
@@ -163,12 +196,20 @@ for i, ax_row in enumerate(g.axes):
 handles, labels = g.axes[0, 0].get_legend_handles_labels()  # Get from the first subplot
 g.axes[0, 2].legend(handles=handles, labels=labels, loc='upper right', frameon=True)
 
+
+
 # Apply x-axis formatting by column index
 for row in range(len(g.row_names)):
     for col, dataset in enumerate(g.col_names):
         ax = g.axes[row, col]
         ax.set_xscale("log")
-        ax.xaxis.set_major_formatter(LogFormatter(base=10))
+
+
+        ax.minorticks_on()
+        ax.tick_params(which='major', bottom=True, left =True)
+        ax.tick_params(which='minor', bottom=True)
+   
+        
         ax.grid(True)
 
         if dataset == "cifar10":
@@ -180,4 +221,4 @@ for row in range(len(g.row_names)):
 
 # Save the plot before showing it
 plot_with_black_box(g, "plot_n_sample")
-
+#plt.savefig(f"results_n_samples/plot_n_sample.png", dpi=600, bbox_inches='tight')
