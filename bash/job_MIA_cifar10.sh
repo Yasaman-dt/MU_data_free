@@ -12,7 +12,7 @@ source ~/.bashrc
 conda activate /projets/Zdehghani/torch_env
 cd /projets/Zdehghani/MU_data_free
 CUDA_VISIBLE_DEVICES=$GPU \
-python checking_MIA4.py \
+python checking_MIA.py \
     --method $METHOD \
     --model resnet18 \
     --n_model $N_MODEL \
