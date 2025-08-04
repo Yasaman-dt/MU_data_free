@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import os
 from generate_part_samples_randomly import RemainingResNet
+from matplotlib.lines import Line2D
 
 # Config
 dataset_name = "cifar10"
@@ -14,14 +15,19 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 forget_class = 9
 samples_per_class=5000
 N=500
+lr=0.001
+
+
+
 # File paths
 DIR = "/projets/Zdehghani/MU_data_free"
 #DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
-checkpoint_dir = f"{DIR}/checkpoints_main_part/{dataset_name}/{method}/samples_per_class_5000"
+checkpoint_dir = f"{DIR}/checkpoints_main_part/{dataset_name}/{method}/samples_per_class_{samples_per_class}"
 #embedding_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
 synth_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
 root_folder = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}"  # new folder for saving plots
 os.makedirs(f"{root_folder}/plots/class{forget_class}", exist_ok=True)
+
 
 DATASET_NUM_CLASSES = {
     "cifar10": 10,
@@ -35,7 +41,6 @@ def load_reamaining(model_path):
     classifier = RemainingResNet(base_model).to(device)
     classifier.eval()
     return classifier
-
 
 
 def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
@@ -58,11 +63,10 @@ def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
     selected_labels = np.concatenate(selected_labels, axis=0)
     return selected_embeddings, selected_labels
 
+
 #original_model_path = f"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/weights/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
 original_model_path = f"/projets/Zdehghani/MU_data_free/weights/chks_{dataset_name}/original/best_checkpoint_resnet18_m{n_model}.pth"
-unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr0.001.pt")
-
-
+unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt")
 
 original_model = load_reamaining(original_model_path)
 unlearned_model = load_reamaining(unlearned_model_path)
@@ -108,8 +112,7 @@ def get_probs(model, embeddings):
 synth_probs_original = get_probs(original_model, synth_embeddings)
 synth_probs_unlearned = get_probs(unlearned_model, synth_embeddings)
 
-# t-SNE + Plot
-from matplotlib.lines import Line2D
+
 
 def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=True):
     tsne = TSNE(n_components=2, perplexity=30, random_state=42)
@@ -121,28 +124,31 @@ def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=T
     # Plot each class separately
     for class_idx in range(10):
         mask = (labels.cpu().numpy() == class_idx)
-        label = f"Class {class_idx}" + (" (forget class)" if class_idx == forget_class else "")
+        label = f"{class_idx}" + (r"($c_f$)" if class_idx == forget_class else "")
         plt.scatter(reduced[mask, 0], reduced[mask, 1],
                     color=cmap(class_idx),
                     label=label,
-                    s=50, alpha=0.7)
+                    s=50)
 
     # Increase font sizes
-    plt.title(title, fontsize=22)
-    # plt.xticks(fontsize=12)
-    # plt.yticks(fontsize=12)
+    #plt.title(title, fontsize=22)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
 
-    plt.xticks([])  # Remove x-axis tick labels
-    plt.yticks([])  # Remove y-axis tick labels
+    plt.xlabel("t-SNE Dimension 1", fontsize=14)
+    plt.ylabel("t-SNE Dimension 2", fontsize=14)
+
+    #plt.xticks([])  # Remove x-axis tick labels
+    #plt.yticks([])  # Remove y-axis tick labels
 
     if show_legend:
         handles = [
             Line2D([0], [0], marker='o', color='w',
-                   label=f"Class {i}" + (" (forget class)" if i == forget_class else ""),
+                   label=f"{i}" + (r"($c_f$)" if i == forget_class else ""),
                    markerfacecolor=cmap(i), markersize=8)
             for i in range(10)
         ]
-        plt.legend(handles=handles, loc='best', fontsize=12)
+        plt.legend(handles=handles, loc='best', fontsize=12, title='Class Name', title_fontsize=13)
 
     plt.tight_layout()
     plt.savefig(f"{root_folder}/plots/class{forget_class}/{save_name}", dpi=300)
@@ -242,7 +248,7 @@ print("Balanced shapes:", balanced_probs_orig.shape, balanced_labels_orig.shape)
 
 tsne_and_plot(balanced_probs_orig, balanced_labels_orig, "T-SNE of Softmax Probabilities Before Unlearning", "tsne_balanced_highconf_original.png", forget_class, show_legend=False)
 
-tsne_and_plot(balanced_probs_unlearned, balanced_labels_unlearned, "T-SNE of Softmax Probabilities After Unlearning", "tsne_balanced_highconf_unlearned.png", forget_class, show_legend=True)
+tsne_and_plot(balanced_probs_unlearned, balanced_labels_unlearned, "T-SNE of Softmax Probabilities After Unlearning", "tsne_balanced_highconf_unlearned.png", forget_class, show_legend=False)
 
 
 balanced_synth_embeddings, balanced_synth_labels = sample_fixed_per_class(
