@@ -28,11 +28,11 @@ sns.set_context("paper", font_scale=1.5)  # Scale to increase font size
 # })
 
 # If additional precision is needed, manually adjust elements
-plt.rc('axes', titlesize=16)         # Larger title font size if using titles
-plt.rc('axes', labelsize=16)         # Axis labels font size
+plt.rc('axes', titlesize=17)         # Larger title font size if using titles
+plt.rc('axes', labelsize=17)         # Axis labels font size
 plt.rc('xtick', labelsize=14)         # X-tick labels font size
 plt.rc('ytick', labelsize=14)         # Y-tick labels font size
-plt.rc('legend', fontsize=12)         # Legend font size
+plt.rc('legend', fontsize=13)         # Legend font size
 plt.rc('font', size=12)              # Base font size
 plt.rc('axes', labelcolor='black')        # Makes x and y axis labels black
 plt.rc('xtick', color='black')            # Makes x-tick labels black
@@ -176,10 +176,10 @@ if g._legend is not None:
 
 for i, ax_row in enumerate(g.axes):
     if i == 0:  
-        ax_row[0].set_ylabel("Forget Test Accuracy %")
+        ax_row[0].set_ylabel("Forget Test Accuracy (%)")
         #ax_row[0].set_ylabel("$\mathcal{A}_f^t$ (Forget Test Accuracy \%)")
     elif i == 1:  
-        ax_row[0].set_ylabel("Retain Test Accuracy %")
+        ax_row[0].set_ylabel("Retain Test Accuracy (%)")
         #ax_row[0].set_ylabel("$\mathcal{A}_r^t$ (Retain Test Accuracy \%)")
     elif i == 2:  
         ax_row[0].set_ylabel("AUS")
@@ -189,7 +189,7 @@ for i, ax_row in enumerate(g.axes):
     for ax in ax_row:
         # Set x-axis label only for bottom row
         if i == len(g.axes) - 1:
-            ax.set_xlabel("Number of Samples per Class")
+            ax.set_xlabel("# Samples per Class")
         else:
             ax.set_xlabel("")
         
