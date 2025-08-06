@@ -57,6 +57,8 @@ def choose_method(name):
         return MaximeMethod
     elif name == 'LAU':
         return LAU
+    elif name == 'BT':
+        return BadTeacher
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
 
@@ -2866,3 +2868,150 @@ class MaximeMethod(BaseMethod):
         
         return self.model
 
+
+
+class BadTeacher(BaseMethod):
+    def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
+                 retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
+        super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader,
+                         test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
+        self.class_to_remove = class_to_remove
+        self.loader = self._create_combined_loader()
+        self.full_teacher = deepcopy(self.net).eval()
+        self.unlearning_teacher = deepcopy(self.net).eval()
+        torch.nn.init.normal_(self.unlearning_teacher.fc.weight, mean=0.0, std=0.02)
+        if self.unlearning_teacher.fc.bias is not None:
+            torch.nn.init.constant_(self.unlearning_teacher.fc.bias, 0)
+        self.unlearning_teacher.to(opt.device).eval()
+        self.KL_temperature = 1.0
+
+    def _create_combined_loader(self):
+        class UnLearnDataset(torch.utils.data.Dataset):
+            def __init__(self, forget_data, retain_data):
+                self.forget_data = forget_data
+                self.retain_data = retain_data
+                self.forget_len = len(forget_data)
+                self.retain_len = len(retain_data)
+
+            def __len__(self):
+                return self.forget_len + self.retain_len
+
+            def __getitem__(self, index):
+                if index < self.forget_len:
+                    x, y = self.forget_data[index]
+                    return x.detach().cpu(), y.detach().cpu(), torch.tensor(1, dtype=torch.long)
+                else:
+                    x, y = self.retain_data[index - self.forget_len]
+                    return x.detach().cpu(), y.detach().cpu(), torch.tensor(0, dtype=torch.long)
+
+        combined_dataset = UnLearnDataset(
+            self.train_fgt_loader.dataset, self.train_retain_loader.dataset)
+
+        return DataLoader(combined_dataset, batch_size=opt.batch_size, shuffle=True, num_workers=0)
+
+
+    def loss_f(self, inputs, targets):
+        raise NotImplementedError("Unused in BadTeacherCustom")
+
+    def run(self):
+        best_model_state = None
+        best_aus = -float('inf')
+        best_epoch = -1
+        optimizer = torch.optim.SGD(self.net.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.epochs)
+
+        a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count = retain_count + forget_count
+        epoch_times = []
+
+        def distill_loss(student_logits, unlearn_labels, full_teacher_logits, unlearning_teacher_logits):
+            unlearn_labels = unlearn_labels.unsqueeze(1).float()
+            f_teacher_out = F.softmax(full_teacher_logits / self.KL_temperature, dim=1)
+            u_teacher_out = F.softmax(unlearning_teacher_logits / self.KL_temperature, dim=1)
+            overall_teacher_out = unlearn_labels * u_teacher_out + (1 - unlearn_labels) * f_teacher_out
+            student_out = F.log_softmax(student_logits / self.KL_temperature, dim=1)
+            return F.kl_div(student_out, overall_teacher_out, reduction='batchmean')
+
+        for epoch in tqdm(range(self.epochs)):
+            start_time = time.time()
+            self.net.train()
+            for x, y, unlearn_label in self.loader:
+                x, y, unlearn_label = x.to(opt.device), y.to(opt.device), unlearn_label.to(opt.device)
+                with torch.no_grad():
+                    full_teacher_logits = self.full_teacher.fc(x)
+                    unlearning_teacher_logits = self.unlearning_teacher.fc(x)
+                student_logits = self.net.fc(x)
+                loss = distill_loss(student_logits, unlearn_label, full_teacher_logits, unlearning_teacher_logits)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
+
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt = calculate_accuracy(self.net, self.train_fgt_loader, use_fc_only=True)
+                acc_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader, use_fc_only=True)
+                acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+
+                a_t = Complex(acc_test_val_ret, 0.0)
+                a_f = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(a_or_value, 0.0)
+                aus_value = AUS(a_t, a_or, a_f).value
+
+                if aus_value > best_aus:
+                    best_aus = aus_value
+                    best_model_state = deepcopy(self.net.state_dict())
+                    best_epoch = epoch
+                    best_accs = (acc_train_ret, acc_train_fgt, acc_test_val_ret, acc_test_val_fgt, acc_full_val_ret, acc_full_val_fgt)
+
+                    checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+                    checkpoint_path = os.path.join(checkpoint_dir, f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt")
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
+
+
+                print(f"Epoch {epoch+1}/{self.epochs} | "
+                        f"Train Retain Acc: {acc_train_ret:.2f} | "
+                        f"Train Forget Acc: {acc_train_fgt:.2f} | "
+                        f"Val Retain Test Acc: {acc_test_val_ret:.2f} | "
+                        f"Val Forget Test Acc: {acc_test_val_fgt:.2f} | "
+                        f"Val Retain Full Acc: {acc_full_val_ret:.2f} | "
+                        f"Val Forget Full Acc: {acc_full_val_fgt:.2f} | "
+                        f"AUS: {aus_value:.4f}")
+
+
+
+                log_epoch_to_csv(epoch,
+                                 duration,
+                                 acc_train_ret,
+                                 acc_train_fgt,
+                                 acc_test_val_ret,
+                                 acc_test_val_fgt,
+                                 acc_full_val_ret,
+                                 acc_full_val_fgt,
+                                 aus_value,
+                                 opt.method,
+                                 opt.dataset,
+                                 opt.model,
+                                 self.class_to_remove,
+                                 opt.seed,
+                                 retain_count,
+                                 forget_count,
+                                 total_count)
+
+            scheduler.step()
+
+        unlearning_time = sum(epoch_times[:best_epoch + 1])
+        best_accs = tuple(round(a, 4) for a in best_accs)
+        log_summary_across_classes(best_epoch, *best_accs, round(best_aus, 4), opt.method, opt.dataset, opt.model,
+                                   self.class_to_remove, opt.seed, retain_count, forget_count, total_count, round(unlearning_time, 4))
+        self.net.load_state_dict(best_model_state)
+        return self.net
