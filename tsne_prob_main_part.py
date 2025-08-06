@@ -132,15 +132,21 @@ def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=T
 
     # Increase font sizes
     #plt.title(title, fontsize=22)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
+    #plt.xticks(fontsize=12)
+    #plt.yticks(fontsize=12)
 
-    plt.xlabel("t-SNE Dimension 1", fontsize=14)
-    plt.ylabel("t-SNE Dimension 2", fontsize=14)
+    #plt.xlabel("t-SNE Dimension 1", fontsize=14)
+    #plt.ylabel("t-SNE Dimension 2", fontsize=14)
 
-    #plt.xticks([])  # Remove x-axis tick labels
-    #plt.yticks([])  # Remove y-axis tick labels
+    ax = plt.gca()
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel("")
+    ax.set_ylabel("")
 
+        
     if show_legend:
         handles = [
             Line2D([0], [0], marker='o', color='w',
