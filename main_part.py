@@ -134,7 +134,7 @@ def main(train_retain_loader_img,
 
                 
 
-    N = 5000   # real per class
+    N = opt.samples_per_class   # real per class
 
     real_embeddings, real_labels = select_n_per_class_numpy(real_feats_all, real_lbls_all, num_per_class=N, num_classes=num_classes)
     print(real_embeddings.shape)  
@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
 
             all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, original_pretr_model, device=device
+                num_classes, opt.samples_per_class, original_pretr_model, opt.dataset, device=device
             )
             
             print("Synthetic Features Shape:", all_features_synth.shape)
@@ -423,7 +423,7 @@ if __name__ == "__main__":
 
 
 
-            N = 5000  # synthetic per class
+            N = opt.samples_per_class  # synthetic per class
 
 
             synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
