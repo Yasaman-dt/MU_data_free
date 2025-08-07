@@ -108,12 +108,16 @@ class RemainingResNet(torch.nn.Module):
 
 
 
-def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, device='cuda'):
+def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, dataset, device='cuda'):
     
     batch_size = 2000
     Truncatedmodel = TruncatedResNet(resnet_model).to(device)
     Remainingmodel = RemainingResNet(resnet_model).to(device)
-    a = torch.randn(1, 3, 32, 32).to(device)
+    if dataset == "TinyImageNet":
+        a = torch.randn(1, 3, 64, 64).to(device)
+    elif dataset in ["cifar10", "cifar100"]:
+        a = torch.randn(1, 3, 32, 32).to(device)
+
     embedding = Truncatedmodel(a)
     print(embedding.shape)
     embedding_shape = embedding.shape[1:]
