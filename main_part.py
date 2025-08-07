@@ -134,20 +134,20 @@ def main(train_retain_loader_img,
 
                 
 
-    N = 50   # real per class
+    N = 5000   # real per class
 
     real_embeddings, real_labels = select_n_per_class_numpy(real_feats_all, real_lbls_all, num_per_class=N, num_classes=num_classes)
     print(real_embeddings.shape)  
     print(real_labels.shape)      
 
 
-    #save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N_REAL}.npz"
+    save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
 
-    # np.savez_compressed(
-    #     save_path,
-    #     real_embeddings=real_embeddings.numpy(),
-    #     real_labels=real_labels.numpy()
-    # )
+    np.savez_compressed(
+        save_path,
+        real_embeddings=real_embeddings,
+        real_labels=real_labels
+    )
 
 
     #print(f"Saved selected samples to {save_path}")

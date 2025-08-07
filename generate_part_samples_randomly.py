@@ -113,7 +113,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
     batch_size = 2000
     Truncatedmodel = TruncatedResNet(resnet_model).to(device)
     Remainingmodel = RemainingResNet(resnet_model).to(device)
-    a = torch.randn(1, 3, 64, 64).to(device)
+    a = torch.randn(1, 3, 32, 32).to(device)
     embedding = Truncatedmodel(a)
     print(embedding.shape)
     embedding_shape = embedding.shape[1:]
