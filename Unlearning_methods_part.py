@@ -284,16 +284,16 @@ class BaseMethod:
                     best_acc_full_val_fgt = acc_full_val_fgt
 
 
-                    checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                    os.makedirs(checkpoint_dir, exist_ok=True)
+                    # checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    # os.makedirs(checkpoint_dir, exist_ok=True)
 
-                    checkpoint_path = os.path.join(
-                        checkpoint_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                    )
+                    # checkpoint_path = os.path.join(
+                    #     checkpoint_dir,
+                    #     f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    # )
 
-                    torch.save(best_model_state, checkpoint_path)
-                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
+                    # torch.save(best_model_state, checkpoint_path)
+                    # print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
 
 
 
@@ -722,16 +722,16 @@ class NGFT_weighted(BaseMethod):
                     best_acc_full_val_fgt = acc_full_val_fgt
 
 
-                    checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                    os.makedirs(checkpoint_dir, exist_ok=True)
+                    # checkpoint_dir = f"checkpoints_main_part/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    # os.makedirs(checkpoint_dir, exist_ok=True)
 
-                    checkpoint_path = os.path.join(
-                        checkpoint_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                    )
+                    # checkpoint_path = os.path.join(
+                    #     checkpoint_dir,
+                    #     f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    # )
 
-                    torch.save(best_model_state, checkpoint_path)
-                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
+                    # torch.save(best_model_state, checkpoint_path)
+                    # print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
 
 
 

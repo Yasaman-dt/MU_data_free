@@ -136,18 +136,24 @@ def main(train_retain_loader_img,
 
     N = opt.samples_per_class   # real per class
 
-    real_embeddings, real_labels = select_n_per_class_numpy(real_feats_all, real_lbls_all, num_per_class=N, num_classes=num_classes)
+    #real_embeddings, real_labels = select_n_per_class_numpy(real_feats_all, real_lbls_all, num_per_class=N, num_classes=num_classes)
+    
+    
+    real_embeddings = real_feats_all
+    real_labels = real_lbls_all
+    
+    
     print(real_embeddings.shape)  
     print(real_labels.shape)      
 
 
-    save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+    # save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
 
-    np.savez_compressed(
-        save_path,
-        real_embeddings=real_embeddings,
-        real_labels=real_labels
-    )
+    # np.savez_compressed(
+    #     save_path,
+    #     real_embeddings=real_embeddings.cpu().numpy(),
+    #     real_labels=real_labels.cpu().numpy()
+    # )
 
 
     #print(f"Saved selected samples to {save_path}")
@@ -426,21 +432,22 @@ if __name__ == "__main__":
             N = opt.samples_per_class  # synthetic per class
 
 
-            synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
-                all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=N, num_classes=num_classes
-            )
+            # synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
+            #     all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=N, num_classes=num_classes
+            # )
+
+            synthetic_embeddings = all_features_synth
+            synthetic_labels = all_labels_synth
 
 
+            # save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+            # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-            save_path = f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            np.savez_compressed(
-                save_path,
-                synthetic_embeddings=synthetic_embeddings,
-                synthetic_labels=synthetic_labels
-            )
-
+            # np.savez_compressed(
+            #     save_path,
+            #     synthetic_embeddings=synthetic_embeddings.cpu().numpy(),
+            #     synthetic_labels=synthetic_labels.cpu().numpy()
+            # )
 
             # synthetic_embeddings, synthetic_labels = select_n_per_class_numpy(
             #     all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=50, num_classes=num_classes
