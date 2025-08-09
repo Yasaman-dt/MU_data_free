@@ -3,13 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import os
-from generate_part_samples_randomly import RemainingResNet
 from matplotlib.lines import Line2D
 
 # Config
 dataset_name = "cifar10"
 n_model = 1
-method = "NGFTW"
+method = "RL"
 seed = 42
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 forget_class = 9
@@ -25,8 +24,8 @@ DIR = "/projets/Zdehghani/MU_data_free"
 #DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 
 checkpoint_dir = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_{samples_per_class}"
-embedding_file = f"{DIR}/tsne/tsne_main/{dataset_name}/{method}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{N_test}.npz"
-synth_file = f"{DIR}/tsne/tsne_main/{dataset_name}/{method}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
+embedding_file = f"{DIR}/tsne/tsne_main/{dataset_name}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{N_test}.npz"
+synth_file = f"{DIR}/tsne/tsne_main/{dataset_name}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
 root_folder = f"{DIR}/tsne/tsne_main/{dataset_name}/{method}"  # new folder for saving plots
 os.makedirs(f"{root_folder}/plots/class{forget_class}", exist_ok=True)
 
@@ -230,5 +229,45 @@ real_labels_np = real_labels.cpu().numpy()
 synth_probs_original_np = synth_probs_original.cpu().numpy()
 synth_probs_unlearned_np = synth_probs_unlearned.cpu().numpy()
 synth_labels_np = synth_labels.cpu().numpy()
+
+
+def compute_accuracy(model, embeddings, labels, forget_class):
+    with torch.no_grad():
+        logits = model(embeddings)
+        preds = torch.argmax(logits, dim=1)
+        correct = preds.eq(labels)
+
+        # Masks
+        forget_mask = labels == forget_class
+        retain_mask = labels != forget_class
+
+        # Accuracy per group
+        acc_all = correct.float().mean().item()
+        acc_forget = correct[forget_mask].float().mean().item() if forget_mask.sum() > 0 else float('nan')
+        acc_retain = correct[retain_mask].float().mean().item() if retain_mask.sum() > 0 else float('nan')
+
+    return acc_all, acc_retain, acc_forget
+
+
+
+
+# Compute accuracy on REAL embeddings
+real_acc_o, real_retain_acc_o, real_forget_acc_o = compute_accuracy(original_model, real_embeddings, real_labels, forget_class)
+real_acc_u, real_retain_acc_u, real_forget_acc_u = compute_accuracy(unlearned_model, real_embeddings, real_labels, forget_class)
+
+# Compute accuracy on SYNTH embeddings
+synth_acc_o, synth_retain_acc_o, synth_forget_acc_o = compute_accuracy(original_model, synth_embeddings, synth_labels, forget_class)
+synth_acc_u, synth_retain_acc_u, synth_forget_acc_u = compute_accuracy(unlearned_model, synth_embeddings, synth_labels, forget_class)
+
+
+
+print("\n=== REAL DATA ===")
+print(f"Original   -> All: {real_acc_o:.4f}, Retain: {real_retain_acc_o:.4f}, Forget: {real_forget_acc_o:.4f}")
+print(f"Unlearned  -> All: {real_acc_u:.4f}, Retain: {real_retain_acc_u:.4f}, Forget: {real_forget_acc_u:.4f}")
+
+print("\n=== SYNTH DATA ===")
+print(f"Original   -> All: {synth_acc_o:.4f}, Retain: {synth_retain_acc_o:.4f}, Forget: {synth_forget_acc_o:.4f}")
+print(f"Unlearned  -> All: {synth_acc_u:.4f}, Retain: {synth_retain_acc_u:.4f}, Forget: {synth_forget_acc_u:.4f}")
+
 
 
