@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import os
-from generate_part_samples_randomly import RemainingResNet
+from generate_part_samples_randomly import RemainingResNet, TruncatedResNet
 from matplotlib.lines import Line2D
 
 # Config
@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 forget_class = 9
 samples_per_class=5000
 N=500
-lr=0.001
+lr=0.0001
 
 
 
@@ -23,7 +23,8 @@ lr=0.001
 DIR = "/projets/Zdehghani/MU_data_free"
 #DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 checkpoint_dir = f"{DIR}/checkpoints_main_part/{dataset_name}/{method}/samples_per_class_{samples_per_class}"
-#embedding_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/real_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
+embedding_train_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/real_embeddings_train_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
+embedding_test_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/real_embeddings_test_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
 synth_file = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}/synth_embeddings_{dataset_name}_seed_{seed}_m{n_model}_n{samples_per_class}.npz"
 root_folder = f"{DIR}/tsne/tsne_main_part/{dataset_name}/{method}"  # new folder for saving plots
 os.makedirs(f"{root_folder}/plots/class{forget_class}", exist_ok=True)
@@ -71,18 +72,50 @@ unlearned_model_path = os.path.join(checkpoint_dir, f"resnet18_best_checkpoint_s
 original_model = load_reamaining(original_model_path)
 unlearned_model = load_reamaining(unlearned_model_path)
 
+print(original_model)
+print(unlearned_model)
+
+
+
 # Load embeddings
-#real_data = np.load(embedding_file)
+real_train_data = np.load(embedding_train_file)
+real_test_data = np.load(embedding_test_file)
 synth_data = np.load(synth_file)
 
-#print("real_data keys:", real_data.files)
+print("real_train_data keys:", real_train_data.files)
+print("real_test_data keys:", real_test_data.files)
 print("synth_data keys:", synth_data.files)
 
-#real_embeddings = torch.tensor(real_data["real_embeddings"], dtype=torch.float32).to(device)
-#real_labels = torch.tensor(real_data["real_labels"], dtype=torch.long).to(device)
+real_embeddings_train_all = torch.tensor(real_train_data["real_embeddings"], dtype=torch.float32).to(device)
+real_embeddings_test_all = torch.tensor(real_test_data["real_embeddings"], dtype=torch.float32).to(device)
 
-#print("real_embeddings shape:", real_embeddings.shape)
-#print("real_labels shape:", real_labels.shape)
+real_labels_train_all = torch.tensor(real_train_data["real_labels"], dtype=torch.long).to(device)
+real_labels_test_all = torch.tensor(real_test_data["real_labels"], dtype=torch.long).to(device)
+
+print("real_embeddings_train shape:", real_embeddings_train_all.shape)
+print("real_labels_train shape:", real_labels_train_all.shape)
+
+print("real_embeddings_test shape:", real_embeddings_test_all.shape)
+print("real_labels_test shape:", real_labels_test_all.shape)
+
+
+real_embeddings_train_np, real_labels_train_np = select_n_per_class_numpy(
+    real_embeddings_train_all.cpu(), real_labels_train_all.cpu(),
+    num_per_class=N, num_classes=num_classes
+)
+
+real_embeddings_train = torch.tensor(real_embeddings_train_np, dtype=torch.float32).to(device)
+real_labels_train = torch.tensor(real_labels_train_np, dtype=torch.long).to(device)
+
+
+real_embeddings_test_np, real_labels_test_np = select_n_per_class_numpy(
+    real_embeddings_test_all.cpu(), real_labels_test_all.cpu(),
+    num_per_class=N, num_classes=num_classes
+)
+
+real_embeddings_test = torch.tensor(real_embeddings_test_np, dtype=torch.float32).to(device)
+real_labels_test = torch.tensor(real_labels_test_np, dtype=torch.long).to(device)
+
 
 
 synth_embeddings_all = torch.tensor(synth_data["synthetic_embeddings"], dtype=torch.float32).to(device)
@@ -107,8 +140,10 @@ def get_probs(model, embeddings):
         probs = torch.softmax(outputs, dim=1)
     return probs
 
-#real_probs_original = get_probs(original_model, real_embeddings)
-#real_probs_unlearned = get_probs(unlearned_model, real_embeddings)
+real_train_probs_original = get_probs(original_model, real_embeddings_train)
+real_train_probs_unlearned = get_probs(unlearned_model, real_embeddings_train)
+real_test_probs_original = get_probs(original_model, real_embeddings_test)
+real_test_probs_unlearned = get_probs(unlearned_model, real_embeddings_test)
 synth_probs_original = get_probs(original_model, synth_embeddings)
 synth_probs_unlearned = get_probs(unlearned_model, synth_embeddings)
 
@@ -166,6 +201,10 @@ def tsne_and_plot(probs, labels, title, save_name, forget_class=9, show_legend=T
 # Run plots
 tsne_and_plot(synth_probs_original, synth_labels, "Synthetic - Original", "tsne_synth_original_probs.png", forget_class)
 tsne_and_plot(synth_probs_unlearned, synth_labels, "Synthetic - Unlearned", "tsne_synth_unlearned_probs.png", forget_class)
+tsne_and_plot(real_train_probs_original, real_labels_train, "Real train - Original", "tsne_real_train_original_probs.png", forget_class)
+tsne_and_plot(real_train_probs_unlearned, real_labels_train, "Real train - Unlearned", "tsne_real_train_unlearned_probs.png", forget_class)
+tsne_and_plot(real_test_probs_original, real_labels_test, "Real test - Original", "tsne_real_original_probs.png", forget_class)
+tsne_and_plot(real_test_probs_unlearned, real_labels_test, "Real test - Unlearned", "tsne_real_unlearned_probs.png", forget_class)
 
 
 def get_logits(model, embeddings):
@@ -176,10 +215,19 @@ def get_logits(model, embeddings):
 
 synth_logits_original = get_logits(original_model, synth_embeddings)
 synth_logits_unlearned = get_logits(unlearned_model, synth_embeddings)
+real_train_logits_original = get_logits(original_model, real_embeddings_train)
+real_train_logits_unlearned = get_logits(unlearned_model, real_embeddings_train)
+real_test_logits_original = get_logits(original_model, real_embeddings_test)
+real_test_logits_unlearned = get_logits(unlearned_model, real_embeddings_test)
 
 
 tsne_and_plot(synth_logits_original, synth_labels, "Synthetic - Original (Logits)", "tsne_synth_original_logits.png", forget_class)
 tsne_and_plot(synth_logits_unlearned, synth_labels, "Synthetic - Unlearned (Logits)", "tsne_synth_unlearned_logits.png", forget_class)
+tsne_and_plot(real_train_logits_original, real_labels_train, "Real train - Original (Logits)", "tsne_real_train_original_logits.png", forget_class)
+tsne_and_plot(real_train_logits_unlearned, real_labels_train, "Real train - Unlearned (Logits)", "tsne_real_train_unlearned_logits.png", forget_class)
+tsne_and_plot(real_test_logits_original, real_labels_test, "Real test - Original (Logits)", "tsne_real_test_original_logits.png", forget_class)
+tsne_and_plot(real_test_logits_unlearned, real_labels_test, "Real test - Unlearned (Logits)", "tsne_real_test_unlearned_logits.png", forget_class)
+
 
 
 
@@ -187,6 +235,13 @@ synth_probs_original_np = synth_probs_original.cpu().numpy()
 synth_probs_unlearned_np = synth_probs_unlearned.cpu().numpy()
 synth_labels_np = synth_labels.cpu().numpy()
 
+real_train_probs_original_np = real_train_probs_original.cpu().numpy()
+real_train_probs_unlearned_np = real_train_probs_unlearned.cpu().numpy()
+real_train_labels_np = real_labels_train.cpu().numpy()
+
+real_test_probs_original_np = real_test_probs_original.cpu().numpy()
+real_test_probs_unlearned_np = real_test_probs_unlearned.cpu().numpy()
+real_test_labels_np = real_labels_test.cpu().numpy()
 
 
 def filter_high_confidence(probs, labels, threshold=0.9):
@@ -196,8 +251,8 @@ def filter_high_confidence(probs, labels, threshold=0.9):
 
 
 # Filter high-confidence samples
-highconf_probs_orig, highconf_labels_orig = filter_high_confidence(synth_probs_original, synth_labels, threshold=0.9)
-highconf_probs_unlearned, highconf_labels_unlearned = filter_high_confidence(synth_probs_unlearned, synth_labels, threshold=0.9)
+highconf_probs_orig, highconf_labels_orig = filter_high_confidence(synth_probs_original, synth_labels, threshold=0.6)
+highconf_probs_unlearned, highconf_labels_unlearned = filter_high_confidence(synth_probs_unlearned, synth_labels, threshold=0.6)
 
 # Plot t-SNE for high-confidence samples
 tsne_and_plot(highconf_probs_orig, highconf_labels_orig, "High-Confidence Synthetic - Original", "tsne_highconf_synth_original_probs.png", forget_class)
@@ -277,5 +332,105 @@ else:
     balanced_synth_embeddings_flat = balanced_synth_embeddings
 
 tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE of Synthetic Embeddings", "tsne_balanced_synth_embeddings.png", forget_class, show_legend=False)
+
+def load_truncated_and_remaining(model_path):
+    from create_embeddings_utils import get_model
+    from generate_part_samples_randomly import TruncatedResNet, RemainingResNet  # make sure TruncatedResNet is defined
+    base_model = get_model("resnet18", dataset_name, num_classes, checkpoint_path=model_path).to(device)
+    truncated = TruncatedResNet(base_model).to(device)
+    remaining = RemainingResNet(base_model).to(device)
+    truncated.eval()
+    remaining.eval()
+    return truncated, remaining
+
+
+
+
+
+# ---- 1. Load truncated and remaining parts ----
+from generate_part_samples_randomly import TruncatedResNet  # make sure it's defined
+truncated_orig, remaining_orig = load_truncated_and_remaining(original_model_path)
+truncated_unl, remaining_unl = load_truncated_and_remaining(unlearned_model_path)
+
+# ---- 2. Load CIFAR-10 test images ----
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+
+from torchvision import transforms
+
+mean = {
+        'cifar10': (0.4914, 0.4822, 0.4465),
+
+        }
+
+std = {
+        'cifar10': (0.2023, 0.1994, 0.2010),
+        }
+
+
+
+transform_train = {
+    'cifar10': transforms.Compose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, padding=4),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean['cifar10'], std=std['cifar10'])
+    ]),
+}
+
+transform_test = {
+    'cifar10': transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean['cifar10'], std=std['cifar10'])
+    ]),
+}
+
+
+
+# Select appropriate transformations
+train_transform = transform_train.get(dataset_name, transform_test.get(dataset_name, None))
+test_transform = transform_test.get(dataset_name, train_transform)
+
+
+cifar_test = datasets.CIFAR10(root="./data", train=False, download=True, transform=test_transform)
+test_loader = DataLoader(cifar_test, batch_size=64, shuffle=False)
+
+
+
+def get_probs_on_images(model, loader, truncated, remaining):
+    all_probs = []
+    all_labels = []
+    model.eval()
+    with torch.no_grad():
+        for x, y in loader:
+            x = x.to(device)
+            y = y.to(device)
+            features = truncated(x)
+            out = remaining(features)
+            probs = torch.softmax(out, dim=1)
+            all_probs.append(probs)
+            all_labels.append(y)
+    return torch.cat(all_probs), torch.cat(all_labels)
+
+
+
+cifar_train = datasets.CIFAR10(root="./data", train=True, download=True, transform=train_transform)
+train_loader = DataLoader(cifar_train, batch_size=64, shuffle=False)
+
+
+
+
+
+
+real_train_probs_orig_img, real_train_labels_orig_img = get_probs_on_images(original_model, train_loader, truncated_orig, remaining_orig)
+real_test_probs_orig_img, real_test_labels_orig_img = get_probs_on_images(original_model, test_loader, truncated_orig, remaining_orig)
+
+real_train_probs_unl_img, real_train_labels_unl_img = get_probs_on_images(unlearned_model, train_loader, truncated_unl, remaining_unl)
+real_test_probs_unl_img, real_test_labels_unl_img = get_probs_on_images(unlearned_model, test_loader, truncated_unl, remaining_unl)
+
+
+
+
 
 
