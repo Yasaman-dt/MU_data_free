@@ -3,7 +3,7 @@ from collections import defaultdict
 
 
 # Load the stats DataFrame
-stats_df = pd.read_csv("results_random_fc/results_mean_std_all_numeric.csv")
+stats_df = pd.read_csv("results_random_fc/results_mean_std_all_numeric_resnet18.csv")
 
 # Select key columns to display
 columns_to_display = [
@@ -41,7 +41,7 @@ method_name_and_ref = {
     "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
     "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
     "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
-    "NGFTW": ("NG+", r"\citep{golatkar2020eternal} Ours"),
+    "NGFTW": ("NG+", r"\citep{kurmanji2023towards} Ours"),
     "RL": ("RL", r"\citep{hayase2020selective} Ours"),
     "BS": ("BS", r"\citep{chen2023boundary} Ours"),
     "BE": ("BE", r"\citep{chen2023boundary} Ours"),
@@ -126,11 +126,20 @@ for _, row in stats_df.iterrows():
             if label == "AUS":
                 val_str = f"{val:.3f}"
                 std_str = f"{std:.3f}"
-            else:
+            if label == "\mathcal{A}^t_r":
                 val_str = f"{val:.2f}"
                 std_str = f"{std:.2f}"
-                if val < 10: val_str = "0" + val_str
-                if std < 10: std_str = "0" + std_str
+                if val < 10: val_str = val_str
+                if std < 10: std_str = std_str
+            if label == "\mathcal{A}^t_f":
+                if method == "original":
+                    val_str = f"{val:.2f}"
+                    std_str = f"{std:.2f}"
+                else:
+                    val_str = f"{val:.1f}"
+                    std_str = f"{std:.1f}"
+                if val < 10: val_str = val_str
+                if std < 10: std_str = std_str
         
         
             # Determine which dataset this AUS belongs to (based on column index)
@@ -149,7 +158,7 @@ for _, row in stats_df.iterrows():
             if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
                 val_str = f"\\textbf{{{val_str}}}"
     
-            cell = f"{val_str}$\\text{{\\scriptsize \\,$\\pm$\\,{std_str}}}$"
+            cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
 
     
         values.append(cell)  
@@ -159,24 +168,20 @@ for _, row in stats_df.iterrows():
     access_flags[key] = get_data_free_flags(method, source)
 
 # === Build LaTeX table
-latex_table = r"""\begin{table}[ht]
+latex_table = r"""\begin{table*}[ht]
 \centering
-\caption{Performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-18 as the base architecture. 
-For each dataset, we fine-tune five independently initialized models and perform class-wise unlearning separately for every class. 
-Reported metrics are the mean and standard deviation computed across all classes and model seeds. 
-To ensure fair comparison, the number of generated synthetic samples per class is matched to the number of samples in the original training dataset. 
-These synthetic samples are generated in the feature space prior to the fully connected/classifier head of the model. 
-Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
+\captionsetup{font=small}
+\caption{Performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-50 as the base architecture. Reported metrics are the mean and standard deviation computed across all classes and model seeds. Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 
 
-\label{tab:main_results}
+\label{tab:main_results_resnet18}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
 \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
- &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow\\
+ &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule
 """
@@ -219,8 +224,8 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         ref = default_ref  # Leave original method as-is
 
     if base_method == "original":
-        method_cell = rf"\multirow{{2}}{{*}}{{\centering {method_display_base}}}"
-        ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
+        method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
+        ref_cell = rf"\multirow{{2}}{{*}}{{{ref}}}"
         dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
         df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
@@ -240,7 +245,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     if method_counts[base_method] > 1:
         if source == "real":
-            method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{\centering {method_display_base}}}"
+            method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{{method_display_base}}}"
         else:
             method_cell = ""
         ref_cell = ref
@@ -262,18 +267,35 @@ latex_table += r"""\bottomrule
 \bottomrule
 \end{tabular}%
 }
-\end{table}
+\end{table*}
 """
 
 # === Save to file (UTF-8)
-with open("results_random_fc/table_total_random.tex", "w", encoding="utf-8") as f:
+with open("results_random_fc/table_total_random_fc_resnet18.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to combined_table.tex")
 
 
+method_name_and_ref = {
+    "original": ("Original", "–"),
+    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
+    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "FT": ("FT \citep{golatkar2020eternal}", "–"),
+    "NG": ("NG \citep{golatkar2020eternal}", "–"),
+    "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
+    "RL": ("RL \citep{hayase2020selective}", "–"),
+    "BS": ("BS \citep{chen2023boundary}", "–"),
+    "BE": ("BE \citep{chen2023boundary}", "–"),
+    "LAU": ("LAU \citep{kim2024layer}", "–"),
+    "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
+    "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
+    "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+
+}
+
 # Load the uploaded data
-df_latex_input = pd.read_csv("results_random_fc/mean_std_results_by_class_model_dataset_method_source.csv")
+df_latex_input = pd.read_csv("results_random_fc/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
 
 # Filter only for CIFAR-10 dataset
 cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
@@ -370,10 +392,14 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                     is_best = value == best_per_class["cifar10"][prefix][forget_class]
                     if prefix == "AUS":
                         value_fmt = f"{value:.3f}"
-                    else:
+                    if prefix == "val_test_retain_acc":
                         value_fmt = f"{value:.2f}"
                         if value < 10:
-                            value_fmt = "0" + value_fmt
+                            value_fmt = value_fmt
+                    if prefix == "val_test_fgt_acc":
+                        value_fmt = f"{value:.1f}"
+                        if value < 10:
+                            value_fmt = value_fmt     
                     row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
                 else:
                     row[forget_class] = "-"
@@ -386,18 +412,28 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                     if prefix == "AUS":
                         mean_fmt = f"{mean:.3f}"
                         std_fmt = f"{std:.3f}"
-                    else:
+                    if prefix == "val_test_retain_acc":
                         mean_fmt = f"{mean:.2f}"
                         std_fmt = f"{std:.2f}"
                         if mean < 10:
-                            mean_fmt = "0" + mean_fmt
+                            mean_fmt = mean_fmt
                         if std < 10:
-                            std_fmt = "0" + std_fmt
+                            std_fmt = std_fmt                        
+                    if prefix == "val_test_fgt_acc":
+                        mean_fmt = f"{mean:.1f}"
+                        std_fmt = f"{std:.1f}"
+                        if mean < 10:
+                            mean_fmt = mean_fmt
+                        if std < 10:
+                            std_fmt = std_fmt
                     
+
                     if is_best:
-                        row[forget_class] = fr"\textbf{{{mean_fmt}}}$\text{{\scriptsize \,$\pm$\,{std_fmt}}}$"
+                        row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
                     else:
-                        row[forget_class] = fr"{mean_fmt}$\text{{\scriptsize \,$\pm$\,{std_fmt}}}$"
+                        row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+
+
 
                 else:
                     row[forget_class] = "-"
@@ -410,9 +446,16 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
 # === Step 3: Create final DataFrame and format to 2 decimal places ===
 final_df = pd.DataFrame(records)
 
+# for col in range(10):  # forget classes 0 to 9
+#     if col in final_df.columns:
+#         final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
+
 for col in range(10):  # forget classes 0 to 9
     if col in final_df.columns:
-        final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
+        final_df = final_df[["Method", "Source", "Metric"] + list(range(10))]
+
+
+
 
 
 method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
@@ -437,33 +480,56 @@ prev_method = prev_source = None
 SHOW_SOURCE_COL = False
 
 # Convert to LaTeX lines manually
-header = ["Method", "Source", "Ref", "Metric"] + list(range(10))
-column_format = "c|c|c|c|" + "c" * 10
+header = ["Method", "Metric"] + list(range(10))
+column_format = "c|c|" + "c" * 10
+
+#header = ["Method", "Source", "Ref", "Metric"] + list(range(10))
+#column_format = "c|c|c|c|" + "c" * 10
+
+
 
 # --- pre-compute how many rows each Method will occupy (needed for \multirow) ---
 method_row_counts = final_df.groupby("Method", observed=False).size().to_dict()
 
 latex = []
-latex.append(r"\begin{table}[ht]")
+latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
-latex.append(r"\caption{Per-class forgetting accuracy on CIFAR-10 using ResNet-18, averaged over 5 random trials.}")
-latex.append(r"\label{tab:cifar10_forget}")
+latex.append(r"\captionsetup{font=small}")
+latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ResNet-18, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original samples with the same method.}")
+latex.append(r"\label{tab:CIFAR-10_forget_resnet18}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
 latex.append(r"\toprule")
+# latex.append(
+#     r"\multirow[c]{2}{*}{Method} & "
+#     r"\multirow[c]{2}{*}{Source} & "
+#     r"\multirow[c]{2}{*}{Ref} & "
+#     r"\multirow[c]{2}{*}{Metric} & "
+#     r"\multicolumn{10}{c}{Forget Class} \\"
+# )
+
 latex.append(
     r"\multirow[c]{2}{*}{Method} & "
-    r"\multirow[c]{2}{*}{Source} & "
-    r"\multirow[c]{2}{*}{Ref} & "
     r"\multirow[c]{2}{*}{Metric} & "
     r"\multicolumn{10}{c}{Forget Class} \\"
 )
 
+
+
+# latex.append(
+#     r"& & & & " +      # four empty columns under the multi-rows
+#     " & ".join(map(str, range(10))) +  # 0 … 9
+#     r" \\"
+# )
+
 latex.append(
-    r"& & & & " +      # four empty columns under the multi-rows
+    r"& & " +      # 2 empty columns under the multi-rows
     " & ".join(map(str, range(10))) +  # 0 … 9
     r" \\"
 )
+
+
+
 
 latex.append(r"\midrule")
 
@@ -492,11 +558,6 @@ for i, row in final_df.iterrows():
     source_display = "-" if method in ["Original", "Retrained"] else source
     source_key = (method, source_display)    
         
-    
-    
-    source_display = "-" if method in ["Original", "Retrained"] else source
-    source_key = (method, source_display)  # unique per display value
-
     if prev_method is not None and method != prev_method:
         latex.append(r"\midrule")
 
@@ -511,28 +572,44 @@ for i, row in final_df.iterrows():
         n_rows = method_row_counts[method]
         cells.append(fr"\multirow{{{n_rows}}}{{*}}{{{method}}}")
     
-    if source_key == prev_source_key:
-        cells.append("")
-    else:
-        n_rows = method_source_row_counts.get((method.lower(), source), 1)
-        cells.append(fr"\multirow{{{n_rows}}}{{*}}{{\centering {source_display}}}")
+    # if source_key == prev_source_key:
+    #     cells.append("")
+    # else:
+    #     n_rows = method_source_row_counts.get((method.lower(), source), 1)
+    #     cells.append(fr"\multirow{{{3}}}{{*}}{{\centering {source_display}}}")
     
     
     # Add reference (no merging)
-    ref_key = (method, source_display)
+    #ref_key = (method, source_display)
     
-    if ref_key == prev_ref_key:
-        cells.append("")
-    else:
-        cells.append(fr"\multirow[c]{{{n_rows}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
+    # if ref_key == prev_ref_key:
+    #     cells.append("")
+    # else:
+    #     cells.append(fr"\multirow[c]{{{3}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
     
 
     
-    prev_ref_key = ref_key    
+    #prev_ref_key = ref_key    
     cells.append(row["Metric"])
-    cells.extend([row.get(col, "") for col in header[4:]])
+    cells.extend([row.get(col, "") for col in header[2:]])
 
-    latex.append(" & ".join(map(str, cells)) + r" \\")
+
+
+    row_latex = " & ".join(map(str, cells)) + r" \\"
+    
+    if source == "synth":
+        parts = row_latex.split("&")
+        # Apply gray color to all columns except the first ("Method")
+        parts[1] = r"\cellcolor{gray!15}" + parts[1]
+        for i in range(2, len(parts)):
+            parts[i] = r"\cellcolor{gray!15}" + parts[i]
+        row_latex = " & ".join(parts)
+    
+    
+    latex.append(row_latex)
+
+
+    #latex.append(" & ".join(map(str, cells)) + r" \\")
     prev_method = method
     prev_source_key = source_key
 
@@ -540,7 +617,7 @@ for i, row in final_df.iterrows():
 latex.append(r"\bottomrule")
 latex.append(r"\end{tabular}")
 latex.append(r"}")  # closing resizebox
-latex.append(r"\end{table}")
+latex.append(r"\end{table*}")
 
-with open("results_random_fc/cifar10_unlearning_table_per_class.tex", "w") as f:
+with open("results_random_fc/CIFAR-10_unlearning_table_per_class_fc_resnet18.tex", "w") as f:
     f.write("\n".join(latex))
