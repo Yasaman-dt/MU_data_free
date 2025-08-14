@@ -209,15 +209,11 @@ def main(train_retain_loader_img,
         
         #sigma_range = np.linspace(0.5, 6, 3)
 
-        #B_numpy = np.load(matrix_B_224)  # Shape: (512, 2304)
 
         #checkpoint_path = f"{DIR}/{files}/{dataset_name}/best_checkpoint_resnet18.pth"  # Set your actual checkpoint path
         #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
         #fc_layer = model.fc
         
-        #all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-        #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-        #)
 
         print(all_features_synth.shape)
         print(all_labels_synth.shape)
