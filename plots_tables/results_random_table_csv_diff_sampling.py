@@ -26,7 +26,7 @@ method_map = {
 }
 
 
-original_path = os.path.join(parent_dir, "results_real/results_original.csv")
+original_path = os.path.join(parent_dir, "results_real/results_original_resnet18.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -325,20 +325,38 @@ def get_data_free_flags(method, source):
 datasets = stats_df["dataset"].unique()
 
 # === Define display names and references
+# method_name_and_ref = {
+#     "original": ("Original", r"–"),
+#     "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
+#     "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
+#     "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
+#     "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
+#     "NGFTW": ("NG+", r"\citep{kurmanji2023towards} Ours"),
+#     "RL": ("RL", r"\citep{hayase2020selective} Ours"),
+#     "BS": ("BS", r"\citep{chen2023boundary} Ours"),
+#     "BE": ("BE", r"\citep{chen2023boundary} Ours"),
+#     "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
+#     "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
+#     "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
+#     "SCAR": ("SCAR", r"\citep{bonato2024retain} Ours"),
+
+# }
+
+
 method_name_and_ref = {
-    "original": ("Original", r"–"),
-    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
-    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
-    "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
-    "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
-    "NGFTW": ("NG+", r"\citep{golatkar2020eternal} Ours"),
-    "RL": ("RL", r"\citep{hayase2020selective} Ours"),
-    "BS": ("BS", r"\citep{chen2023boundary} Ours"),
-    "BE": ("BE.", r"\citep{chen2023boundary} Ours"),
-    "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
-    "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
-    "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
-    "SCAR": ("SCAR", r"\citep{bonato2024retain} Ours"),
+    "original": ("Original", "–"),
+    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
+    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "FT": ("FT \citep{golatkar2020eternal}", "–"),
+    "NG": ("NG \citep{golatkar2020eternal}", "–"),
+    "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
+    "RL": ("RL \citep{hayase2020selective}", "–"),
+    "BS": ("BS \citep{chen2023boundary}", "–"),
+    "BE": ("BE \citep{chen2023boundary}", "–"),
+    "LAU": ("LAU \citep{kim2024layer}", "–"),
+    "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
+    "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
+    "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
 
 }
 
@@ -414,21 +432,24 @@ for _, row in stats_df.iterrows():
             if label == "AUS":
                 val_str = f"{val:.3f}"
                 std_str = f"{std:.3f}"
-            else:
+            if label == "\mathcal{A}^t_r":
                 val_str = f"{val:.2f}"
                 std_str = f"{std:.2f}"
-                if val < 10: val_str = "0" + val_str
-                if std < 10: std_str = "0" + std_str
+                if val < 10: val_str = val_str
+                if std < 10: std_str = std_str
+            if label == "\mathcal{A}^t_f":
+                if method == "original":
+                    val_str = f"{val:.2f}"
+                    std_str = f"{std:.2f}"
+                else:
+                    val_str = f"{val:.1f}"
+                    std_str = f"{std:.1f}"
+                if val < 10: val_str = val_str
+                if std < 10: std_str = std_str
         
         
-            # Determine which dataset this AUS belongs to (based on column index)
-            dataset_idx = len(values)  # 0–2: CIFAR10, 3–5: CIFAR100, 6–8: TinyImageNet
-            if dataset_idx < 3:
-                dset = "CIFAR10"
-            elif dataset_idx < 6:
-                dset = "CIFAR100"
-            else:
-                dset = "TinyImageNet"
+            dset = dataset
+
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[dataset][label], 3)
@@ -437,7 +458,7 @@ for _, row in stats_df.iterrows():
             if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
                 val_str = f"\\textbf{{{val_str}}}"
     
-            cell = f"{val_str}$\\text{{\\scriptsize \\,$\\pm$\\,{std_str}}}$"
+            cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
 
     
         values.append(cell)  
@@ -447,21 +468,50 @@ for _, row in stats_df.iterrows():
     access_flags[key] = get_data_free_flags(method, source)
 
 # === Build LaTeX table
-latex_table = r"""\begin{table}[ht]
+# latex_table = r"""\begin{table*}[h]
+# \centering
+# \captionsetup{font=small}
+# \caption{
+# Effect of noise distribution on data-free class unlearning performance. 
+# The Negative Gradient+ method is extended by generating synthetic embeddings from different noise distributions: Gaussian, Laplace, and Uniform. 
+# Results are reported for the Negative Gradient+ baseline on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone architecture. 
+# For each dataset, we fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
+# Metrics represent the mean and standard deviation computed across all classes and random seeds.
+# }
+
+# \label{tab:results_ngftw_diff_sampling}
+# \resizebox{\textwidth}{!}{
+# \begin{tabular}{c|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
+# \toprule
+# \toprule
+# \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{Noise Type} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+#  &  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
+# \midrule
+# \midrule
+# """
+
+
+latex_table = r"""\begin{table*}[ht]
 \centering
-\caption{Impact of noise distribution on data-free unlearning performance.  
-We extend the Negative Gradient method by sampling synthetic embeddings from four noise distributions (Gaussian, Laplace, Uniform) and compare against the original Negative Gradient baseline and full retraining on CIFAR10, CIFAR100 and TinyImageNet.  
-Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
+\captionsetup{font=small}
+\caption{
+Effect of embedding distribution on data-free class unlearning performance of Negative Gradient+ method on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone architecture. 
+Rows highlighted in gray represent our results using ynthetic embeddings, while the corresponding non-shaded rows use original samples with the same method.
+}
+
 \label{tab:results_ngftw_diff_sampling}
 \resizebox{\textwidth}{!}{
-\begin{tabular}{c|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
+\begin{tabular}{c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{Noise Type} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
- &  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS \uparrow\\
+\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{{Embedding\\Distribution}}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+ &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule
 """
+
+
+
 
 # Sort by method name for consistency
 
@@ -473,7 +523,7 @@ for key in grouped_methods.keys():
     base_method = key.split(" (")[0]
     source_noise = key.split(" (")[1].replace(")", "")
     source, noise = source_noise.split(", ")
-    noise_cell = noise.capitalize() if noise not in ["real", "none"] else r"\text{--}"
+    noise_cell = noise.capitalize() if noise not in ["real", "none"] else r"--"
     method_counts[base_method] += 1
 
 printed_methods = set()
@@ -484,13 +534,14 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     source, noise = source_noise.split(", ")
 
     if noise in ["real", "-"]:
-        noise_cell = r"\text{--}"
+        noise_cell = r"--"
     else:
         noise_cell = noise.capitalize()
 
-    if prev_base_method and base_method != prev_base_method:
-        latex_table += r"\midrule" + "\n"
-        if prev_base_method in ["FT", "BE"]:
+    if base_method != prev_base_method:
+        if prev_base_method in ["retrained", "FT", "BE", "RL"]:
+            latex_table += r"\midrule" + "\n" + r"\midrule" 
+        else:
             latex_table += r"\midrule" + "\n"
 
     D_r_free, D_f_free = access_flags[key]
@@ -520,19 +571,21 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
 
     if base_method == "original":
-        method_cell = rf"\multirow{{2}}{{*}}{{\centering {method_display_base}}}"
-        ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
+        method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
+        #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
         dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
         df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
         values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
+        #row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
 
-        row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
+        row = [method_cell, r"--", dr_free, df_free] + values_multirow
         latex_table += " & ".join(row) + r" \\" + "\n"
     
         # Now insert an empty second row for spacing and alignment
-        row = ["", "", "", ""] + [""] * len(values)
+        #row = ["", "", "", ""] + [""] * len(values)
+        row = ["", "", ""] + [""] * len(values)
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
              
@@ -541,7 +594,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     if base_method not in printed_methods:
         if method_counts[base_method] > 1:
-            method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{\centering {method_display_base}}}"
+            method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{{method_display_base}}}"
         else:
             method_cell = method_display_base
         printed_methods.add(base_method)
@@ -552,8 +605,17 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         noise_cell = r"\text{--}"
     else:
         noise_cell = noise.capitalize()
-        
-    row = [method_cell, ref_cell, noise_cell, D_r_free, D_f_free] + values
+
+
+    #row = [method_cell, ref_cell, noise_cell, D_r_free, D_f_free] + values
+    row = [method_cell, noise_cell, D_r_free, D_f_free] + values
+
+    if source == "synth":
+        # color from second column onward
+        colored_row = [row[0]] + [rf"\cellcolor{{gray!15}}{cell}" for cell in row[1:]]
+        latex_table += " & ".join(colored_row) + r" \\" + "\n"
+        continue 
+
 
     latex_table += " & ".join(row) + r" \\" + "\n"
 
@@ -566,7 +628,7 @@ latex_table += r"""\bottomrule
 \bottomrule
 \end{tabular}%
 }
-\end{table}
+\end{table*}
 """
 
 # === Save to file (UTF-8)
