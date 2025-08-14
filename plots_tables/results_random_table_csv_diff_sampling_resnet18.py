@@ -66,7 +66,7 @@ original_summary.columns = ['_'.join(col).strip() for col in original_summary.co
 
 original_summary = original_summary.reset_index()
 
-original_summary.to_csv("results_diff_sampling/original_averaged_results.csv", index=False)
+original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_diff_sampling/original_averaged_results.csv", index=False)
 
 metrics = ['val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS']
 
@@ -113,7 +113,7 @@ AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
 retrained_df["AUS"] = AUS
 
 # Save the combined DataFrame
-output_path = "results_diff_sampling/results_retrained.csv"
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_diff_sampling/results_retrained.csv"
 retrained_df.to_csv(output_path, index=False)
 
 all_data = []
@@ -267,7 +267,7 @@ if all_data:
     
     # === Combine original + best_df
     combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
-    combined_df.to_csv("results_diff_sampling/results_total.csv", index=False)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_diff_sampling/results_total.csv", index=False)
 
 
 
@@ -293,7 +293,7 @@ from collections import defaultdict
 
 
 # Load the stats DataFrame
-stats_df = pd.read_csv("results_diff_sampling/results_mean_std_all_numeric.csv")
+stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_diff_sampling/results_mean_std_all_numeric.csv")
 
 # Select key columns to display
 columns_to_display = [
@@ -632,10 +632,10 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("results_diff_sampling/results_ngftw_diff_sampling.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_diff_sampling/results_ngftw_diff_sampling.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
-print("✅ LaTeX table saved to combined_table.tex")
+print("✅ LaTeX table saved to results_ngftw_diff_sampling.tex")
 
 
 

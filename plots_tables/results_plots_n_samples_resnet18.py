@@ -131,8 +131,8 @@ def plot_with_black_box(plot_obj, filename):
             plt.gcf().add_artist(rect)
     
     # Save and show the plot
-    plt.savefig(f"results_n_samples/{filename}.png", dpi=600, bbox_inches='tight')
-    plt.savefig(f"results_n_samples/{filename}.pdf", dpi=600, bbox_inches='tight')
+    plt.savefig(f"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_n_samples/{filename}.png", dpi=600, bbox_inches='tight')
+    plt.savefig(f"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_n_samples/{filename}.pdf", dpi=600, bbox_inches='tight')
 
     plt.show()
 
