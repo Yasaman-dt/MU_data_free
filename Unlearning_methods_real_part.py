@@ -40,12 +40,8 @@ def choose_method(name):
         return NGFT_weighted
     elif name=='RL':
         return RandomLabels
-    elif name == 'newmethod':
-        return newmethod
     elif name == 'RE':
         return RetrainedEmbedding
-    elif name == 'MM':
-        return MaximeMethod
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
 
