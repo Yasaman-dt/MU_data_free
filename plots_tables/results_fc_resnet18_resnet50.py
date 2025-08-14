@@ -371,7 +371,7 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("results_fc/table_total_random_fc.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc/table_total_random_fc.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to table_total_random_fc.tex")

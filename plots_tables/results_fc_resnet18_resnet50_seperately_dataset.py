@@ -215,6 +215,6 @@ Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the metho
 }
 \end{table*}
 """
-    with open(f"results_fc/table_total_random_fc_{dataset}.tex", "w", encoding="utf-8") as f:
+    with open(f"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc/table_total_random_fc_{dataset}.tex", "w", encoding="utf-8") as f:
         f.write(latex_table)
     print(f"✅ LaTeX table saved to table_total_random_fc_{dataset}.tex")
