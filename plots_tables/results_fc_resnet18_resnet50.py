@@ -184,11 +184,11 @@ for _, row in stats_df.iterrows():
     grouped_methods[key]["arch"] = row["arch"]
     
 # === Build LaTeX table
-latex_table = r"""\begin{table*}[h]
+latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
 \caption{Class unlearning performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
-         Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original samples with the same method.
+         Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original samples with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results}
 
@@ -371,9 +371,9 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("table_total_random_fc.tex", "w", encoding="utf-8") as f:
+with open("results_fc/table_total_random_fc.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
-print("✅ LaTeX table saved to combined_table.tex")
+print("✅ LaTeX table saved to table_total_random_fc.tex")
 
 
