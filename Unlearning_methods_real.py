@@ -300,7 +300,6 @@ class BaseMethod:
                     forget_count=forget_count,
                     total_count=total_count)
             self.scheduler.step()
-            #print('Accuracy: ',self.evalNet())
 
         log_summary_across_classes(
             best_epoch=best_epoch,
@@ -322,43 +321,6 @@ class BaseMethod:
         self.net.eval()
         return self.net
     
-    def evalNet(self):
-        #compute model accuracy on self.loader
-
-        self.net.eval()
-        with torch.no_grad():
-            correct = 0
-            total = 0
-            for inputs, targets in self.train_retain_loader:
-                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                outputs = self.net(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total += targets.size(0)
-                correct += (predicted == targets).sum().item()
-
-            correct2 = 0
-            total2 = 0
-            for inputs, targets in self.train_fgt_loader:
-                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                outputs = self.net(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total2 += targets.size(0)
-                correct2+= (predicted == targets).sum().item()
-
-            if not(self.test is None):
-                correct3 = 0
-                total3 = 0
-                for inputs, targets in self.test:
-                    inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                    outputs = self.net(inputs)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total3 += targets.size(0)
-                    correct3+= (predicted == targets).sum().item()
-        self.net.train()
-        if self.test is None:
-            return correct/total,correct2/total2
-        else:
-            return correct/total,correct2/total2,correct3/total3
     
 class FineTuning(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -572,7 +534,6 @@ class NGFT(BaseMethod):
                     forget_count=forget_count,
                     total_count=total_count)
             self.scheduler.step()
-            #print('Accuracy: ',self.evalNet())
 
         log_summary_across_classes(
             best_epoch=best_epoch,

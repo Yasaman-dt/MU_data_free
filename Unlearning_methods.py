@@ -250,8 +250,6 @@ class BaseMethod:
                 acc_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
                 acc_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
 
-
-
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
@@ -367,7 +365,6 @@ class BaseMethod:
                     total_count=total_count)
 
             self.scheduler.step()
-            #print('Accuracy: ',self.evalNet())
 
         unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
 
@@ -393,44 +390,7 @@ class BaseMethod:
 
         self.net.eval()
         return self.net
-    
-    def evalNet(self):
-        #compute model accuracy on self.loader
 
-        self.net.eval()
-        with torch.no_grad():
-            correct = 0
-            total = 0
-            for inputs, targets in self.train_retain_loader:
-                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                outputs = self.net(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total += targets.size(0)
-                correct += (predicted == targets).sum().item()
-
-            correct2 = 0
-            total2 = 0
-            for inputs, targets in self.train_fgt_loader:
-                inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                outputs = self.net(inputs)
-                _, predicted = torch.max(outputs.data, 1)
-                total2 += targets.size(0)
-                correct2+= (predicted == targets).sum().item()
-
-            if not(self.test is None):
-                correct3 = 0
-                total3 = 0
-                for inputs, targets in self.test:
-                    inputs, targets = inputs.to(opt.device), targets.to(opt.device)
-                    outputs = self.net(inputs)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total3 += targets.size(0)
-                    correct3+= (predicted == targets).sum().item()
-        self.net.train()
-        if self.test is None:
-            return correct/total,correct2/total2
-        else:
-            return correct/total,correct2/total2,correct3/total3
     
 class FineTuning(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -439,7 +399,7 @@ class FineTuning(BaseMethod):
         self.target_accuracy=0.0
         self.class_to_remove = class_to_remove
 
-    def loss_f(self, inputs, targets,test=None):
+    def loss_f(self, inputs, targets, test=None):
         outputs = self.net.fc(inputs)
         loss = self.criterion(outputs, targets)
         return loss
@@ -647,7 +607,6 @@ class NGFT(BaseMethod):
                     total_count=total_count)
 
             self.scheduler.step()
-            #print('Accuracy: ',self.evalNet())
 
         unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
 
