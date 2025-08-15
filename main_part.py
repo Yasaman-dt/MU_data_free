@@ -45,7 +45,6 @@ n_model = opt.n_model
 DIR = "/projets/Zdehghani/MU_data_free"
 weights_folder = "weights"
 
-#matrix_B_224 = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/matrix_B_224_m{n_model}.npy"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
