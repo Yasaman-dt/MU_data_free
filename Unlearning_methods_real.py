@@ -3123,6 +3123,7 @@ class Delete(BaseMethod):
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
 
+                if getattr(opt, "save_model", False):  # <-- only save if enabled
                     ckpt_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(ckpt_dir, exist_ok=True)
                     ckpt_path = os.path.join(
@@ -3131,6 +3132,8 @@ class Delete(BaseMethod):
                     )
                     torch.save(best_state, ckpt_path)
                     print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
+                else:
+                    print(f"[Checkpoint NOT saved] AUS={aus:.4f} (kept in memory)")
 
                 # early-stops (like your NGFT_weighted)
                 if acc_test_val_fgt == 0.0:

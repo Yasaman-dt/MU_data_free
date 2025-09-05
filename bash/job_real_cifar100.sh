@@ -20,7 +20,6 @@ python main_real.py  \
     --dataset $DATASET \
     --mode CR \
     --cuda 0 \
-    --save_model \
     --save_df \
     --run_unlearn  \
     --num_workers 4 \
