@@ -7,6 +7,7 @@ SAMPLE_PER_CLASS=$4
 gpu=$5
 epoch=$6
 MODEL=$7
+NOISE=$8
 
 SCREEN_NAME="SYNTH_${RUN_MODEL}_${METHOD}_${N_MODEL}_${lr}_${epoch}_${SAMPLE_PER_CLASS}_${MODEL}.sh"
 
@@ -30,5 +31,6 @@ python main.py  \
     --epochs $epoch  \
     --patience 50  \
     --samples_per_class $SAMPLE_PER_CLASS  \
-    --n_model $N_MODEL
+    --n_model $N_MODEL \
+    --noise_type $NOISE
 "
