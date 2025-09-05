@@ -518,8 +518,10 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     source_noise = key.split(" (")[1].replace(")", "")
     source, noise = source_noise.split(", ")
 
-    if noise in ["real", "-"]:
+    if source == "real":
         noise_cell = r"Real distribution"
+    elif noise in ["-", "none"]:
+        noise_cell = r"\text{--}"
     else:
         noise_cell = noise.capitalize()
 
@@ -585,11 +587,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         printed_methods.add(base_method)
     else:
         method_cell = ""
-
-    if noise in ["real", "-"]:
-        noise_cell = r"\text{--}"
-    else:
-        noise_cell = noise.capitalize()
 
 
     #row = [method_cell, ref_cell, noise_cell, D_r_free, D_f_free] + values
