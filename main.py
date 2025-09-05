@@ -313,7 +313,7 @@ if __name__ == "__main__":
                 num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
             )
             
-            print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
+            #print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
             #prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
             #for class_name, s in prob_stats.items():
             #    print(f"Class {class_name}: mean={s['mean']:.2e}, max={s['max']:.2e}, min={s['min']:.2e}, std={s['std']:.2e}")
@@ -326,24 +326,24 @@ if __name__ == "__main__":
            
             # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
             
-            N = 5000
-            NUM_CLASSES = 10  # Change if not CIFAR-10
-            synthetic_embeddings_np = all_features_synth  # shape: (50000, D)
-            synthetic_labels_np = all_labels_synth  # shape: (50000,)
+            # N = 5000
+            # NUM_CLASSES = 10  # Change if not CIFAR-10
+            # synthetic_embeddings_np = all_features_synth  # shape: (50000, D)
+            # synthetic_labels_np = all_labels_synth  # shape: (50000,)
 
-            # Select 50 per class
-            synthetic_embeddings_par, synthetic_labels_par = select_n_per_class_numpy(
-                synthetic_embeddings_np, synthetic_labels_np, num_per_class=N, num_classes=NUM_CLASSES
-            )            
+            # # Select 50 per class
+            # synthetic_embeddings_par, synthetic_labels_par = select_n_per_class_numpy(
+            #     synthetic_embeddings_np, synthetic_labels_np, num_per_class=N, num_classes=NUM_CLASSES
+            # )            
             
-            save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            # save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/synth_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+            # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-            np.savez_compressed(
-                save_path,
-                synthetic_embeddings=synthetic_embeddings_par,
-                synthetic_labels=synthetic_labels_par
-            )
+            # np.savez_compressed(
+            #     save_path,
+            #     synthetic_embeddings=synthetic_embeddings_par,
+            #     synthetic_labels=synthetic_labels_par
+            # )
 
             # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
             # synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_par)
@@ -361,16 +361,16 @@ if __name__ == "__main__":
             # plt.savefig(f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_fc.png", dpi=300)
             # plt.close()
 
-            test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_test_m{n_model}.npz"
-            test_embeddings_data = np.load(test_path)
-            real_embeddings = torch.tensor(test_embeddings_data["embeddings"])
-            real_labels = torch.tensor(test_embeddings_data["labels"])
+            # test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_test_m{n_model}.npz"
+            # test_embeddings_data = np.load(test_path)
+            # real_embeddings = torch.tensor(test_embeddings_data["embeddings"])
+            # real_labels = torch.tensor(test_embeddings_data["labels"])
 
 
-            real_embeddings_np = real_embeddings  # shape: (50000, D)
-            real_labels_np = real_labels  # shape: (50000,)
+            # real_embeddings_np = real_embeddings  # shape: (50000, D)
+            # real_labels_np = real_labels  # shape: (50000,)
 
-            N = 1000
+            # N = 1000
 
             # Select 50 per class
             #real_embeddings_par, real_labels_par = select_n_per_class_numpy(
@@ -378,14 +378,14 @@ if __name__ == "__main__":
             #)       
 
             
-            save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            # save_path = f"{opt.root_folder}/tsne/tsne_main/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+            # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-            np.savez_compressed(
-                save_path,
-                real_embeddings=real_embeddings_np,
-                real_labels=real_labels_np
-            )
+            # np.savez_compressed(
+            #     save_path,
+            #     real_embeddings=real_embeddings_np,
+            #     real_labels=real_labels_np
+            # )
 
             # np.savez_compressed(
             #     save_path,
