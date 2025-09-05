@@ -2939,7 +2939,7 @@ class BadTeacher(BaseMethod):
                     best_epoch = epoch
                     best_accs = (acc_train_ret, acc_train_fgt, acc_test_val_ret, acc_test_val_fgt, acc_full_val_ret, acc_full_val_fgt)
 
-                    checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
                     checkpoint_path = os.path.join(checkpoint_dir, f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt")
                     torch.save(best_model_state, checkpoint_path)
