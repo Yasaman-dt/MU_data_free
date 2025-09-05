@@ -32,7 +32,7 @@ def get_data_free_flags(method, source):
         return (r"\cmark", r"\cmark") 
     elif method in ["FT","RE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\cmark")
-    elif method in ["NG", "RL", "BS", "BE", "LAU"]:
+    elif method in ["NG", "RL", "BS", "BE", "LAU", "DELETE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\cmark", r"\xmark")
     elif method in ["NGFTW", "DUCK", "SCRUB", "SCAR"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
@@ -57,11 +57,13 @@ method_name_and_ref = {
     "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+    "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
+
 
 }
 
 
-method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
+method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
 
@@ -187,8 +189,8 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
-         Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original samples with the same method.
+\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
+         Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results}
 
@@ -196,7 +198,7 @@ latex_table = r"""\begin{table*}[ht]
 \begin{tabular}{c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
- \multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+ \multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule

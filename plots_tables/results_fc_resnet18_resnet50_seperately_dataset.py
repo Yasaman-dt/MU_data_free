@@ -19,23 +19,29 @@ columns_to_display = [
     ("AUS", "AUS")
 ]
 
+# === Helper to determine D_r-free and D_f-free flags
 def get_data_free_flags(method, source):
     if method in ["original", "retrained"]:
         return ("--", "--")
     elif method in ["MM"]:
         return (r"\cmark", r"\cmark") 
-    elif method in ["FT", "RE"]:
+    elif method in ["FT","RE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\cmark")
-    elif method in ["NG", "RL", "BS", "BE", "LAU"]:
+    elif method in ["NG", "RL", "BS", "BE", "LAU", "DELETE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\cmark", r"\xmark")
     elif method in ["NGFTW", "DUCK", "SCRUB", "SCAR"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
     return (r"\xmark", r"\xmark")
 
+
+# Group rows by dataset
+datasets = stats_df["dataset"].unique()
+
+# === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
     "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
-    "RE": (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
@@ -46,8 +52,15 @@ method_name_and_ref = {
     "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+    "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
+
+
 }
-method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
+
+
+method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
+
+
 
 def sort_key(key):
     method_part = key.split(" (")[0]

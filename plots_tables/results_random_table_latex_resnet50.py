@@ -3,7 +3,7 @@ from collections import defaultdict
 
 
 # Load the stats DataFrame
-stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/results_mean_std_all_numeric_resnet18.csv")
+stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet50/results_mean_std_all_numeric_resnet50.csv")
 
 # Select key columns to display
 columns_to_display = [
@@ -56,7 +56,6 @@ method_name_and_ref = {
 
 
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
-
 
 
 
@@ -178,7 +177,7 @@ latex_table = r"""\begin{table*}[ht]
 \caption{Performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-50 as the base architecture. Reported metrics are the mean and standard deviation computed across all classes and model seeds. Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 
 
-\label{tab:main_results_resnet18}
+\label{tab:main_results_resnet50}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}
@@ -275,14 +274,15 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/table_total_random_fc_resnet18.tex", "w", encoding="utf-8") as f:
+with open("table_total_random_fc_resnet50.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to combined_table.tex")
 
 
+
 # Load the uploaded data
-df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
+df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet50/mean_std_results_by_class_model_dataset_method_source_resnet50.csv")
 
 # Filter only for CIFAR-10 dataset
 cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
@@ -413,14 +413,12 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                             mean_fmt = mean_fmt
                         if std < 10:
                             std_fmt = std_fmt
+                     
                     
-
                     if is_best:
                         row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
                     else:
                         row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-
-
 
                 else:
                     row[forget_class] = "-"
@@ -433,16 +431,9 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
 # === Step 3: Create final DataFrame and format to 2 decimal places ===
 final_df = pd.DataFrame(records)
 
-# for col in range(10):  # forget classes 0 to 9
-#     if col in final_df.columns:
-#         final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
-
 for col in range(10):  # forget classes 0 to 9
     if col in final_df.columns:
-        final_df = final_df[["Method", "Source", "Metric"] + list(range(10))]
-
-
-
+        final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
 
 
 method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
@@ -482,8 +473,8 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ResNet-18, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}")
-latex.append(r"\label{tab:CIFAR-10_forget_resnet18}")
+latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ResNet-50, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\label{tab:CIFAR-10_forget_resnet50}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
 latex.append(r"\toprule")
@@ -510,7 +501,7 @@ latex.append(
 # )
 
 latex.append(
-    r"& & " +      # 2 empty columns under the multi-rows
+    r"& & " +      # four empty columns under the multi-rows
     " & ".join(map(str, range(10))) +  # 0 … 9
     r" \\"
 )
@@ -545,6 +536,11 @@ for i, row in final_df.iterrows():
     source_display = "-" if method in ["Original", "Retrained"] else source
     source_key = (method, source_display)    
         
+    
+    
+    source_display = "-" if method in ["Original", "Retrained"] else source
+    source_key = (method, source_display)  # unique per display value
+
     if prev_method is not None and method != prev_method:
         latex.append(r"\midrule")
 
@@ -567,7 +563,7 @@ for i, row in final_df.iterrows():
     
     
     # Add reference (no merging)
-    #ref_key = (method, source_display)
+    ref_key = (method, source_display)
     
     # if ref_key == prev_ref_key:
     #     cells.append("")
@@ -576,10 +572,9 @@ for i, row in final_df.iterrows():
     
 
     
-    #prev_ref_key = ref_key    
+    prev_ref_key = ref_key    
     cells.append(row["Metric"])
     cells.extend([row.get(col, "") for col in header[2:]])
-
 
 
     row_latex = " & ".join(map(str, cells)) + r" \\"
@@ -606,5 +601,5 @@ latex.append(r"\end{tabular}")
 latex.append(r"}")  # closing resizebox
 latex.append(r"\end{table*}")
 
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/CIFAR-10_unlearning_table_per_class_fc_resnet18.tex", "w") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet50/CIFAR-10_unlearning_table_per_class_fc_resnet50.tex", "w") as f:
     f.write("\n".join(latex))
