@@ -2,7 +2,7 @@ import pandas as pd
 from collections import defaultdict, Counter
 
 # Load both ResNet-18 and ResNet-50 result files
-resnet18_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/results_mean_std_all_numeric_resnet18.csv")
+resnet18_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_mean_std_all_numeric_resnet18.csv")
 resnet50_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet50/results_mean_std_all_numeric_resnet50.csv")
 
 # Add architecture column
@@ -190,7 +190,7 @@ Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the metho
             
                     
         if (base_method != prev_base_method):
-            if prev_base_method in ["FT", "BE"]:
+            if prev_base_method in ["FT", "DELETE"]:
                 latex_table += r"\midrule" + "\n" + r"\midrule" + "\n"
             else:
                 latex_table += r"\midrule" + "\n"

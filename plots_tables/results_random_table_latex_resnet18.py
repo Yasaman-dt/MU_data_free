@@ -3,7 +3,7 @@ from collections import defaultdict
 
 
 # Load the stats DataFrame
-stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/results_mean_std_all_numeric_resnet18.csv")
+stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_mean_std_all_numeric_resnet18.csv")
 
 # Select key columns to display
 columns_to_display = [
@@ -206,7 +206,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     if prev_base_method and base_method != prev_base_method:
         latex_table += r"\midrule" + "\n"
-        if prev_base_method in ["FT", "BE"]:
+        if prev_base_method in ["FT", "DELETE"]:
             latex_table += r"\midrule" + "\n"
 
         
@@ -275,14 +275,14 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/table_total_random_fc_resnet18.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/table_total_random_fc_resnet18.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to combined_table.tex")
 
 
 # Load the uploaded data
-df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
+df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
 
 # Filter only for CIFAR-10 dataset
 cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
@@ -296,7 +296,7 @@ cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
 #cifar10_df = cifar10_df[columns_to_keep]
 
 
-#cifar10_df.to_csv("results_random_fc/cifar10_results.csv", index=False)
+#cifar10_df.to_csv("results_fc_resnet18/cifar10_results.csv", index=False)
 
 # === Step 1: Preprocess table ===
 # df_filtered = cifar10_df[
@@ -606,5 +606,5 @@ latex.append(r"\end{tabular}")
 latex.append(r"}")  # closing resizebox
 latex.append(r"\end{table*}")
 
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/CIFAR-10_unlearning_table_per_class_fc_resnet18.tex", "w") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/CIFAR-10_unlearning_table_per_class_fc_resnet18.tex", "w") as f:
     f.write("\n".join(latex))

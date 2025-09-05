@@ -8,11 +8,11 @@ import numpy as np
 # === Setup paths ===
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 sources = [
-    ("results_real", None, "real"),
-    ("results_random_fc/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
-    ("results_random_fc/sigma5.0_persamplefix/results_synth", 5.0, "synth"),
-    ("results_random_fc/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
-    ("results_random_fc/sigma0.0_persamplefix_gaussian/results_synth", 0.0, "synth"),
+    ("results_fc_resnet18/results_real", None, "real"),
+    ("results_fc_resnet18/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
+    ("results_fc_resnet18/sigma5.0_persamplefix/results_synth", 5.0, "synth"),
+    ("results_fc_resnet18/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
+    ("results_fc_resnet18/sigma0.0_persamplefix_gaussian/results_synth", 0.0, "synth"),
 
 ]
 
@@ -29,7 +29,7 @@ method_map = {
 }
 
 
-original_path = os.path.join(parent_dir, "results_real/results_original_resnet18.csv")
+original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -67,7 +67,7 @@ original_summary.columns = ['_'.join(col).strip() for col in original_summary.co
 
 original_summary = original_summary.reset_index()
 
-original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/original_averaged_results_resnet18.csv", index=False)
+original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/original_averaged_results_resnet18.csv", index=False)
 
 metrics = ['val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS']
 
@@ -80,9 +80,9 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
-cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
-tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
+cifar10_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
 
 # Add dataset identifiers
 cifar10_df["dataset"] = "CIFAR10"
@@ -112,7 +112,7 @@ AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
 retrained_df["AUS"] = AUS
 
 # Save the combined DataFrame
-output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/results_retrained_resnet18.csv"
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_retrained_resnet18.csv"
 retrained_df.to_csv(output_path, index=False)
 
 original_df["sigma"] = None
@@ -198,7 +198,7 @@ if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
 
     # Save merged raw results
-    final_df.to_csv(os.path.join(parent_dir, "results_random_fc/results_unlearning_resnet18.csv"), index=False)
+    final_df.to_csv(os.path.join(parent_dir, "results_fc_resnet18/results_unlearning_resnet18.csv"), index=False)
     print("✅ All results merged.")
 
     # === Refined selection: prefer highest AUS, then smallest val_test_fgt_acc, then largest val_test_retain_acc
@@ -215,7 +215,7 @@ if all_data:
     ).first()
     
     # Save results
-    best_df.to_csv(os.path.join(parent_dir, "results_random_fc/results_unlearning_best_per_model_by_aus_resnet18.csv"), index=False)
+    best_df.to_csv(os.path.join(parent_dir, "results_fc_resnet18/results_unlearning_best_per_model_by_aus_resnet18.csv"), index=False)
     print("✅ Refined best results saved using AUS → val_test_fgt_acc → val_test_retain_acc.")
 
     #original_df = original_df[original_df["model_num"].isin([2, 3, 4])]
@@ -251,7 +251,7 @@ if all_data:
     original_df = original_df[best_df.columns]
     retrained_df = retrained_df[best_df.columns]
     
-    save_dir = os.path.join(parent_dir, "results_random_fc/best_per_dataset_method_source_resnet18")
+    save_dir = os.path.join(parent_dir, "results_fc_resnet18/best_per_dataset_method_source_resnet18")
     os.makedirs(save_dir, exist_ok=True)
 
 
@@ -263,7 +263,7 @@ if all_data:
     
     # === Combine original + best_df
     combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
-    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_fc/results_total_resnet18.csv", index=False)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_total_resnet18.csv", index=False)
 
 
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
@@ -273,7 +273,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df1.columns = ['_'.join(col).strip('_') for col in stats_df1.columns.values]
 
-    stats_path1 = os.path.join(parent_dir, "results_random_fc/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
+    stats_path1 = os.path.join(parent_dir, "results_fc_resnet18/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
     stats_df1.to_csv(stats_path1, index=False)
     print("✅ Mean and std of all numeric columns saved.")
 
@@ -287,7 +287,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]
 
-    stats_path = os.path.join(parent_dir, "results_random_fc/results_mean_std_all_numeric_resnet18.csv")
+    stats_path = os.path.join(parent_dir, "results_fc_resnet18/results_mean_std_all_numeric_resnet18.csv")
     stats_df.to_csv(stats_path, index=False)
     print("✅ Mean and std of all numeric columns saved.")
 

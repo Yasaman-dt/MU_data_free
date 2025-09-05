@@ -205,7 +205,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     if prev_base_method and base_method != prev_base_method:
         latex_table += r"\midrule" + "\n"
-        if prev_base_method in ["FT", "BE"]:
+        if prev_base_method in ["FT", "DELETE"]:
             latex_table += r"\midrule" + "\n"
 
         
@@ -296,7 +296,7 @@ cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
 #cifar10_df = cifar10_df[columns_to_keep]
 
 
-#cifar10_df.to_csv("results_random_fc/cifar10_results.csv", index=False)
+#cifar10_df.to_csv("results_fc_resnet18/cifar10_results.csv", index=False)
 
 # === Step 1: Preprocess table ===
 # df_filtered = cifar10_df[
