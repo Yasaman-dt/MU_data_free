@@ -10,7 +10,6 @@ import torchvision
 import torchvision.models as models
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Subset
-from generate_emb_samples_resnet18 import generate_emb_samples
 from torch.utils.data import TensorDataset, DataLoader
 import copy
 from create_embeddings_utils import get_model
@@ -45,9 +44,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Configuration
 datasets = {
-    #"CIFAR10": 10,
-    "CIFAR100": 100,
-    "TinyImageNet": 200,
+    "CIFAR10": 10,
+    #"CIFAR100": 100,
+    #"TinyImageNet": 200,
 }
 
 n_models = range(1, 6)  # example range: 1 to 2 for demonstration
