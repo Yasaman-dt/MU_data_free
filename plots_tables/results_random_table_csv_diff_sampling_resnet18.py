@@ -8,7 +8,7 @@ import numpy as np
 # === Setup paths ===
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
 sources = [
-    ("results_real", "real"),
+    ("results_fc_resnet18/results_real", "real"),
     ("results_diff_sampling/results_synth_gaussian", "synth"),
     ("results_diff_sampling/results_synth_laplace", "synth"),
     ("results_diff_sampling/results_synth_uniform", "synth"),
@@ -26,7 +26,7 @@ method_map = {
 }
 
 
-original_path = os.path.join(parent_dir, "results_real/results_original_resnet18.csv")
+original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -79,9 +79,9 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
-cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
-tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
+cifar10_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
 
 # Add dataset identifiers
 cifar10_df["dataset"] = "CIFAR10"
@@ -196,7 +196,8 @@ for folder_name, source_type in sources:
 # === Combine all ===
 if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
-    final_df = final_df[ final_df["method"] == "NGFTW" ]
+    final_df = final_df[ final_df["method"].isin(["NGFTW", "DELETE", "SCRUB"]) ]
+
 
     # Save merged raw results
     final_df.to_csv(os.path.join(parent_dir, "results_diff_sampling/results_unlearning.csv"), index=False)
@@ -314,33 +315,14 @@ def get_data_free_flags(method, source):
         return (r"\cmark", r"\cmark") 
     elif method in ["FT","RE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\cmark")
-    elif method in ["NG", "RL", "BS", "BE", "LAU"]:
+    elif method in ["NG", "RL", "BS", "BE", "LAU", "DELETE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\cmark", r"\xmark")
     elif method in ["NGFTW", "DUCK", "SCRUB", "SCAR"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
     return (r"\xmark", r"\xmark")
 
-
 # Group rows by dataset
 datasets = stats_df["dataset"].unique()
-
-# === Define display names and references
-# method_name_and_ref = {
-#     "original": ("Original", r"–"),
-#     "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
-#     "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
-#     "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
-#     "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
-#     "NGFTW": ("NG+", r"\citep{kurmanji2023towards} Ours"),
-#     "RL": ("RL", r"\citep{hayase2020selective} Ours"),
-#     "BS": ("BS", r"\citep{chen2023boundary} Ours"),
-#     "BE": ("BE", r"\citep{chen2023boundary} Ours"),
-#     "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
-#     "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
-#     "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
-#     "SCAR": ("SCAR", r"\citep{bonato2024retain} Ours"),
-
-# }
 
 
 method_name_and_ref = {
@@ -357,11 +339,13 @@ method_name_and_ref = {
     "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+    "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
+
 
 }
 
 
-method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
+method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
 # === Define displayed metrics
@@ -495,9 +479,10 @@ latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
 \caption{
-Effect of embedding distribution on data-free class unlearning performance of Negative Gradient+ method on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone architecture. 
-Rows highlighted in gray represent our results using ynthetic embeddings, while the corresponding non-shaded rows use original samples with the same method.
-}
+Effect of embedding distribution on data-free class unlearning performance of some of
+methods on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone
+architecture. Rows highlighted in gray represent our results using synthetic embeddings, while
+the corresponding non-shaded rows use original embeddings with the same method.}
 
 \label{tab:results_ngftw_diff_sampling}
 \resizebox{\textwidth}{!}{
@@ -534,7 +519,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     source, noise = source_noise.split(", ")
 
     if noise in ["real", "-"]:
-        noise_cell = r"--"
+        noise_cell = r"Real distribution"
     else:
         noise_cell = noise.capitalize()
 
@@ -580,7 +565,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
         #row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
 
-        row = [method_cell, r"--", dr_free, df_free] + values_multirow
+        row = [method_cell, r"\multirow{2}{*}{--}", dr_free, df_free] + values_multirow
         latex_table += " & ".join(row) + r" \\" + "\n"
     
         # Now insert an empty second row for spacing and alignment
