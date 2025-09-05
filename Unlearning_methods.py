@@ -54,10 +54,19 @@ def choose_method(name):
         return LAU
     elif name == 'BT':
         return BadTeacher
+    elif name == 'DELETE':
+        return Delete
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
 
+def freeze_all_but_fc(model):
+    for p in model.parameters():
+        p.requires_grad = False
+    for p in model.fc.parameters():
+        p.requires_grad = True
+        
+        
 def compute_avg_fc_gradients_per_class(net, dataloader, device, num_classes=None):
     """
     Computes, for each class index 0..num_classes-1, the average L2 norm of the gradient
@@ -844,7 +853,6 @@ class NGFT_weighted(BaseMethod):
         return self.net
 
  
-
 
 class SCAR(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -1849,7 +1857,7 @@ class BoundaryExpanding(BaseMethod):
         return self.model
 
 
-    
+
 
 
 class SCRUB(BaseMethod):
@@ -3064,4 +3072,227 @@ class BadTeacher(BaseMethod):
         log_summary_across_classes(best_epoch, *best_accs, round(best_aus, 4), opt.method, opt.dataset, opt.model,
                                    self.class_to_remove, opt.seed, retain_count, forget_count, total_count, round(unlearning_time, 4))
         self.net.load_state_dict(best_model_state)
+        return self.net
+
+
+class Delete(BaseMethod):
+    """
+    FC-only delete:
+      - Freeze backbone; train only net.fc
+      - Teacher = frozen deepcopy of initial net (FC included)
+      - On forget samples, set teacher logit[target] ≈ -∞ (anti-target),
+        train student FC via KLDiv (log_softmax vs softmax) to match it.
+    """
+    def __init__(self, net,
+                 train_retain_loader, train_fgt_loader,
+                 test_retain_loader,  test_fgt_loader,
+                 retainfull_loader_real, forgetfull_loader_real,
+                 class_to_remove=None):
+        super().__init__(net,
+                         train_retain_loader, train_fgt_loader,
+                         test_retain_loader,  test_fgt_loader,
+                         retainfull_loader_real, forgetfull_loader_real)
+        self.class_to_remove = class_to_remove
+
+        # 0) Freeze policy: FC-only training
+        freeze_all_but_fc(self.net)
+
+        # 1) Frozen teacher
+        self.teacher = deepcopy(self.net).to(opt.device).eval()
+        for p in self.teacher.parameters():
+            p.requires_grad = False
+
+        # 2) Loss / optimizer / scheduler
+        self.kl = nn.KLDivLoss(reduction='batchmean')
+        trainable = [p for p in self.net.parameters() if p.requires_grad]
+        assert len(trainable) > 0, "Delete: no trainable params (expected FC)."
+
+        self.optimizer = optim.SGD(
+            # keep trainable if you're doing FC-only; use self.net.parameters() to match "all params"
+            [p for p in self.net.parameters() if p.requires_grad],
+            lr=opt.lr_unlearn,
+            momentum=0.9,          # match original
+            weight_decay=0.0,      # original had none
+            nesterov=False         # original did not enable it
+        )
+
+        # Use your scheme or cosine—either is fine. Keeping cosine here:
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.epochs)
+
+        # 3) Baseline retain accuracy for AUS
+        self.a_or_value = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+
+        # 4) Early-stop bookkeeping
+        self.zero_acc_patience = 1000
+        self.patience = opt.patience
+
+    def _teacher_probs_anti(self, x, y):
+        with torch.no_grad():
+            t_logits = self.teacher.fc(x)             # [B, C]
+            t_logits.scatter_(1, y.view(-1, 1), -1e9)
+            probs = F.softmax(t_logits, dim=1)
+        return probs  # a normal (non-inference) tensor OK for KL target
+
+    def run(self):
+        self.net.train()
+        best_state = None
+        best_aus   = -float('inf')
+        best_epoch = -1
+        aus_hist   = []
+        zero_fgt   = 0
+        epoch_times = []
+
+        # Initialize best_* so summary never references uninitialized vars
+        with torch.no_grad():
+            self.net.eval()
+            init_train_ret    = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+            init_train_fgt    = calculate_accuracy(self.net, self.train_fgt_loader,   use_fc_only=True)
+            init_test_val_ret = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+            init_test_val_fgt = calculate_accuracy(self.net, self.test_fgt_loader,    use_fc_only=True)
+            init_full_val_ret = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+            init_full_val_fgt = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+            self.net.train()
+
+        best_acc_train_ret    = init_train_ret
+        best_acc_train_fgt    = init_train_fgt
+        best_acc_test_val_ret = init_test_val_ret
+        best_acc_test_val_fgt = init_test_val_fgt
+        best_acc_full_val_ret = init_full_val_ret
+        best_acc_full_val_fgt = init_full_val_fgt
+
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count  = retain_count + forget_count
+
+        for epoch in tqdm(range(self.epochs)):
+            t0 = time.time()
+            for xf, yf in self.train_fgt_loader:
+                xf, yf = xf.to(opt.device), yf.to(opt.device)
+
+                tgt_prob = self._teacher_probs_anti(xf, yf)              # [B, C]
+                logits   = self.net.fc(xf)                                # [B, C]
+                loss     = self.kl(F.log_softmax(logits, dim=1), tgt_prob)
+
+                self.optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                self.optimizer.step()
+
+            epoch_times.append(time.time() - t0)
+
+            # ---- EVAL + AUS ----
+            with torch.no_grad():
+                self.net.eval()
+                acc_train_ret     = calculate_accuracy(self.net, self.train_retain_loader, use_fc_only=True)
+                acc_train_fgt     = calculate_accuracy(self.net, self.train_fgt_loader,   use_fc_only=True)
+                acc_test_val_ret  = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
+                acc_test_val_fgt  = calculate_accuracy(self.net, self.test_fgt_loader,    use_fc_only=True)
+                acc_full_val_ret  = calculate_accuracy(self.net, self.retainfull_loader_real, use_fc_only=True)
+                acc_full_val_fgt  = calculate_accuracy(self.net, self.forgetfull_loader_real, use_fc_only=True)
+                self.net.train()
+
+                a_t  = Complex(acc_test_val_ret, 0.0)
+                a_f  = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(self.a_or_value,  0.0)
+                aus  = AUS(a_t, a_or, a_f).value
+                aus_hist.append(aus)
+
+                print(f"[epoch {epoch}] loss={loss.item():.4f} | "
+                      f"Train Ret {acc_train_ret:.3f}  Fgt {acc_train_fgt:.3f} | "
+                      f"Val Ret {acc_test_val_ret:.3f}  Fgt {acc_test_val_fgt:.3f} | "
+                      f"Full Ret {acc_full_val_ret:.3f}  Fgt {acc_full_val_fgt:.3f} | AUS {aus:.3f}")
+
+                # checkpoint on best AUS
+                if aus > best_aus:
+                    best_aus   = aus
+                    best_epoch = epoch
+                    best_state = deepcopy(self.net.state_dict())
+                    best_acc_train_ret    = acc_train_ret
+                    best_acc_train_fgt    = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+
+                if getattr(opt, "save_model", False):  # <-- only save if enabled
+                    ckpt_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(ckpt_dir, exist_ok=True)
+                    ckpt_path = os.path.join(
+                        ckpt_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
+                    torch.save(best_state, ckpt_path)
+                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
+                else:
+                    print(f"[Checkpoint NOT saved] AUS={aus:.4f} (kept in memory)")
+
+                # early-stops (like your NGFT_weighted)
+                if acc_test_val_fgt == 0.0:
+                    zero_fgt += 1
+                else:
+                    zero_fgt = 0
+                if zero_fgt >= self.zero_acc_patience:
+                    print(f"[Early Stopping] forget acc=0 for {self.zero_acc_patience} consecutive epochs.")
+                    break
+
+                if len(aus_hist) > self.patience:
+                    recent = aus_hist[-self.patience:]
+                    decreasing = all(recent[i] > recent[i+1] for i in range(self.patience-1))
+                    no_change  = all(abs(recent[i] - recent[i+1]) < 1e-4 for i in range(self.patience-1))
+                    if decreasing or no_change:
+                        print(f"[Early Stopping] AUS trend at epoch {epoch+1}.")
+                        break
+
+                if len(aus_hist) >= 20 and sum(a < 0.4 for a in aus_hist[-20:]) >= 20:
+                    print(f"[Early Stopping] AUS < 0.4 for 20 consecutive epochs.")
+                    break
+
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    epoch_times=epoch_times[-1],
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count
+                )
+
+            self.scheduler.step()
+
+        # restore best FC
+        if best_state is not None:
+            self.net.load_state_dict(best_state)
+
+        # summary CSV
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1]) if best_epoch >= 0 else 0.0
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count,
+            unlearning_time_until_best=round(unlearning_time_until_best, 4)
+        )
+
+        self.net.eval()
         return self.net
