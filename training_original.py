@@ -105,21 +105,27 @@ def trainer(removed=None):
     elif opt.dataset == 'TinyImageNet':
         #dataloader
         os.makedirs(f'./weights/chks_TinyImageNet/original', exist_ok=True)
-        trainset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/train',transform=transform_train_tiny)
-        #testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val/images',transform=transform_test_tiny)
-        testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val', transform=transform_test_tiny)
+        
+        
+        if opt.model == 'ViT':
+            # use the 224×224 ViT transforms you defined above
+            trainset = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/train', transform=transform_train)
+            testset  = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/val',   transform=transform_test)
+            model.heads[-1] = nn.Linear(model.heads[-1].in_features, opt.num_classes).to('cuda')        
+        else:
+            trainset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/train',transform=transform_train_tiny)
+            #testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val/images',transform=transform_test_tiny)
+            testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val', transform=transform_test_tiny)
 
-        if 'resnet' in opt.model:
-            model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
-            model.maxpool = nn.Identity()
-            model.fc = nn.Sequential(nn.Dropout(0.4), nn.Linear(model.fc.in_features, opt.num_classes)).to('cuda')
-            
-        elif opt.model == 'ViT':
-            model.heads[-1] = nn.Linear(model.heads[-1].in_features, opt.num_classes).to('cuda')
+            if 'resnet' in opt.model:
+                model.conv1 = nn.Conv2d(3, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False).to('cuda')
+                model.maxpool = nn.Identity()
+                model.fc = nn.Sequential(nn.Dropout(0.4), nn.Linear(model.fc.in_features, opt.num_classes)).to('cuda')
+                
 
-        elif opt.model == 'AllCNN':                     
-            model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, opt.num_classes).to('cuda')            
-            
+            elif opt.model == 'AllCNN':                     
+                model.classifier[-1] = nn.Linear(model.classifier[-1].in_features, opt.num_classes).to('cuda')            
+                
     #dataloader
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=256, shuffle=True, num_workers=opt.num_workers)
     testloader = torch.utils.data.DataLoader(testset, batch_size=256, shuffle=False, num_workers=opt.num_workers)
