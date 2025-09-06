@@ -3,20 +3,22 @@ import sys
 import torch
 from logging import basicConfig, getLogger
 import os
-
 from create_embeddings_utils import (
     DATASETS,
     MODELS,
     CustomBackboneModel,
     CustomDatasetLoader,
     save_embeddings_to_npz,
+    vit_input_transforms,
 )
 from tqdm.auto import tqdm
 
-DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
+#DIR = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
+DIR = "/projets/Zdehghani/MU_data_free"
+
 folder = "embeddings"
 datasets_folder = "datasets"
-n_model = "5"
+n_model = "3"
 
 
 
@@ -34,14 +36,28 @@ def main(download: bool = True, *_, **__):  # Set download to True
         data = CustomDatasetLoader(dataset_name, root=f"{DIR}/{datasets_folder}/{dataset_name}", download=download)
         logger.info(f"dataset {dataset_name} loaded.")
 
-        for model_name in tqdm(MODELS.keys()):
+        for model_name in tqdm(list(MODELS.keys()) + ['ViT']):  
             logger.info(f"embedding {dataset_name} through {model_name}")
             if dataset_name in ["CIFAR10", "CIFAR100"]:
                 dataset_name_lower = dataset_name.lower()
             else:
                 dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-            checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_{model_name}_m{n_model}.pth"  # Set your actual checkpoint path
+            if model_name == 'ViT':
+                checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_ViT_m{n_model}.pth"
+                # Override transforms to 224 for ViT to match training:contentReference[oaicite:9]{index=9}
+                t_train, t_test = vit_input_transforms(dataset_name)
+                data.train_dataset.transform = t_train
+                data.test_dataset.transform = t_test
+                if hasattr(data, 'val_dataset'):
+                    data.val_dataset.transform = t_test
+                # Also update the concat’d dataset’s internal datasets, if present
+                if hasattr(data, 'dataset') and hasattr(data.dataset, 'datasets'):
+                    for d in data.dataset.datasets:
+                        d.transform = t_test
+            else:
+                checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_{model_name}_m{n_model}.pth"
+
             model = CustomBackboneModel(model_name, dataset_name, checkpoint_path=checkpoint_path)      
             if not os.path.exists(checkpoint_path):
                 logger.warning(f"Checkpoint not found at {checkpoint_path}. Skipping...")

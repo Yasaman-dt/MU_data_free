@@ -12,7 +12,8 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 from torch.utils.data import ConcatDataset, DataLoader, Subset
 from torchvision import datasets, transforms
 from tqdm.auto import tqdm
-
+from models.ViT import ViT_16_mod 
+from torchvision import transforms as T
 
 MODELS = {
     #'densenet' : models.densenet121,
@@ -20,16 +21,17 @@ MODELS = {
     #'googlenet':models.googlenet,
     #'mnasnet':models.mnasnet1_0,
     #'mobilenet':models.mobilenet_v2,
-    'resnet18':models.resnet18,
-    'resnet50':models.resnet50,
-    #'shufflenet':models.shufflenet_v2_x1_0
+    #'resnet18':models.resnet18,
+    #'resnet50':models.resnet50,
+    #'shufflenet':models.shufflenet_v2_x1_0,
+    'ViT': ViT_16_mod,
 }
 
 DATASETS = {
     'CIFAR10' : datasets.CIFAR10,
     #'STL10' : datasets.STL10,
     #'SVHN' : datasets.SVHN,
-    'CIFAR100' : datasets.CIFAR100,
+    #'CIFAR100' : datasets.CIFAR100,
     #'Caltech101': datasets.Caltech101,
     #'DTD': datasets.DTD,
     #'FGVCAircraft': datasets.FGVCAircraft,
@@ -43,6 +45,29 @@ def embedder1(model):
     return nn.Sequential(*list(model.children())[:-1])
 def embedder2(model):
     return nn.Sequential(*list(model.children())[:-1], nn.AdaptiveAvgPool2d((1, 1)))
+
+def vit_input_transforms(dataset_name: str):
+    # Match the 224 pipeline you use in training_original.py for ViT
+    mean = {
+        'CIFAR10': (0.4914, 0.4822, 0.4465),
+        'CIFAR100': (0.5071, 0.4867, 0.4408),
+        'TinyImageNet': (0.485, 0.456, 0.406),
+    }
+    std = {
+        'CIFAR10': (0.2023, 0.1994, 0.2010),
+        'CIFAR100': (0.2675, 0.2565, 0.2761),
+        'TinyImageNet': (0.229, 0.224, 0.225),
+    }
+    # Train-time ViT path in your code resizes to 224 and normalizes accordingly:contentReference[oaicite:5]{index=5}
+    common = [
+        T.Resize(224, interpolation=T.InterpolationMode.BICUBIC, antialias=True),
+        T.ToTensor(),
+        T.Normalize(mean=mean[dataset_name], std=std[dataset_name]),
+    ]
+    # For embeddings, we don’t need heavy aug; keep it deterministic
+    return T.Compose(common), T.Compose(common)
+
+
 
 
 class CustomDatasetLoader:
@@ -149,6 +174,19 @@ class CustomDatasetLoader:
 
 
 def get_model(model_name: str, dataset_name: str, num_classes: int, checkpoint_path: Optional[str] = None) -> nn.Module:
+    
+    if model_name == 'ViT':
+        model = ViT_16_mod(n_classes=num_classes)
+        print(f"Looking for checkpoint at: {checkpoint_path}")
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            ckpt = torch.load(checkpoint_path, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            model.load_state_dict(ckpt, strict=False)
+            print(f"Loaded ViT checkpoint from {checkpoint_path}")
+        elif checkpoint_path:
+            print(f"Warning: Checkpoint path {checkpoint_path} not found. Using randomly initialized ViT.")
+        return model    
+    
+        
     if model_name not in MODELS:
         raise ValueError(f"{model_name} not known.")
 
@@ -285,6 +323,11 @@ class CustomBackboneModel:
 
         return _embedder(self.model)
 
+        if self.model_name == 'ViT':
+            return None
+
+        raise ValueError(f"Unknown model for embedder: {self.model_name}")
+
     def _embed_loader(self, dataset: CustomDatasetLoader):
         self.model.eval()
         embeddings = []
@@ -294,7 +337,12 @@ class CustomBackboneModel:
             for _, (inputs, label) in enumerate(tqdm(dataset.loader, desc=f"embedding {dataset.dataset_name} by {self.model_name}", leave=False)):
                 inputs = inputs.to(self.device)
 
-                embedding = self.embedder(inputs)
+                if self.model_name == 'ViT':
+                    # Grab pre-FC features via forward_encoder (CLS, 768d):contentReference[oaicite:6]{index=6}
+                    embedding = self.model.forward_encoder(inputs)
+                else:
+                    embedding = self.embedder(inputs)
+                    
                 embeddings.append(embedding.cpu().numpy())
                 labels.append(label)
 

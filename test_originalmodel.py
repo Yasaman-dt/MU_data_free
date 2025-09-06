@@ -20,7 +20,7 @@ DIR = "/projets/Zdehghani/MU_data_free"
 checkpoint_folder = "checkpoints"
 weights_folder = "weights"
 embeddings_folder = "embeddings"
-model_name = 'resnet50'
+model_name = 'ViT'
 
 # -------------------- Configuration --------------------
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -49,7 +49,7 @@ datasets = {
     #"TinyImageNet": 200,
 }
 
-n_models = range(1, 6)  # example range: 1 to 2 for demonstration
+n_models = range(2, 3)  # example range: 1 to 2 for demonstration
 results = []
 
 def evaluate_model(model, data_loader, device):
@@ -92,9 +92,15 @@ for dataset_name, num_classes in datasets.items():
             checkpoint_path_model = f"{DIR}/{weights_folder}/chks_{dataset_name_lower}/original/best_checkpoint_{model_name}_m{n_model}.pth"  # Set your actual checkpoint path
             model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path_model) 
 
-            fc_layer = model.fc
-            
-            print(fc_layer)
+            def get_classifier(model):
+                if hasattr(model, "heads"):
+                    return model.heads
+                if hasattr(model, "fc"):
+                    return model.fc
+                raise AttributeError("Unknown classifier head: model has neither `heads` nor `fc`.")
+
+            # usage:
+            fc_layer = get_classifier(model)
 
 
 
