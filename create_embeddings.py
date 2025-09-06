@@ -18,7 +18,7 @@ DIR = "/projets/Zdehghani/MU_data_free"
 
 folder = "embeddings"
 datasets_folder = "datasets"
-n_model = "3"
+n_model = "1"
 
 
 
@@ -36,7 +36,7 @@ def main(download: bool = True, *_, **__):  # Set download to True
         data = CustomDatasetLoader(dataset_name, root=f"{DIR}/{datasets_folder}/{dataset_name}", download=download)
         logger.info(f"dataset {dataset_name} loaded.")
 
-        for model_name in tqdm(list(MODELS.keys()) + ['ViT']):  
+        for model_name in tqdm(list(MODELS.keys())):  
             logger.info(f"embedding {dataset_name} through {model_name}")
             if dataset_name in ["CIFAR10", "CIFAR100"]:
                 dataset_name_lower = dataset_name.lower()
