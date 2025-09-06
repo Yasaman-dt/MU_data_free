@@ -42,7 +42,13 @@ original_df = original_df.rename(columns={
 "Val Full Forget Acc": "val_full_fgt_acc",
 })
 
-
+NOISE_ORDER = {
+    "--": 0,          # dash used for Original / Retrained
+    "real": 1,        # Real distribution
+    "gaussian": 2,
+    "laplace": 3,
+    "uniform": 4,
+}
 
 # Define the metrics for which we want to compute mean and std
 metrics = [
@@ -358,11 +364,25 @@ columns_to_display = [
 
 def sort_key(key):
     base_method = key.split(" (")[0]
-    source_noise = key.split(" (")[1].replace(")", "")
-    source, noise = source_noise.split(", ")
+    source, noise = key[key.find("(")+1:-1].split(", ")
+    noise = str(noise).lower().strip()
+
+    # normalize to match NOISE_ORDER keys
+    if base_method in ["original", "retrained"]:
+        noise_norm = "--"
+    elif source == "real":
+        noise_norm = "real"
+    elif noise in ["-", "none", "nan", ""]:
+        noise_norm = "--"
+    else:
+        noise_norm = noise  # e.g., gaussian/laplace/uniform
+
     method_idx = method_order.index(base_method) if base_method in method_order else len(method_order)
-    source_idx = 0 if source == "real" else 1  # put real before synth
-    return (method_idx, source_idx)
+    source_idx = 0 if source == "real" else 1                 # real rows first, then synth
+    noise_idx  = NOISE_ORDER.get(noise_norm, 999)             # choose order via NOISE_ORDER
+
+    return (method_idx, source_idx, noise_idx)
+
 
 # === Group rows by (method, source)
 grouped_methods = defaultdict(lambda: {"CIFAR10": ["-"]*3, "CIFAR100": ["-"]*3, "TinyImageNet": ["-"]*3})
@@ -518,15 +538,18 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     source_noise = key.split(" (")[1].replace(")", "")
     source, noise = source_noise.split(", ")
 
-    if source == "real":
+    if base_method in ["original", "retrained"]:
+        # For Original and Retrained (Full), show a dash like in your example table
+        noise_cell = r"--"
+    elif source == "real":
         noise_cell = r"Real distribution"
-    elif noise in ["-", "none"]:
-        noise_cell = r"\text{--}"
+    elif str(noise).lower() in ["-", "none", "nan"]:
+        noise_cell = r"--"
     else:
-        noise_cell = noise.capitalize()
+        noise_cell = str(noise).capitalize()
 
     if base_method != prev_base_method:
-        if prev_base_method in ["retrained", "FT", "BE", "RL"]:
+        if prev_base_method in ["retrained", "FT", "DELETE", "BE", "RL"]:
             latex_table += r"\midrule" + "\n" + r"\midrule" 
         else:
             latex_table += r"\midrule" + "\n"
