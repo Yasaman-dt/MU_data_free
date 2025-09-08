@@ -1672,35 +1672,52 @@ class BoundaryExpanding(BaseMethod):
 
                 with torch.no_grad():
                     head = get_classifier(self.net)
+                    def find_final_linear(module):
+                        if isinstance(module, nn.Linear):
+                            return module
+                        if isinstance(module, nn.Sequential):
+                            for layer in reversed(module):
+                                if isinstance(layer, nn.Linear):
+                                    return layer
+                        # generic fallback: walk all submodules, pick the last nn.Linear
+                        last_lin = None
+                        for m in module.modules():
+                            if isinstance(m, nn.Linear):
+                                last_lin = m
+                        if last_lin is None:
+                            raise ValueError("No nn.Linear layer found in classifier head")
+                        return last_lin
+
                     last_linear = find_final_linear(head)
                     last_linear.weight.copy_(widen_model.weight[:num_classes])
-                    last_linear.bias.copy_(widen_model.bias[:num_classes])
+                    if last_linear.bias is not None and widen_model.bias is not None:
+                        last_linear.bias.copy_(widen_model.bias[:num_classes])
 
-                best_model_state = deepcopy(self.net.state_dict())
+                    best_model_state = deepcopy(self.net.state_dict())
 
 
-                checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                os.makedirs(checkpoint_dir, exist_ok=True)
+                    checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
 
-                checkpoint_path = os.path.join(
-                    checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                )
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
 
-                torch.save(best_model_state, checkpoint_path)
-                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
 
-                best_results = {
-                    "Epoch": epoch + 1,
-                    "Loss": round(loss.item(), 4),
-                    "Unlearning Train Retain Acc": round(retain_accuracy, 4),
-                    "Unlearning Train Forget Acc": round(forget_accuracy, 4),
-                    "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
-                    "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
-                    "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
-                    "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
-                    "AUS": round(AUS, 4)
-                }
+                    best_results = {
+                        "Epoch": epoch + 1,
+                        "Loss": round(loss.item(), 4),
+                        "Unlearning Train Retain Acc": round(retain_accuracy, 4),
+                        "Unlearning Train Forget Acc": round(forget_accuracy, 4),
+                        "Unlearning Val Retain Full Acc": round(retainfull_val_acc, 4),
+                        "Unlearning Val Forget Full Acc": round(forgetfull_val_acc, 4),
+                        "Unlearning Val Retain Test Acc": round(retaintest_val_acc, 4),
+                        "Unlearning Val Forget Test Acc": round(forgettest_val_acc, 4),
+                        "AUS": round(AUS, 4)
+                    }
 
             if forgettest_val_acc == 0.0:
                 zero_acc_fgt_counter += 1
