@@ -6,55 +6,66 @@ from create_embeddings_utils import get_model
 from torch.utils.data import DataLoader, TensorDataset
 
 
-def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, noise_type, device='cuda'):
+
+def _get_classifier_and_dim(net):
+    # Returns (classifier_module, in_features, out_features)
+    if hasattr(net, "heads"):  # ViT_16_mod path
+        clf = net.heads
+        # heads is nn.Sequential(Dropout, Linear) in your wrapper
+        last = clf[-1] if hasattr(clf, "__getitem__") else clf
+        in_dim = last.in_features
+        out_dim = last.out_features
+        return clf, in_dim, out_dim
+    elif hasattr(net, "fc"):   # ResNet path
+        clf = net.fc
+        in_dim = clf.in_features
+        out_dim = clf.out_features
+        return clf, in_dim, out_dim
+    else:
+        raise AttributeError("Model has neither `heads` nor `fc`.")
     
+    
+    
+def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, noise_type, device='cuda'):
     batch_size = 2000
-    bbone = torch.nn.Sequential(*(list(resnet_model.children())[:-1]))
-    a = torch.randn(1, 3, 64, 64).to(device)
-    embedding = bbone(a)
-    embedding_dim = embedding.shape[1]
+
+    # ✅ No image probe; get dim from classifier
     resnet_model.eval()
-    fc_layer = resnet_model.fc
+    fc_layer, embedding_dim, _ = _get_classifier_and_dim(resnet_model)
+    fc_layer = fc_layer.to(device).eval()
+
     all_sample_probs = []
-  
     class_counts = {i: 0 for i in range(num_classes)}
     class_features = {i: [] for i in range(num_classes)}
     class_soft_targets = {i: [] for i in range(num_classes)}
 
-
-
     while any(class_counts[c] < samples_per_class for c in range(num_classes)):
-        # Generate random synthetic samples
+        # Generate random synthetic samples in *feature space*
         if noise_type == "gaussian":
             feature_samples = torch.randn(batch_size, embedding_dim, device=device)
-
         elif noise_type == "bernoulli":
             feature_samples = torch.bernoulli(torch.full((batch_size, embedding_dim), 0.5, device=device))
-
         elif noise_type == "uniform":
             feature_samples = torch.empty(batch_size, embedding_dim, device=device).uniform_(-1, 1)
-
         elif noise_type == "laplace":
             feature_samples = torch.distributions.Laplace(0.0, 1.0).sample((batch_size, embedding_dim)).to(device)
+        elif noise_type == "gumbel":
+            feature_samples = torch.distributions.Gumbel(0.0, 1.0).sample((batch_size, embedding_dim)).to(device)
+        else:
+            raise ValueError(f"Unsupported noise type: {noise_type}")
 
-
-        # Compute probability density under standard normal
-        norm_squared = feature_samples.pow(2).sum(dim=1)  # ||x||^2 for each sample
-        log_prob = -0.5 * (embedding_dim * np.log(2 * np.pi) + norm_squared.cpu().numpy())
-        probabilities = log_prob  
-        #probabilities = np.exp(log_prob)  # p(x)
-
-
+        # “probabilities” tracker (log-density under N(0, I))
+        norm_squared = feature_samples.pow(2).sum(dim=1)
+        log_prob = -0.5 * (embedding_dim * np.log(2 * np.pi) + norm_squared.detach().cpu().numpy())
+        probabilities = log_prob
 
         with torch.no_grad():
-            logits = fc_layer(feature_samples)
+            logits = fc_layer(feature_samples)   # works for both Sequential(heads) and Linear(fc)
             soft_targets = F.softmax(logits, dim=1)
             predicted_labels = torch.argmax(soft_targets, dim=1)
 
-        
-    
         for i in range(batch_size):
-            class_name = int(predicted_labels[i].item())
+            class_name = int(predicted_labels[i])
             if class_counts[class_name] < samples_per_class:
                 class_features[class_name].append(feature_samples[i].unsqueeze(0))
                 class_soft_targets[class_name].append(soft_targets[i].unsqueeze(0))
@@ -63,16 +74,12 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
 
         print(f"Current class counts: {class_counts}")
 
-    # Combine all samples
-    all_features = []
-    all_labels = []
-    all_soft_targets = []
-
+    # Stitch per-class samples
+    all_features, all_labels, all_soft_targets = [], [], []
     for class_name in range(num_classes):
         feats = torch.cat(class_features[class_name], dim=0)
         targets = torch.cat(class_soft_targets[class_name], dim=0)
         labels = torch.full((feats.size(0),), class_name, dtype=torch.long, device=device)
-
         all_features.append(feats)
         all_labels.append(labels)
         all_soft_targets.append(targets)
@@ -80,10 +87,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
     sample_features = torch.cat(all_features, dim=0)
     sample_labels = torch.cat(all_labels, dim=0)
     probability_array = torch.cat(all_soft_targets, dim=0).cpu().numpy()
-
     return sample_features, sample_labels, probability_array, all_sample_probs
-
-
 
 
 def evaluate_model(model, data_loader, device):
