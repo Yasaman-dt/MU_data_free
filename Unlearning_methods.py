@@ -1614,7 +1614,6 @@ class BoundaryExpanding(BaseMethod):
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
 
-
         epoch_times = []
 
         for epoch in range(opt.epochs_unlearn):
@@ -1635,7 +1634,6 @@ class BoundaryExpanding(BaseMethod):
             duration = end_time - start_time
             epoch_times.append(duration)
 
-            
             retain_accuracy = evaluate_embedding_accuracy(widen_model, self.train_retain_loader, opt.device)
             forget_accuracy = evaluate_embedding_accuracy(widen_model, self.train_fgt_loader, opt.device)
 
@@ -1673,8 +1671,10 @@ class BoundaryExpanding(BaseMethod):
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
 
                 with torch.no_grad():
-                    self.net.fc.weight.copy_(widen_model.weight[:num_classes])
-                    self.net.fc.bias.copy_(widen_model.bias[:num_classes])
+                    head = get_classifier(self.net)
+                    last_linear = find_final_linear(head)
+                    last_linear.weight.copy_(widen_model.weight[:num_classes])
+                    last_linear.bias.copy_(widen_model.bias[:num_classes])
 
                 best_model_state = deepcopy(self.net.state_dict())
 
@@ -1689,9 +1689,6 @@ class BoundaryExpanding(BaseMethod):
 
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
-
-
-
 
                 best_results = {
                     "Epoch": epoch + 1,
@@ -1738,7 +1735,6 @@ class BoundaryExpanding(BaseMethod):
                 print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
                 break
 
-            
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
@@ -1759,7 +1755,6 @@ class BoundaryExpanding(BaseMethod):
                 forget_count=forget_count,
                 total_count=total_count)
             
-                
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
         log_summary_across_classes(
@@ -1780,7 +1775,6 @@ class BoundaryExpanding(BaseMethod):
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
-
 
                         
         # Prune the shadow class to return a normal classifier
