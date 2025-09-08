@@ -1512,12 +1512,12 @@ class BoundaryShrink(BaseMethod):
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy,4),
+                train_fgt_acc=round(forget_accuracy,4),
+                val_test_retain_acc=round(retaintest_val_acc,4),
+                val_test_fgt_acc=round(forgettest_val_acc,4),
+                val_full_retain_acc=round(retainfull_val_acc,4),
+                val_full_fgt_acc=round(forgetfull_val_acc,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -1533,12 +1533,12 @@ class BoundaryShrink(BaseMethod):
                 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
-            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
-            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"] / 100,4),
-            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"] / 100,4),
-            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"] / 100,4),
-            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"] / 100,4),
-            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"] / 100,4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"],4),
+            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"],4),
+            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"],4),
+            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"],4),
+            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"],4),
+            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"],4),
             AUS=round(best_results["AUS"],4),
             mode=opt.method,
             dataset=opt.dataset,
@@ -3046,7 +3046,7 @@ class Delete(BaseMethod):
 
                 tgt_prob = self._teacher_probs_anti(xf, yf)             
                 head_s = get_classifier(self.net)
-                logits = head_s(x)                       
+                logits = head_s(xf)                       
                 loss     = self.kl(F.log_softmax(logits, dim=1), tgt_prob)
 
                 self.optimizer.zero_grad(set_to_none=True)
