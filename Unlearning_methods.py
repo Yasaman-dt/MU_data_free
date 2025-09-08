@@ -60,10 +60,27 @@ def choose_method(name):
         raise ValueError(f"[choose_method] Unknown method: {name}")
     
 
+def get_classifier(net: nn.Module) -> nn.Module:
+    """Return the classification head (works for ResNet .fc and ViT .heads)."""
+    if hasattr(net, "heads"):
+        return net.heads
+    if hasattr(net, "fc"):
+        return net.fc
+    raise AttributeError("Model has neither `heads` nor `fc`.")
+
+def set_classifier(net: nn.Module, head: nn.Module) -> None:
+    """Assign a new classification head back to the model."""
+    if hasattr(net, "heads"):
+        net.heads = head
+    elif hasattr(net, "fc"):
+        net.fc = head
+    else:
+        raise AttributeError("Model has neither `heads` nor `fc`.")
+    
 def freeze_all_but_fc(model):
     for p in model.parameters():
         p.requires_grad = False
-    for p in model.fc.parameters():
+    for p in get_classifier(model).parameters():
         p.requires_grad = True
         
         
@@ -74,27 +91,28 @@ def compute_avg_fc_gradients_per_class(net, dataloader, device, num_classes=None
     If a class never appears in `dataloader`, its avg‐grad is set to 0.0.
     """
     net.eval()
-    fc_grads = defaultdict(list)
 
     # Find the actual nn.Linear inside net.fc (or raise if none found)
     # — this assumes there is exactly one Linear layer in net.fc.modules().
     linear_layer = None
-    for m in net.fc.modules():
+    for m in net.modules():
         if isinstance(m, nn.Linear):
             linear_layer = m
     if linear_layer is None:
-        raise RuntimeError("compute_avg_fc_gradients_per_class: no nn.Linear found inside net.fc")
+        raise RuntimeError("No nn.Linear found inside classifier head")
 
     # If the caller didn’t pass num_classes, infer from linear.weight shape
     if num_classes is None:
         num_classes = linear_layer.weight.shape[0]
+
+    fc_grads = defaultdict(list)
 
     for inputs, targets in dataloader:
         inputs, targets = inputs.to(device), targets.to(device)
         net.zero_grad()
 
         # forward+backward
-        outputs = net.fc(inputs)
+        outputs = net(inputs)
         loss = F.cross_entropy(outputs, targets)
         loss.backward()
 
@@ -124,13 +142,14 @@ def count_samples(dataloader):
         
 def calculate_accuracy(net, dataloader, use_fc_only=False):
     net.eval()
+    clf = get_classifier(net) if use_fc_only else None
     correct = 0
     total = 0
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(opt.device), targets.to(opt.device)
             if use_fc_only:
-                outputs = net.fc(inputs)  # Only use the FC layer
+                outputs = clf(inputs)  # Only use the FC layer
             else:
                 outputs = net(inputs)     # Full model
             _, predicted = torch.max(outputs, 1)
@@ -150,7 +169,7 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
 
-    return 100 * correct / total if total > 0 else 0
+    return correct / total if total > 0 else 0
 
 
 
@@ -187,20 +206,44 @@ def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_
             writer.writerow(['epoch', 'Forget Class', 'seed', 'mode', 'dataset', 'model', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count','unlearning_time'])
         writer.writerow([best_epoch, class_name, seed, mode, dataset, model, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count, unlearning_time_until_best])
 
+def calculate_AUS(A_test_forget, A_test_retain, Aor):
+    A_test_forget = A_test_forget
+    A_test_retain = A_test_retain
+    Aor = Aor
+    """
+    Calculate the AUS based on the given accuracy values.
+
+    Args:
+        A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
+        A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
+        Aor (float): Constant value for A_or (default is 84.72).
+
+    Returns:
+        float: The calculated AUS value.
+    """
+    # Calculate Delta
+    delta = abs(0 - A_test_forget)
+    
+    # Calculate AUS
+    AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
+    
+    return AUS
+    
+    
         
 class BaseMethod:
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real):
-        self.net = net
+        self.net = net.to(opt.device)
         self.train_retain_loader = train_retain_loader
         self.train_fgt_loader = train_fgt_loader
         self.test_retain_loader = test_retain_loader
         self.test_fgt_loader = test_fgt_loader
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
-
+        self.head_fc = get_classifier(self.net)
         
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.net.fc.parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
+        self.optimizer = optim.SGD(get_classifier(self.net).parameters(), lr=opt.lr_unlearn, momentum=opt.momentum_unlearn, weight_decay=opt.wd_unlearn)
         self.epochs = opt.epochs_unlearn
         self.target_accuracy = opt.target_accuracy
         self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=opt.scheduler, gamma=0.5)
@@ -294,7 +337,6 @@ class BaseMethod:
                     best_acc_full_val_fgt = acc_full_val_fgt
 
 
-
                     checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -305,8 +347,6 @@ class BaseMethod:
 
                     torch.save(best_model_state, checkpoint_path)
                     print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
-
-
 
 
 
@@ -407,38 +447,44 @@ class FineTuning(BaseMethod):
         self.loader = self.train_retain_loader
         self.target_accuracy=0.0
         self.class_to_remove = class_to_remove
+        self.head_fc = get_classifier(self.net)
 
     def loss_f(self, inputs, targets, test=None):
-        outputs = self.net.fc(inputs)
+        outputs = self.head_fc(inputs)
         loss = self.criterion(outputs, targets)
         return loss
+
 
 class RandomLabels(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.loader = self.train_fgt_loader
         self.class_to_remove = class_to_remove
+        self.head_fc = get_classifier(self.net)
 
         if opt.mode == "CR":
             self.random_possible = torch.tensor([i for i in range(opt.num_classes) if i not in self.class_to_remove]).to(opt.device).to(torch.float32)
 
     def loss_f(self, inputs, targets):
-        outputs = self.net.fc(inputs)
+        outputs = self.head_fc(inputs)
         #create a random label tensor of the same shape as the outputs chosing values from self.possible_labels
         random_labels = self.random_possible[torch.randint(low=0, high=self.random_possible.shape[0], size=targets.shape)].to(torch.int64).to(opt.device)
         loss = self.criterion(outputs, random_labels)
         return loss
+
 
 class NegativeGradient(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.loader = self.train_fgt_loader
         self.class_to_remove = class_to_remove
+        self.head_fc = get_classifier(self.net)
 
     def loss_f(self, inputs, targets):
-        outputs = self.net.fc(inputs)
+        outputs = self.head_fc(inputs)
         loss = self.criterion(outputs, targets) * (-1)
         return loss
+
 
 class NGFT(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -451,11 +497,12 @@ class NGFT(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
+        self.heaf_fc = get_classifier(self.net)
 
     def loss_r(self, inputs, targets):
-        return self.criterion(self.net.fc(inputs), targets)
+        return self.criterion(self.heaf_fc(inputs), targets)
     def loss_f(self, inputs, targets):
-        return -self.criterion(self.net.fc(inputs), targets)
+        return -self.criterion(self.heaf_fc(inputs), targets)
         
     def run(self):
         self.net.train()
@@ -639,17 +686,6 @@ class NGFT(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
-        if best_model_state is not None:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-            self.net.load_state_dict(best_model_state)
-
-            save_path = f"results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/best_model_{opt.method}_m{opt.n_model}_seed_{opt.seed}_class_{'_'.join(map(str, self.class_to_remove))}.pth"
-            torch.save(best_model_state, save_path)
-            print(f"[INFO] Best model (epoch {best_epoch}) saved to:\n{save_path}")
-
-
-
         self.net.eval()
         return self.net
     
@@ -666,15 +702,17 @@ class NGFT_weighted(BaseMethod):
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
         self.beta = 0.9  # balance factor
+        self.head_fc = get_classifier(self.net)
+
 
     def loss_weighted(self, inputs_r, targets_r, inputs_f, targets_f):
-        retain_loss = self.criterion(self.net.fc(inputs_r), targets_r)
-        forget_loss = self.criterion(self.net.fc(inputs_f), targets_f)
+        retain_loss = self.criterion(self.head_fc(inputs_r), targets_r)
+        forget_loss = self.criterion(self.head_fc(inputs_f), targets_f)
         # Weighted sum as per the formula
         return self.beta * retain_loss - (1 - self.beta) * forget_loss
 
     def run(self):
-        self.net.train()
+        self.head_fc.train()
         best_model_state = None
         best_aus = -float('inf')
         best_epoch = -1
@@ -711,8 +749,8 @@ class NGFT_weighted(BaseMethod):
 
             if epoch % 10 == 0:  # e.g., log every 10 epochs
                 print(f"--- Gradient norms at epoch {epoch} ---")
-                avg_grads_fgt = compute_avg_fc_gradients_per_class(self.net, self.train_fgt_loader, device=opt.device)
-                avg_grads_ret = compute_avg_fc_gradients_per_class(self.net, self.train_retain_loader, device=opt.device)
+                avg_grads_fgt = compute_avg_fc_gradients_per_class(self.head_fc, self.train_fgt_loader, device=opt.device)
+                avg_grads_ret = compute_avg_fc_gradients_per_class(self.head_fc, self.train_retain_loader, device=opt.device)
 
                 forget_classes = set(self.class_to_remove) if isinstance(self.class_to_remove, list) else {self.class_to_remove}
                 for class_name in sorted(avg_grads_fgt.keys()):
@@ -720,7 +758,6 @@ class NGFT_weighted(BaseMethod):
                     print(f" Class {class_name:2d} [{status}]: "
                         f"Fgt Grad = {avg_grads_fgt[class_name]:.4f}, "
                         f"Ret Grad = {avg_grads_ret.get(class_name, 0):.4f}")
-
 
 
             with torch.no_grad():
@@ -774,11 +811,6 @@ class NGFT_weighted(BaseMethod):
                     print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
 
 
-
-
-
-
-
                 if acc_test_val_fgt == 0.0:
                     zero_acc_fgt_counter += 1
                 else:
@@ -820,8 +852,6 @@ class NGFT_weighted(BaseMethod):
                     forget_count=forget_count,
                     total_count=total_count)
 
-
-
             self.scheduler.step()
 
         unlearning_time_until_best = sum(epoch_times[:best_epoch + 1])
@@ -846,19 +876,15 @@ class NGFT_weighted(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
-
-
-
         self.net.eval()
         return self.net
 
- 
 
 class SCAR(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.class_to_remove = class_to_remove
-
+        self.head_fc = get_classifier(self.net)
       
     def cov_mat_shrinkage(self,cov_mat,gamma1=opt.gamma1,gamma2=opt.gamma2):
         I = torch.eye(cov_mat.shape[0]).to(opt.device)
@@ -925,30 +951,7 @@ class SCAR(BaseMethod):
         return dists
  
     def run(self):
-        
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-        
+               
         """compute embeddings"""
         #if opt.model!='ViT':
         #    bbone = torch.nn.Sequential(*(list(self.net.children())[:-1] + [nn.Flatten()]))
@@ -962,7 +965,7 @@ class SCAR(BaseMethod):
 
         for param in self.net.parameters():
             param.requires_grad = False
-        for param in self.net.fc.parameters():
+        for param in self.head_fc.parameters():
             param.requires_grad = True
             
         original_fc = deepcopy(fc_layer) # self.net
@@ -1079,7 +1082,7 @@ class SCAR(BaseMethod):
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
-        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         #print('Num batch forget: ',len(self.train_fgt_loader), 'Num batch retain: ',len(self.synthetic_retain_emb_loader))
 
         retain_count = count_samples(self.train_retain_loader)
@@ -1235,10 +1238,6 @@ class SCAR(BaseMethod):
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
 
 
-
-
-
-
                 best_results = {
                     "Epoch": epoch + 1,
                     "Unlearning Train Retain Acc": round(retain_accuracy, 4),
@@ -1288,12 +1287,12 @@ class SCAR(BaseMethod):
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy ,4),
+                train_fgt_acc=round(forget_accuracy ,4),
+                val_test_retain_acc=round(retaintest_val_acc ,4),
+                val_test_fgt_acc=round(forgettest_val_acc ,4),
+                val_full_retain_acc=round(retainfull_val_acc ,4),
+                val_full_fgt_acc=round(forgetfull_val_acc ,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -1332,23 +1331,22 @@ class SCAR(BaseMethod):
         self.net.eval()
         return self.net
 
+
 class newmethod(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
         self.loader = self.train_fgt_loader
         self.class_to_remove = class_to_remove
+        self.head_fc = get_classifier(self.net)
 
     def loss_f(self, inputs, targets):
         with torch.no_grad():
-            logits = self.net.fc(inputs)
+            logits = self.head_fc(inputs)
             top2 = torch.topk(logits, k=2, dim=1)
             pred = top2.indices[:, 1]  # second-best prediction (nearest incorrect)
-        outputs = self.net.fc(inputs)
+        outputs = self.head_fc(inputs)
         loss = self.criterion(outputs, pred)
         return loss
-
-
-
 
 
 class BoundaryShrink(BaseMethod):
@@ -1364,38 +1362,15 @@ class BoundaryShrink(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-        
+        self.head_fc = get_classifier(self.net)
+
     def run(self):
-
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-        
-        unlearn_model_fc = deepcopy(self.net.fc).to(opt.device)
+       
+        unlearn_model_fc = deepcopy(self.head_fc).to(opt.device)
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(unlearn_model_fc.parameters(), lr=opt.lr_unlearn, momentum=0.9)
 
-        self.net.fc = unlearn_model_fc
-
+        set_classifier(self.net, unlearn_model_fc)
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
         zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
@@ -1407,8 +1382,7 @@ class BoundaryShrink(BaseMethod):
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
-        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -1474,10 +1448,7 @@ class BoundaryShrink(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
 
-                
-
                 best_model_state = deepcopy(self.net.state_dict())
-
 
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -1490,14 +1461,6 @@ class BoundaryShrink(BaseMethod):
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
 
-
-                
-                
-                
-                
-                
-                
-                
                 
                 best_results = {
                     "Epoch": epoch + 1,
@@ -1588,7 +1551,6 @@ class BoundaryShrink(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
 
-
         self.model = self.net
         
         return self.model
@@ -1607,34 +1569,11 @@ class BoundaryExpanding(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-        
+        self.head_fc = get_classifier(self.net)
+
     def run(self):
-        
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-    
-    
-        # Extract the last Linear layer from self.net.fc, whether it's Sequential or Linear
+      
+        # Extract the last Linear layer from self.head_fc, whether it's Sequential or Linear
         def find_final_linear(module):
             if isinstance(module, nn.Linear):
                 return module
@@ -1642,9 +1581,9 @@ class BoundaryExpanding(BaseMethod):
                 for layer in reversed(module):
                     if isinstance(layer, nn.Linear):
                         return layer
-            raise ValueError("No nn.Linear layer found in self.net.fc")
+            raise ValueError("No nn.Linear layer found in self.head_fc")
 
-        final_linear = find_final_linear(self.net.fc)
+        final_linear = find_final_linear(self.head_fc)
         embedding_dim = final_linear.in_features
         num_classes = final_linear.out_features
 
@@ -1658,8 +1597,6 @@ class BoundaryExpanding(BaseMethod):
 
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(widen_model.parameters(), lr=opt.lr_unlearn, momentum=0.9)
-
-
             
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
         zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
@@ -1671,7 +1608,7 @@ class BoundaryExpanding(BaseMethod):
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
-        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
@@ -1857,18 +1794,17 @@ class BoundaryExpanding(BaseMethod):
         return self.model
 
 
-
-
-
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
 
-        self.teacher = net  # The original FC layer
-        self.student = deepcopy(net)  # Clone of the original FC layer
+        self.teacher = deepcopy(net).to(opt.device).eval()
+        for p in self.teacher.parameters():
+            p.requires_grad = False
+        self.student = deepcopy(net).to(opt.device)  # Clone of the original FC layer
         self.class_to_remove = class_to_remove
-
+        self.head_fc = get_classifier(self.net)
 
     def run(self):
         def normalize(logit):
@@ -1885,32 +1821,9 @@ class SCRUB(BaseMethod):
             loss_kd *= temperature**2
             return loss_kd
 
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-    
-
+  
         # Compute Aor from original model (accuracy on retain test set)
-        Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True) * 100
+        Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True)
 
         # Load all features/labels from loaders
         def flatten_loader(loader):
@@ -1932,16 +1845,15 @@ class SCRUB(BaseMethod):
         alpha=0.45
         gamma=0.45
         betha=0.1
-
     
         retain_synth_loader_train = DataLoader(TensorDataset(retain_features_train, retain_labels_train), batch_size=opt.batch_size, shuffle=True)
         forget_synth_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
 
-
-        student_fc.to(opt.device)
-        teacher_fc.to(opt.device)
+        teacher_fc = get_classifier(self.teacher).to(opt.device)
+        student_fc = get_classifier(self.student).to(opt.device)
         optimizer = optim.Adam(student_fc.parameters(), lr=opt.lr_unlearn)
         loss_ce = nn.CrossEntropyLoss()
+        
         for param in teacher_fc.parameters():
             param.requires_grad = False
         
@@ -2003,7 +1915,6 @@ class SCRUB(BaseMethod):
             "AUS": round(AUS, 4)
         })
 
-
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -2023,7 +1934,6 @@ class SCRUB(BaseMethod):
                 retain_logits_teacher = teacher_fc(retain_features_train) 
                 forget_logits_teacher = teacher_fc(forget_features_train)
             
-
             # Compute Losses
             loss_kd_retain = kd_loss(retain_logits_student, retain_logits_teacher)
 
@@ -2038,13 +1948,11 @@ class SCRUB(BaseMethod):
             # Backpropagation
             loss.backward()
             optimizer.step()
-            
-            
+                        
             end_time = time.time()
             duration = end_time - start_time
             epoch_times.append(duration)
             
-                
             student_fc.eval()
             
             retain_accuracy = evaluate_embedding_accuracy(student_fc, retain_synth_loader_train, opt.device)
@@ -2056,7 +1964,6 @@ class SCRUB(BaseMethod):
             retaintest_val_acc = evaluate_embedding_accuracy(student_fc, retaintest_loader_val, opt.device)
             forgettest_val_acc = evaluate_embedding_accuracy(student_fc, forgettest_loader_val, opt.device)
             
-
             AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)  # Calculate AUS using the accuracies
 
             # wandb.log({"retainfull_val_acc": retainfull_val_acc, "forgetfull_val_acc": forgetfull_val_acc,
@@ -2085,12 +1992,9 @@ class SCRUB(BaseMethod):
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
 
-
                 self.student.fc = student_fc
 
-
                 best_model_state = deepcopy(self.student.state_dict())
-
 
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -2102,10 +2006,6 @@ class SCRUB(BaseMethod):
 
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
-
-
-
-
 
                 best_results = {
                     "Epoch": epoch + 1,
@@ -2156,17 +2056,16 @@ class SCRUB(BaseMethod):
                 print(f"[Early Stopping] Triggered due to AUS < {low_aus_threshold} for {low_aus_patience} consecutive epochs.")
                 break
 
-            
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy,4),
+                train_fgt_acc=round(forget_accuracy,4),
+                val_test_retain_acc=round(retaintest_val_acc,4),
+                val_test_fgt_acc=round(forgettest_val_acc,4),
+                val_full_retain_acc=round(retainfull_val_acc,4),
+                val_full_fgt_acc=round(forgetfull_val_acc,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -2182,12 +2081,12 @@ class SCRUB(BaseMethod):
 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
-            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
-            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"] / 100,4),
-            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"] / 100,4),
-            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"] / 100,4),
-            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"] / 100,4),
-            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"] / 100,4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] ,4),
+            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"],4),
+            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"],4),
+            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"],4),
+            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"],4),
+            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"],4),
             AUS=round(best_results["AUS"],4),
             mode=opt.method,
             dataset=opt.dataset,
@@ -2205,13 +2104,11 @@ class SCRUB(BaseMethod):
         return self.student
 
 
-
-
 class DUCK(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
         self.class_to_remove = class_to_remove
-
+        self.head_fc = get_classifier(self.net)
     
         
     def pairwise_cos_dist(self, x, y):
@@ -2232,7 +2129,7 @@ class DUCK(BaseMethod):
         for param in self.net.parameters():
             param.requires_grad = False
 
-        for param in self.net.fc.parameters():
+        for param in self.head_fc.parameters():
             param.requires_grad = True
             
         if opt.model == 'AllCNN':
@@ -2263,7 +2160,7 @@ class DUCK(BaseMethod):
         distribs=torch.stack(distribs)
 
 
-        optimizer = optim.Adam(self.net.fc.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
+        optimizer = optim.Adam(self.head_fc.parameters(), lr=opt.lr_unlearn, weight_decay=opt.wd_unlearn)
         scheduler=torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=opt.scheduler, gamma=0.5)
         criterion = nn.CrossEntropyLoss(label_smoothing=0.1 if opt.dataset == 'TinyImageNet' else 0)
 
@@ -2463,17 +2360,27 @@ class DUCK(BaseMethod):
         return self.net
 
 
-
 class RetrainedEmbedding(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)
 
-        if isinstance(net.fc, nn.Sequential):
-            in_features = net.fc[-1].in_features
-        else:
-            in_features = net.fc.in_features
+        head = get_classifier(net)
+        final_linear = None
+        for m in (head.modules() if hasattr(head, "modules") else [head]):
+            if isinstance(m, nn.Linear):
+                final_linear = m
+        if final_linear is None:
+            raise RuntimeError("No nn.Linear found in classifier head")
+        in_features = final_linear.in_features
 
-        self.fc_layer = nn.Linear(in_features, opt.num_classes).to('cuda')
+        self.fc_layer = nn.Linear(in_features, opt.num_classes).to(opt.device)
+
+        # if isinstance(net.fc, nn.Sequential):
+        #     in_features = net.fc[-1].in_features
+        # else:
+        #     in_features = net.fc.in_features
+
+        #self.fc_layer = nn.Linear(in_features, opt.num_classes).to(opt.device)
      
         self.optimizer = optim.SGD(self.fc_layer.parameters(), lr=opt.lr_unlearn, weight_decay=5e-5)
         self.criterion = nn.CrossEntropyLoss(label_smoothing=0.4)
@@ -2488,34 +2395,8 @@ class RetrainedEmbedding(BaseMethod):
         self.epochs = opt.epochs_unlearn
 
 
-
     def run(self):
-        
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-
-            
-            
+                            
         """ Train the FC layer from embeddings """
         best_acc = 0.0
         patience_counter = 0
@@ -2523,7 +2404,6 @@ class RetrainedEmbedding(BaseMethod):
         best_train_acc = 0.0
         best_train_loss = 0.0
         best_val_loss = 0.0
-
 
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
         zero_acc_patience = 1000    # Stop if this happens for 50+ consecutive epochs
@@ -2535,8 +2415,7 @@ class RetrainedEmbedding(BaseMethod):
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
-        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
-
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
@@ -2593,8 +2472,6 @@ class RetrainedEmbedding(BaseMethod):
             #    print("Early stopping triggered.")
             #    break
 #
-
-
             retain_accuracy = evaluate_embedding_accuracy(self.fc_layer, self.train_retain_loader, opt.device)
             forget_accuracy = evaluate_embedding_accuracy(self.fc_layer, self.train_fgt_loader, opt.device)
 
@@ -2604,7 +2481,6 @@ class RetrainedEmbedding(BaseMethod):
             retaintest_val_acc = evaluate_embedding_accuracy(self.fc_layer, self.test_retain_loader, opt.device)
             forgettest_val_acc = evaluate_embedding_accuracy(self.fc_layer, self.test_fgt_loader, opt.device)
             
-
             AUS = calculate_AUS(forgettest_val_acc, retaintest_val_acc, Aor)  # Calculate AUS using the accuracies
 
             # wandb.log({"retainfull_val_acc": retainfull_val_acc, "forgetfull_val_acc": forgetfull_val_acc,
@@ -2630,11 +2506,9 @@ class RetrainedEmbedding(BaseMethod):
                 best_aus = max(best_aus, AUS)
                 best_retain_acc = max(best_retain_acc, retaintest_val_acc)
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
-
                 
                 self.net.fc = self.fc_layer
                 best_model_state = deepcopy(self.net.state_dict())
-
 
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
@@ -2646,9 +2520,6 @@ class RetrainedEmbedding(BaseMethod):
 
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
-
-
-
                                         
                 best_results = {
                     "Epoch": epoch + 1,
@@ -2671,7 +2542,6 @@ class RetrainedEmbedding(BaseMethod):
                 print(f"[Early Stopping] acc_test_fgt was 0 for {zero_acc_patience} consecutive epochs. Stopping...")
                 break
 
-
             if len(aus_history) > opt.patience:
                 recent_trend_aus = aus_history[-opt.patience:]
 
@@ -2685,18 +2555,17 @@ class RetrainedEmbedding(BaseMethod):
                 if decreasing_aus or no_change_aus:
                     print(f"Early stopping triggered at epoch {epoch+1} due to AUS criteria.")
                     break
-
             
             # === Save current epoch to CSV immediately ===
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy,4),
+                train_fgt_acc=round(forget_accuracy,4),
+                val_test_retain_acc=round(retaintest_val_acc,4),
+                val_test_fgt_acc=round(forgettest_val_acc,4),
+                val_full_retain_acc=round(retainfull_val_acc,4),
+                val_full_fgt_acc=round(forgetfull_val_acc,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -2706,8 +2575,7 @@ class RetrainedEmbedding(BaseMethod):
                 retain_count=retain_count,
                 forget_count=forget_count,
                 total_count=total_count)
-            
-                
+                            
         unlearning_time_until_best = sum(epoch_times[:best_results["Epoch"] + 1])
 
         log_summary_across_classes(
@@ -2729,12 +2597,11 @@ class RetrainedEmbedding(BaseMethod):
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
-        
-        
         print(f"Best Epoch {best_epoch+1}: Train Acc {best_train_acc:.2f}%, Val Acc {best_acc:.2f}%")
 
-        self.net.fc = self.fc_layer
-        
+        set_classifier(self.net, self.fc_layer)
+        self.net.eval()
+
         return self.net
     
     
@@ -2757,6 +2624,8 @@ class LAU(BaseMethod):
         self.epsilon = 4/255
         self.step_size = 1/255
         self.attack_steps = 7
+        self.head_fc = get_classifier(self.net)
+
 
     def partial_pgd_attack(self, features, labels):
         adv_features = features.detach().clone()
@@ -2927,7 +2796,6 @@ class LAU(BaseMethod):
         return self.net
 
 
-
 class BadTeacher(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader,
                  retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -2942,6 +2810,7 @@ class BadTeacher(BaseMethod):
             torch.nn.init.constant_(self.unlearning_teacher.fc.bias, 0)
         self.unlearning_teacher.to(opt.device).eval()
         self.KL_temperature = 1.0
+        self.head_fc = get_classifier(self.net)
 
     def _create_combined_loader(self):
         class UnLearnDataset(torch.utils.data.Dataset):
@@ -3109,7 +2978,7 @@ class Delete(BaseMethod):
 
         self.optimizer = optim.SGD(
             # keep trainable if you're doing FC-only; use self.net.parameters() to match "all params"
-            [p for p in self.net.parameters() if p.requires_grad],
+            get_classifier(self.net).parameters(),
             lr=opt.lr_unlearn,
             momentum=0.9,          # match original
             weight_decay=0.0,      # original had none
@@ -3125,13 +2994,19 @@ class Delete(BaseMethod):
         # 4) Early-stop bookkeeping
         self.zero_acc_patience = 1000
         self.patience = opt.patience
+        self.head_fc = get_classifier(self.net)
+
 
     def _teacher_probs_anti(self, x, y):
         with torch.no_grad():
-            t_logits = self.teacher.fc(x)             # [B, C]
+            head_t   = get_classifier(self.teacher)
+            t_logits = head_t(x)
+            # avoid in-place on a tensor you didn’t create
+            t_logits = t_logits.clone()
             t_logits.scatter_(1, y.view(-1, 1), -1e9)
             probs = F.softmax(t_logits, dim=1)
-        return probs  # a normal (non-inference) tensor OK for KL target
+        return probs # a normal (non-inference) tensor OK for KL target
+
 
     def run(self):
         self.net.train()
@@ -3169,8 +3044,9 @@ class Delete(BaseMethod):
             for xf, yf in self.train_fgt_loader:
                 xf, yf = xf.to(opt.device), yf.to(opt.device)
 
-                tgt_prob = self._teacher_probs_anti(xf, yf)              # [B, C]
-                logits   = self.net.fc(xf)                                # [B, C]
+                tgt_prob = self._teacher_probs_anti(xf, yf)             
+                head_s = get_classifier(self.net)
+                logits = head_s(x)                       
                 loss     = self.kl(F.log_softmax(logits, dim=1), tgt_prob)
 
                 self.optimizer.zero_grad(set_to_none=True)

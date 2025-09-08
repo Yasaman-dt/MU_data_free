@@ -61,7 +61,12 @@ def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
     selected_labels = np.concatenate(selected_labels, axis=0)
     return selected_embeddings, selected_labels
 
-
+def get_classifier(net):
+    if hasattr(net, "heads"):
+        return net.heads
+    if hasattr(net, "fc"):
+        return net.fc
+    raise AttributeError("Model has neither `heads` nor `fc`.")
 
 
 def AUS(a_t, a_or, a_f):
@@ -238,7 +243,7 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         print("BEGIN SVC FIT")
 
         if opt.mode == "CR":
-            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=unlearned_model.fc,opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
+            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=get_classifier(unlearned_model),opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
             print('F1 mean: ',df_un_model.F1.mean())
             #df_un_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
 
