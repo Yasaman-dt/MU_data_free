@@ -1804,7 +1804,6 @@ class BoundaryExpanding(BaseMethod):
         
         return self.model
 
-
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
         
@@ -1847,8 +1846,6 @@ class SCRUB(BaseMethod):
         retain_features_train, retain_labels_train = flatten_loader(self.train_retain_loader)
         forget_features_train, forget_labels_train = flatten_loader(self.train_fgt_loader)
 
-        teacher_fc=self.teacher.fc
-        student_fc=self.student.fc
         retainfull_loader_val=self.retainfull_loader_real
         forgetfull_loader_val=self.forgetfull_loader_real
         retaintest_loader_val=self.test_retain_loader
