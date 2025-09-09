@@ -40,10 +40,18 @@ weights_folder = "weights"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
+
+def get_classifier(net):
+    if hasattr(net, "heads"):
+        return net.heads
+    if hasattr(net, "fc"):
+        return net.fc
+    raise AttributeError("Model has neither `heads` nor `fc`.")
+
+
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
-
 
 
 def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
@@ -164,7 +172,7 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         print("BEGIN SVC FIT")
 
         if opt.mode == "CR":
-            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=unlearned_model.fc,opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
+            df_un_model = get_MIA_SVC(train_loader=None, test_loader=test_loader,model=get_classifier(unlearned_model),opt=opt,fgt_loader=train_fgt_loader_real,fgt_loader_t=test_fgt_loader)
             print('F1 mean: ',df_un_model.F1.mean())
             #df_un_model = pd.DataFrame([0],columns=["PLACEHOLDER"])
 
@@ -229,50 +237,42 @@ if __name__ == "__main__":
 
         print(f"Seed {i}")
         
+        # N=50
+        # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+        # train_embeddings_data = np.load(train_path)
+        # real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
+        # real_labels = torch.tensor(train_embeddings_data["labels"])
+
+        # real_embeddings_par, real_labels_par = select_n_per_class_numpy(real_embeddings, real_labels, num_per_class=N, num_classes=num_classes)
+        # print(real_embeddings_par.shape)  
+        # print(real_labels_par.shape)      
         
-        
+        # save_path = f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+        # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
-        N=50
-        train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
-        train_embeddings_data = np.load(train_path)
-        real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
-        real_labels = torch.tensor(train_embeddings_data["labels"])
+        # np.savez_compressed(
+        #     save_path,
+        #     real_embeddings=real_embeddings_par,
+        #     real_labels=real_labels_par
+        # )
 
-        real_embeddings_par, real_labels_par = select_n_per_class_numpy(real_embeddings, real_labels, num_per_class=N, num_classes=num_classes)
-        print(real_embeddings_par.shape)  
-        print(real_labels_par.shape)      
+        # os.makedirs(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots", exist_ok=True)
 
+        # # === Reduce to 2D using t-SNE ===
+        # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+        # real_embeddings_2d = tsne.fit_transform(real_embeddings_par)
 
-        
-        save_path = f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-
-        np.savez_compressed(
-            save_path,
-            real_embeddings=real_embeddings_par,
-            real_labels=real_labels_par
-        )
-
-        os.makedirs(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots", exist_ok=True)
-
-        # === Reduce to 2D using t-SNE ===
-        tsne = TSNE(n_components=2, perplexity=30, random_state=42)
-        real_embeddings_2d = tsne.fit_transform(real_embeddings_par)
-
-        plt.figure(figsize=(10, 7))
-        scatter = plt.scatter(real_embeddings_2d[:, 0], real_embeddings_2d[:, 1], c=real_labels_par, cmap='tab20', s=10)
-        plt.colorbar(scatter, ticks=range(20), label='Class')
-        plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
-        plt.xlabel("Dimension 1")
-        plt.ylabel("Dimension 2")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
-        plt.close()
-                
-                
+        # plt.figure(figsize=(10, 7))
+        # scatter = plt.scatter(real_embeddings_2d[:, 0], real_embeddings_2d[:, 1], c=real_labels_par, cmap='tab20', s=10)
+        # plt.colorbar(scatter, ticks=range(20), label='Class')
+        # plt.title("t-SNE: Real (0–9) vs Synthetic (10–19) Embeddings")
+        # plt.xlabel("Dimension 1")
+        # plt.ylabel("Dimension 2")
+        # plt.grid(True)
+        # plt.tight_layout()
+        # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
+        # plt.close()
     
-      
         
         if opt.mode == "CR":
             for class_to_remove in opt.class_to_remove:

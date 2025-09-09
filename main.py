@@ -213,8 +213,6 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
 
-
-
             
         if opt.mode == "CR":
             #set tollerance for stopping criteria
