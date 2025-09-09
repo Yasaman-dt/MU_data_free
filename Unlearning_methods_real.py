@@ -1644,9 +1644,13 @@ class SCRUB(BaseMethod):
         
         super().__init__(net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real)        
 
-        self.teacher = net  # The original FC layer
-        self.student = deepcopy(net)  # Clone of the original FC layer
+        self.teacher = deepcopy(net).to(opt.device).eval()
+        for p in self.teacher.parameters():
+            p.requires_grad = False
+        self.student = deepcopy(net).to(opt.device)  # Clone of the original FC layer
         self.class_to_remove = class_to_remove
+        self.head_fc = get_classifier(self.net)
+
 
 
 
@@ -1665,33 +1669,10 @@ class SCRUB(BaseMethod):
             loss_kd = F.kl_div(log_pred_student, pred_teacher, reduction="none").sum(1).mean()
             loss_kd *= temperature**2
             return loss_kd
-
-        def calculate_AUS(A_test_forget, A_test_retain, Aor):
-            A_test_forget = A_test_forget / 100
-            A_test_retain = A_test_retain / 100
-            Aor = Aor / 100
-            """
-            Calculate the AUS based on the given accuracy values.
-
-            Args:
-                A_test_forget (float): Accuracy on the forget test set (forgettest_val_acc).
-                A_test_retain (float): Accuracy on the retain test set (retaintest_val_acc).
-                Aor (float): Constant value for A_or (default is 84.72).
-
-            Returns:
-                float: The calculated AUS value.
-            """
-            # Calculate Delta
-            delta = abs(0 - A_test_forget)
-            
-            # Calculate AUS
-            AUS = (1 - (Aor - A_test_retain)) / (1 + delta)
-            
-            return AUS
-    
+   
 
         # Compute Aor from original model (accuracy on retain test set)
-        Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True) * 100
+        Aor = calculate_accuracy(self.teacher, self.test_retain_loader, use_fc_only=True)
 
         # Load all features/labels from loaders
         def flatten_loader(loader):
@@ -1704,8 +1685,7 @@ class SCRUB(BaseMethod):
         retain_features_train, retain_labels_train = flatten_loader(self.train_retain_loader)
         forget_features_train, forget_labels_train = flatten_loader(self.train_fgt_loader)
 
-        teacher_fc=self.teacher.fc
-        student_fc=self.student.fc
+
         retainfull_loader_val=self.retainfull_loader_real
         forgetfull_loader_val=self.forgetfull_loader_real
         retaintest_loader_val=self.test_retain_loader
@@ -1719,8 +1699,8 @@ class SCRUB(BaseMethod):
         forget_real_loader_train = DataLoader(TensorDataset(forget_features_train, forget_labels_train), batch_size=opt.batch_size, shuffle=True)
 
 
-        student_fc.to(opt.device)
-        teacher_fc.to(opt.device)
+        teacher_fc = get_classifier(self.teacher).to(opt.device)
+        student_fc = get_classifier(self.student).to(opt.device)
         optimizer = optim.Adam(student_fc.parameters(), lr=opt.lr_unlearn)
         loss_ce = nn.CrossEntropyLoss()
         for param in teacher_fc.parameters():
@@ -1932,12 +1912,12 @@ class SCRUB(BaseMethod):
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy,4),
+                train_fgt_acc=round(forget_accuracy,4),
+                val_test_retain_acc=round(retaintest_val_acc,4),
+                val_test_fgt_acc=round(forgettest_val_acc,4),
+                val_full_retain_acc=round(retainfull_val_acc,4),
+                val_full_fgt_acc=round(forgetfull_val_acc,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -1950,12 +1930,12 @@ class SCRUB(BaseMethod):
                 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
-            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
-            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"] / 100,4),
-            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"] / 100,4),
-            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"] / 100,4),
-            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"] / 100,4),
-            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"] / 100,4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"],4),
+            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"],4),
+            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"],4),
+            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"],4),
+            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"],4),
+            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"],4),
             AUS=round(best_results["AUS"],4),
             mode=opt.method,
             dataset=opt.dataset,

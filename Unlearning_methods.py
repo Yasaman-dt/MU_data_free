@@ -2089,7 +2089,7 @@ class SCRUB(BaseMethod):
 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
-            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] ,4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"],4),
             train_fgt_acc=round(best_results["Unlearning Train Forget Acc"],4),
             val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"],4),
             val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"],4),
