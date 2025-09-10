@@ -486,7 +486,7 @@ methods on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the backbone
 architecture. Rows highlighted in gray represent our results using synthetic embeddings, while
 the corresponding non-shaded rows use original embeddings with the same method.}
 
-\label{tab:results_ngftw_diff_sampling}
+\label{tab:results_diff_sampling_ViT}
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
@@ -622,7 +622,7 @@ latex_table += r"""\bottomrule
 with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_diff_sampling_ViT.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
-print("✅ LaTeX table saved to results_ngftw_diff_sampling.tex")
+print("✅ LaTeX table saved to results_diff_sampling_ViT.tex")
 
 
 

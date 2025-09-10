@@ -10,6 +10,8 @@ parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classificatio
 sources = [
     ("results_real", "real"),
     ("results_synth_gaussian", "synth"),
+    ("results_synth_uniform", "synth"),
+    ("results_synth_laplace", "synth"),
 ]
 
 
@@ -90,6 +92,23 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 # retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
 # retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
 
+def infer_noise_type(path_or_name: str) -> str:
+    s = os.path.normpath(path_or_name).replace("\\", "/").lower()
+    if "results_real" in s:
+        return "none"
+    if "gaussian" in s:
+        return "gaussian"
+    if "laplace" in s:
+        return "laplace"
+    if "uniform" in s:
+        return "uniform"
+    if "sigma" in s:   # treat sigma* folders as gaussian noise families
+        return "gaussian"
+    return "unknown"
+
+
+original_df["noise_type"] = "none"
+#retrained_df["noise_type"] = "none"
 
 
 # # Rename the column 'best_val_acc' to 'val_full_retain_acc'
@@ -155,6 +174,7 @@ for folder_name, source_type in sources:
                 df["lr"] = lr_value
                 df["method"] = method_map.get(method, method)  # Use mapped name if available
                 df["source"] = source_type
+                df["noise_type"] = infer_noise_type(file_path) 
 
                 # Multiply accuracy columns by 100 if they exist
                 acc_cols = [
