@@ -12,10 +12,11 @@ sources = [
     ("results_fc_resnet18/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
     ("results_fc_resnet18/sigma5.0_persamplefix/results_synth", 5.0, "synth"),
     ("results_fc_resnet18/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
-    ("results_fc_resnet18/sigma0.0_persamplefix_gaussian/results_synth", 0.0, "synth"),
+    ("results_fc_resnet18/results_synth_gaussian", None, "synth"),
+    ("results_fc_resnet18/results_synth_laplace", None, "synth"),
+    ("results_fc_resnet18/results_synth_uniform", None, "synth"),
 
 ]
-
 
 method_map = {
     "FineTuning": "FT",
@@ -115,6 +116,25 @@ retrained_df["AUS"] = AUS
 output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_retrained_resnet18.csv"
 retrained_df.to_csv(output_path, index=False)
 
+
+def infer_noise_type(path_or_name: str) -> str:
+    s = os.path.normpath(path_or_name).replace("\\", "/").lower()
+    if "results_real" in s:
+        return "none"
+    if "gaussian" in s:
+        return "gaussian"
+    if "laplace" in s:
+        return "laplace"
+    if "uniform" in s:
+        return "uniform"
+    if "sigma" in s:   # treat sigma* folders as gaussian noise families
+        return "gaussian"
+    return "unknown"
+
+
+original_df["noise_type"] = "none"
+retrained_df["noise_type"] = "none"
+
 original_df["sigma"] = None
 retrained_df["sigma"] = None
 
@@ -163,7 +183,7 @@ for folder_name, sigma, source_type in sources:
                 df["method"] = method_map.get(method, method)  # Use mapped name if available
                 df["source"] = source_type
                 df["sigma"] = sigma
-
+                df["noise_type"] = infer_noise_type(file_path) 
                 # Multiply accuracy columns by 100 if they exist
                 acc_cols = [
                     "train_retain_acc", "train_fgt_acc",
