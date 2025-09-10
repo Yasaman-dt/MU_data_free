@@ -476,36 +476,13 @@ for _, row in stats_df.iterrows():
     grouped_methods[key][dataset] = values
     access_flags[key] = get_data_free_flags(method, source)
 
-# === Build LaTeX table
-# latex_table = r"""\begin{table*}[h]
-# \centering
-# \captionsetup{font=small}
-# \caption{
-# Effect of noise distribution on data-free class unlearning performance. 
-# The Negative Gradient+ method is extended by generating synthetic embeddings from different noise distributions: Gaussian, Laplace, and Uniform. 
-# Results are reported for the Negative Gradient+ baseline on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone architecture. 
-# For each dataset, we fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
-# Metrics represent the mean and standard deviation computed across all classes and random seeds.
-# }
-
-# \label{tab:results_ngftw_diff_sampling}
-# \resizebox{\textwidth}{!}{
-# \begin{tabular}{c|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
-# \toprule
-# \toprule
-# \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{Noise Type} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
-#  &  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
-# \midrule
-# \midrule
-# """
-
 
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
 \caption{
 Effect of embedding distribution on data-free class unlearning performance of some of
-methods on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone
+methods on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the backbone
 architecture. Rows highlighted in gray represent our results using synthetic embeddings, while
 the corresponding non-shaded rows use original embeddings with the same method.}
 
@@ -642,7 +619,7 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_ngftw_diff_sampling.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_diff_sampling_ViT.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to results_ngftw_diff_sampling.tex")

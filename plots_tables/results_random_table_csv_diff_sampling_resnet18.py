@@ -1,9 +1,306 @@
+import os
+import pandas as pd
+import re
+from glob import glob
+import numpy as np
+
+
+# === Setup paths ===
+parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free"
+sources = [
+    ("results_fc_resnet18/results_real", "real"),
+    ("results_fc_resnet18/results_synth_gaussian", "synth"),
+    ("results_fc_resnet18/results_synth_laplace", "synth"),
+    ("results_fc_resnet18/results_synth_uniform", "synth"),
+]
+
+
+method_map = {
+    "FineTuning": "FT",
+    "BoundaryShrink": "BS",
+    "BoundaryExpanding": "BE",
+    "RandomLabels": "RL",
+    "RetrainedEmbedding": "RE",
+    "NegativeGradient": "NG",
+    "NGFT_weighted": "NGFTW",
+}
+
+
+original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
+
+original_df = pd.read_csv(original_path)
+
+original_df = original_df.rename(columns={
+"Mode": "mode",
+"Dataset": "dataset",
+"Model": "model",
+"Train Retain Acc": "train_retain_acc",
+"Train Forget Acc": "train_fgt_acc",
+"Val Test Retain Acc": "val_test_retain_acc",
+"Val Test Forget Acc": "val_test_fgt_acc",
+"Val Full Retain Acc": "val_full_retain_acc",
+"Val Full Forget Acc": "val_full_fgt_acc",
+})
+
+NOISE_ORDER = {
+    "--": 0,          # dash used for Original / Retrained
+    "real": 1,        # Real distribution
+    "gaussian": 2,
+    "laplace": 3,
+    "uniform": 4,
+}
+
+# Define the metrics for which we want to compute mean and std
+metrics = [
+    'Train Acc', 'Test Acc', 'train_retain_acc', 'train_fgt_acc',
+    'val_test_retain_acc', 'val_test_fgt_acc',
+    'val_full_retain_acc', 'val_full_fgt_acc', 'AUS'
+]
+
+original_df.rename(columns={"Model Num":"model_num"}, inplace=True)
+
+original_df["noise_type"] = "-"
+
+
+# Group by fixed Dataset, Model, and Model Num, and compute mean and std
+original_summary = original_df.groupby(['dataset', 'model', 'model_num', 'noise_type'])[metrics].agg(['mean', 'std'])
+
+# Flatten the MultiIndex columns for better readability
+original_summary.columns = ['_'.join(col).strip() for col in original_summary.columns.values]
+
+
+
+original_summary = original_summary.reset_index()
+
+original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/original_averaged_results.csv", index=False)
+
+metrics = ['val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS']
+
+# Compute mean and std
+df_original_grouped = original_df.groupby(['dataset', 'model', 'mode', 'Forget Class'])[metrics].agg(['mean', 'std']).reset_index()
+
+# Flatten MultiIndex columns
+df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df_original_grouped.columns]
+
+
+
+# Load the uploaded CSV files
+cifar10_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
+
+# Add dataset identifiers
+cifar10_df["dataset"] = "CIFAR10"
+cifar100_df["dataset"] = "CIFAR100"
+tinyimagenet_df["dataset"] = "TinyImageNet"
+
+# Combine all into one DataFrame
+retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
+retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
+retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
+retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
+
+
+
+# Rename the column 'best_val_acc' to 'val_full_retain_acc'
+
+# Add 'val_full_fgt_acc' column with all values set to 0
+retrained_df["val_test_fgt_acc"] = 0.0
+retrained_df["train_fgt_acc"] = 0.0
+retrained_df["val_full_fgt_acc"] = 0.0
+
+retrained_df["noise_type"] = "-"
+
+val_test_retain_acc_original = original_df['val_test_retain_acc']
+val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+
+AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+
+retrained_df["AUS"] = AUS
+
+# Save the combined DataFrame
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/results_retrained.csv"
+retrained_df.to_csv(output_path, index=False)
+
+all_data = []
+
+for folder_name, source_type in sources:
+    base_dir = os.path.join(parent_dir, folder_name)
+
+    methods = [name for name in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, name))]
+
+    for method in methods:
+        method_path = os.path.join(base_dir, method)
+        
+        # Match all files with unlearning summary pattern
+        file_pattern = os.path.join(method_path, "*_unlearning_summary_m*_lr*")
+        files = glob(file_pattern)
+
+        for file_path in files:
+            filename = os.path.basename(file_path)
+
+            # Extract dataset, model, model_num, and lr
+            match = re.match(r"(?P<dataset>[^_]+)_(?P<model>[^_]+)_unlearning_summary_m(?P<model_num>\d+)_lr(?P<lr>[\d\.]+)", filename)
+            
+
+            if match:
+
+                dataset = match.group("dataset")
+                model = match.group("model")
+                model_num = int(match.group("model_num"))
+                lr_value = float(match.group("lr").rstrip("."))
+                #if model_num not in [2, 3, 4]:
+                #    continue
+
+                #df = pd.read_excel(file_path) if filename.endswith(".xlsx") else pd.read_csv(file_path)
+                try:
+                    df = pd.read_excel(file_path) if filename.endswith(".xlsx") else pd.read_csv(file_path)
+                except pd.errors.ParserError as e:
+                    print(f"❌ Parser error in file: {file_path}")
+                    print(str(e))
+                    continue                
+                
+                df["dataset"] = dataset
+                df["model"] = model
+                df["model_num"] = model_num
+                df["lr"] = lr_value
+                df["method"] = method_map.get(method, method)  # Use mapped name if available
+                df["source"] = source_type
+
+
+                # Multiply accuracy columns by 100 if they exist
+                acc_cols = [
+                    "train_retain_acc", "train_fgt_acc",
+                    "val_test_retain_acc", "val_test_fgt_acc",
+                    "val_full_retain_acc", "val_full_fgt_acc"
+                ]
+                for col in acc_cols:
+                    if col in df.columns:
+                        df[col] = df[col] * 100
+
+                if source_type == "real":
+                    noise_type = "real"
+                else:
+                    # e.g. folder_name = "results_diff_sampling/results_synth_gaussian/results_synth"
+                    # parent of 'results_synth' is 'results_synth_gaussian'.
+                    noise_dir = os.path.basename(folder_name)
+                    # noise_dir now looks like "results_synth_gaussian"
+                    noise_type = noise_dir.split("_")[-1]  # takes "gaussian", "bernoulli", etc.
+                df["noise_type"] = noise_type
+                # ──────────────────────────────────────────────────────
+    
+           
+                all_data.append(df)
+            else:
+                print(f"⚠️ Could not parse: {filename}")
+
+
+
+
+
+
+# === Combine all ===
+if all_data:
+    final_df = pd.concat(all_data, ignore_index=True)
+    final_df = final_df[ final_df["method"].isin(["NGFTW", "DELETE", "SCRUB", "RL"]) ]
+
+
+    # Save merged raw results
+    final_df.to_csv(os.path.join(parent_dir, "results_fc_resnet18/results_diff_sampling/results_unlearning.csv"), index=False)
+    print("✅ All results merged.")
+
+    # === Refined selection: prefer highest AUS, then smallest val_test_fgt_acc, then largest val_test_retain_acc
+    sort_keys = ["AUS", "val_test_fgt_acc", "val_test_retain_acc", "val_full_fgt_acc", "val_full_retain_acc"]
+    ascending_flags = [False, True, False, True, False]  # Maximize AUS, minimize fgt, maximize retain
+    
+    # Sort the full DataFrame with all tie-breaker preferences
+    sorted_df = final_df.sort_values(by=sort_keys, ascending=ascending_flags)
+    
+    # Group and pick the first (best) row for each combination
+    best_df = sorted_df.groupby(
+        ["source", "method", "dataset", "noise_type", "model", "model_num", "Forget Class"],
+        as_index=False
+    ).first()
+    
+    # Save results
+    best_df.to_csv(os.path.join(parent_dir, "results_fc_resnet18/results_diff_sampling/results_unlearning_best_per_model_by_aus.csv"), index=False)
+    print("✅ Refined best results saved using AUS → val_test_fgt_acc → val_test_retain_acc.")
+
+    #original_df = original_df[original_df["model_num"].isin([2, 3, 4])]
+
+
+    retrained_df["method"] = "retrained"
+    retrained_df["source"] = "real"
+    retrained_df["dataset"] = retrained_df["dataset"].replace({
+    "CIFAR10": "cifar10",
+    "CIFAR100": "cifar100"
+    })
+    original_df["method"] = "original"
+    original_df["source"] = "real"
+    original_df["dataset"] = original_df["dataset"].replace({
+    "CIFAR10": "cifar10",
+    "CIFAR100": "cifar100"
+    })
+
+
+    for df in [original_df, retrained_df]:
+        if "method" in df.columns:
+            df["method"] = df["method"].replace(method_map)
+
+        
+    # (Optional) Add missing columns if needed
+    for col in best_df.columns:
+        if col not in original_df.columns:
+            original_df[col] = None  # Fill with NaN
+        if col not in retrained_df.columns:
+            retrained_df[col] = None
+        
+    # Align column order
+    original_df = original_df[best_df.columns]
+    retrained_df = retrained_df[best_df.columns]
+    
+    save_dir = os.path.join(parent_dir, "results_fc_resnet18/results_diff_sampling/best_per_dataset_method_source")
+    os.makedirs(save_dir, exist_ok=True)
+
+
+    for (dataset, method, source, noise_type), group_df in best_df.groupby(
+        ["dataset", "method", "source", "noise_type"]
+    ):
+        filename = f"{dataset}_{method}_{source}_{noise_type}.csv"
+        output_file = os.path.join(save_dir, filename)
+        group_df.to_csv(output_file, index=False)
+        #print(f"✅ Saved {output_file}")    
+    
+    
+    # === Combine original + best_df
+    combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/results_total.csv", index=False)
+
+
+
+    print("✅ Merged original results with current best results.")
+    
+    # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
+    numeric_cols = combined_df.select_dtypes(include='number').columns
+    stats_df = combined_df.groupby(["dataset", "method", "model", "source", "noise_type"])[numeric_cols].agg(['mean', 'std']).reset_index()
+
+    # Flatten multi-level column names
+    stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]
+
+    stats_path = os.path.join(parent_dir, "results_fc_resnet18/results_diff_sampling/results_mean_std_all_numeric.csv")
+    stats_df.to_csv(stats_path, index=False)
+    print("✅ Mean and std of all numeric columns saved.")
+
+else:
+    print("❌ No data loaded.")
+
+
 import pandas as pd
 from collections import defaultdict
 
 
 # Load the stats DataFrame
-stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_mean_std_all_numeric_resnet18.csv")
+stats_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/results_mean_std_all_numeric.csv")
 
 # Select key columns to display
 columns_to_display = [
@@ -30,11 +327,10 @@ def get_data_free_flags(method, source):
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
     return (r"\xmark", r"\xmark")
 
-
 # Group rows by dataset
 datasets = stats_df["dataset"].unique()
 
-# === Define display names and references
+
 method_name_and_ref = {
     "original": ("Original", "–"),
     "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
@@ -58,10 +354,7 @@ method_name_and_ref = {
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
-
-
-
-
+# === Define displayed metrics
 columns_to_display = [
     ("val_test_retain_acc", "\mathcal{A}^t_r"),
     ("val_test_fgt_acc", "\mathcal{A}^t_f"),
@@ -69,14 +362,27 @@ columns_to_display = [
 ]
 
 
-
-
 def sort_key(key):
     base_method = key.split(" (")[0]
-    source = key.split(" (")[1].replace(")", "")
+    source, noise = key[key.find("(")+1:-1].split(", ")
+    noise = str(noise).lower().strip()
+
+    # normalize to match NOISE_ORDER keys
+    if base_method in ["original", "retrained"]:
+        noise_norm = "--"
+    elif source == "real":
+        noise_norm = "real"
+    elif noise in ["-", "none", "nan", ""]:
+        noise_norm = "--"
+    else:
+        noise_norm = noise  # e.g., gaussian/laplace/uniform
+
     method_idx = method_order.index(base_method) if base_method in method_order else len(method_order)
-    source_idx = 0 if source == "real" else 1  # put real before synth
-    return (method_idx, source_idx)
+    source_idx = 0 if source == "real" else 1                 # real rows first, then synth
+    noise_idx  = NOISE_ORDER.get(noise_norm, 999)             # choose order via NOISE_ORDER
+
+    return (method_idx, source_idx, noise_idx)
+
 
 # === Group rows by (method, source)
 grouped_methods = defaultdict(lambda: {"CIFAR10": ["-"]*3, "CIFAR100": ["-"]*3, "TinyImageNet": ["-"]*3})
@@ -100,7 +406,7 @@ for _, row in stats_df.iterrows():
         continue  # Skip DUCK method    
     method = row["method"]
     source = row["source"]
-
+    noise  = row["noise_type"]   
 
     dataset = row["dataset"].strip().lower()
     if dataset == "cifar10":
@@ -113,7 +419,7 @@ for _, row in stats_df.iterrows():
         continue  # skip unknown dataset
 
 
-    key = f"{method} ({source})"
+    key = f"{method} ({source}, {noise})"
     values = []
 
     for prefix, label in columns_to_display:
@@ -146,14 +452,8 @@ for _, row in stats_df.iterrows():
                 if std < 10: std_str = std_str
         
         
-            # Determine which dataset this AUS belongs to (based on column index)
-            dataset_idx = len(values)  # 0–2: CIFAR10, 3–5: CIFAR100, 6–8: TinyImageNet
-            if dataset_idx < 3:
-                dset = "CIFAR10"
-            elif dataset_idx < 6:
-                dset = "CIFAR100"
-            else:
-                dset = "TinyImageNet"
+            dset = dataset
+
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[dataset][label], 3)
@@ -172,23 +472,50 @@ for _, row in stats_df.iterrows():
     access_flags[key] = get_data_free_flags(method, source)
 
 # === Build LaTeX table
+# latex_table = r"""\begin{table*}[h]
+# \centering
+# \captionsetup{font=small}
+# \caption{
+# Effect of noise distribution on data-free class unlearning performance. 
+# The Negative Gradient+ method is extended by generating synthetic embeddings from different noise distributions: Gaussian, Laplace, and Uniform. 
+# Results are reported for the Negative Gradient+ baseline on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone architecture. 
+# For each dataset, we fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
+# Metrics represent the mean and standard deviation computed across all classes and random seeds.
+# }
+
+# \label{tab:results_diff_sampling_resnet18}
+# \resizebox{\textwidth}{!}{
+# \begin{tabular}{c|c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
+# \toprule
+# \toprule
+# \multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{Noise Type} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+#  &  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
+# \midrule
+# \midrule
+# """
+
+
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-50 as the base architecture. Reported metrics are the mean and standard deviation computed across all classes and model seeds. Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
+\caption{
+Effect of embedding distribution on data-free class unlearning performance of some of
+methods on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 as the backbone
+architecture. Rows highlighted in gray represent our results using synthetic embeddings, while
+the corresponding non-shaded rows use original embeddings with the same method.}
 
-
-\label{tab:main_results_resnet18}
-
+\label{tab:results_diff_sampling_resnet18}
 \resizebox{\textwidth}{!}{
-\begin{tabular}{c|c|cc|ccc|ccc|ccc}
+\begin{tabular}{c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{Ref} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{{Embedding\\Distribution}}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule
 """
+
+
 
 
 # Sort by method name for consistency
@@ -199,17 +526,34 @@ method_counts = defaultdict(int)
 # Count how many times each method appears
 for key in grouped_methods.keys():
     base_method = key.split(" (")[0]
+    source_noise = key.split(" (")[1].replace(")", "")
+    source, noise = source_noise.split(", ")
+    noise_cell = noise.capitalize() if noise not in ["real", "none"] else r"--"
     method_counts[base_method] += 1
+
+printed_methods = set()
 
 for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     base_method = key.split(" (")[0]
+    source_noise = key.split(" (")[1].replace(")", "")
+    source, noise = source_noise.split(", ")
 
-    if prev_base_method and base_method != prev_base_method:
-        latex_table += r"\midrule" + "\n"
-        if prev_base_method in ["FT", "DELETE"]:
+    if base_method in ["original", "retrained"]:
+        # For Original and Retrained (Full), show a dash like in your example table
+        noise_cell = r"--"
+    elif source == "real":
+        noise_cell = r"Real distribution"
+    elif str(noise).lower() in ["-", "none", "nan"]:
+        noise_cell = r"--"
+    else:
+        noise_cell = str(noise).capitalize()
+
+    if base_method != prev_base_method:
+        if prev_base_method in ["retrained", "FT", "DELETE", "BE"]:
+            latex_table += r"\midrule" + "\n" + r"\midrule" 
+        else:
             latex_table += r"\midrule" + "\n"
 
-        
     D_r_free, D_f_free = access_flags[key]
     values = grouped_methods[key]["CIFAR10"] + grouped_methods[key]["CIFAR100"] + grouped_methods[key]["TinyImageNet"]
 
@@ -217,48 +561,66 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     method_display_base, default_ref = method_name_and_ref.get(base_method, (base_method, r"–"))
     
     # Recover source (real/synth) from key
-    source = key.split(" (")[1].replace(")", "")
-
-    if base_method != "original":
-        if source == "synth":
-            ref = "Ours"
-        else:
-            ref = default_ref.replace(" Ours", "")  # Keep only the cited work
+    source_noise = key.split(" (")[1].replace(")", "")
+    source, _ = source_noise.split(", ")
+    
+    # Determine citation format
+    if base_method in method_name_and_ref:
+        base_name, base_ref = method_name_and_ref[base_method]
     else:
-        ref = default_ref  # Leave original method as-is
+        base_name, base_ref = base_method, "–"
+    
+    if base_method == "original":
+        ref = base_ref
+    elif source == "real":
+        ref = base_ref.replace(" Ours", "")  # show just the cited paper
+    else:
+        ref = "Ours"  # use "Ours" for synthetic cases
+
+    ref_cell = ref
+
 
     if base_method == "original":
         method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
-        ref_cell = rf"\multirow{{2}}{{*}}{{{ref}}}"
+        #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
         dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
         df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
         values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
+        #row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
 
-        row = [method_cell, ref_cell, dr_free, df_free] + values_multirow
+        row = [method_cell, r"\multirow{2}{*}{--}", dr_free, df_free] + values_multirow
         latex_table += " & ".join(row) + r" \\" + "\n"
     
         # Now insert an empty second row for spacing and alignment
-        row = ["", "", "", ""] + [""] * len(values)
+        #row = ["", "", "", ""] + [""] * len(values)
+        row = ["", "", ""] + [""] * len(values)
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
-                
+             
         
         continue  # skip rest of loop
 
-    if method_counts[base_method] > 1:
-        if source == "real":
+    if base_method not in printed_methods:
+        if method_counts[base_method] > 1:
             method_cell = rf"\multirow{{{method_counts[base_method]}}}{{*}}{{{method_display_base}}}"
         else:
-            method_cell = ""
-        ref_cell = ref
+            method_cell = method_display_base
+        printed_methods.add(base_method)
     else:
-        method_cell = method_display_base
-        ref_cell = ref
+        method_cell = ""
 
 
-    row = [method_cell, ref_cell, D_r_free, D_f_free] + values
+    #row = [method_cell, ref_cell, noise_cell, D_r_free, D_f_free] + values
+    row = [method_cell, noise_cell, D_r_free, D_f_free] + values
+
+    if source == "synth":
+        # color from second column onward
+        colored_row = [row[0]] + [rf"\cellcolor{{gray!15}}{cell}" for cell in row[1:]]
+        latex_table += " & ".join(colored_row) + r" \\" + "\n"
+        continue 
+
 
     latex_table += " & ".join(row) + r" \\" + "\n"
 
@@ -275,336 +637,12 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/table_total_random_fc_resnet18.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/results_diff_sampling_resnet18.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
-print("✅ LaTeX table saved to combined_table.tex")
+print("✅ LaTeX table saved to results_diff_sampling_resnet18.tex")
 
 
-# Load the uploaded data
-df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/mean_std_results_by_class_model_dataset_method_source_resnet18.csv")
 
-# Filter only for CIFAR-10 dataset
-cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
 
-# # Keep only relevant columns
-# columns_to_keep = ["Forget Class", "source", "train_retain_acc_mean", "train_retain_acc_std", 
-#                    "val_test_retain_acc_mean", "val_test_retain_acc_std", 
-#                    "val_test_fgt_acc_mean", "val_test_fgt_acc_std", 
-#                    "AUS_mean", "AUS_std"]
 
-#cifar10_df = cifar10_df[columns_to_keep]
-
-
-#cifar10_df.to_csv("results_fc_resnet18/cifar10_results.csv", index=False)
-
-# === Step 1: Preprocess table ===
-# df_filtered = cifar10_df[
-#     cifar10_df["dataset"] == "cifar10"
-# ][["Forget Class", "method", "source",
-#    "val_test_fgt_acc_mean","val_test_fgt_acc_std",
-#    "val_test_retain_acc_mean", "val_test_retain_acc_std",
-#    "AUS_mean","AUS_std"]]
-
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
-
-# Add display name (human-readable method name)
-df_filtered["Display Name"] = df_filtered["method"].map(lambda m: method_name_and_ref[m][0])
-
-
-columns_to_display = [
-    ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
-    ("val_test_fgt_acc", r"$\mathcal{A}^t_f \downarrow$"),
-    ("AUS", r"AUS $\uparrow$")
-]
-
-from collections import defaultdict
-
-# Track best value (max or min) for each class and metric
-best_per_class = defaultdict(lambda: defaultdict(dict))  # e.g., best_per_class[dataset][metric][class_id]
-
-# Only process for current dataset, e.g., CIFAR10
-dataset_name = "cifar10"
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
-
-for prefix, label in columns_to_display:
-    metric_mean = f"{prefix}_mean"
-    for class_name in range(10):  # For CIFAR-10 classes 0-9
-        class_subset = df_filtered[df_filtered["Forget Class"] == class_name]
-        values = class_subset[metric_mean].dropna()
-
-        if "retain" in prefix or prefix == "AUS":
-            best_value = values.max() if not values.empty else None
-        # elif "fgt" in prefix:
-        #     best_value = values.min() if not values.empty else None
-        else:
-            best_value = None
-
-        best_per_class[dataset_name][prefix][class_name] = best_value
-        
-        
-
-
-records = []
-for (method, source), group in df_filtered.groupby(["method", "source"]):
-    display_name = method_name_and_ref[method][0]
-    is_single_value = method.lower() in ["retrained"]
-
-    for prefix, metric_name in columns_to_display:
-        mean_key = f"{prefix}_mean"
-        std_key = f"{prefix}_std"
-        fallback_key = prefix  # for Retrained, if only value is available
-
-        row = {
-            "Method": display_name,
-            "Source": source,
-            "Metric": metric_name
-        }
-        ref_citation = method_name_and_ref.get(method, ("", "–"))[1]
-        if method.lower() in ["original", "retrained"]:
-            ref = "–"
-        elif source == "synth":
-            ref = "Ours"
-        else:
-            ref = ref_citation.replace(" Ours", "")
-        row["Ref"] = ref
-
-        for _, row_df in group.iterrows():
-            forget_class = int(row_df["Forget Class"])
-        
-            if is_single_value:
-                value = row_df.get(fallback_key, row_df.get(mean_key, float("nan")))
-                if pd.notna(value):
-                    # Check if it's the best for that class
-                    is_best = value == best_per_class["cifar10"][prefix][forget_class]
-                    if prefix == "AUS":
-                        value_fmt = f"{value:.3f}"
-                    if prefix == "val_test_retain_acc":
-                        value_fmt = f"{value:.2f}"
-                        if value < 10:
-                            value_fmt = value_fmt
-                    if prefix == "val_test_fgt_acc":
-                        value_fmt = f"{value:.1f}"
-                        if value < 10:
-                            value_fmt = value_fmt     
-                    row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
-                else:
-                    row[forget_class] = "-"
-            else:
-                mean = row_df.get(mean_key, float("nan"))
-                std = row_df.get(std_key, float("nan"))
-                
-                if pd.notna(mean) and pd.notna(std):
-                    is_best = mean == best_per_class["cifar10"][prefix][forget_class]
-                    if prefix == "AUS":
-                        mean_fmt = f"{mean:.3f}"
-                        std_fmt = f"{std:.3f}"
-                    if prefix == "val_test_retain_acc":
-                        mean_fmt = f"{mean:.2f}"
-                        std_fmt = f"{std:.2f}"
-                        if mean < 10:
-                            mean_fmt = mean_fmt
-                        if std < 10:
-                            std_fmt = std_fmt                        
-                    if prefix == "val_test_fgt_acc":
-                        mean_fmt = f"{mean:.1f}"
-                        std_fmt = f"{std:.1f}"
-                        if mean < 10:
-                            mean_fmt = mean_fmt
-                        if std < 10:
-                            std_fmt = std_fmt
-                    
-
-                    if is_best:
-                        row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-                    else:
-                        row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-
-
-
-                else:
-                    row[forget_class] = "-"
-
-        records.append(row)
-
-
-
-
-# === Step 3: Create final DataFrame and format to 2 decimal places ===
-final_df = pd.DataFrame(records)
-
-# for col in range(10):  # forget classes 0 to 9
-#     if col in final_df.columns:
-#         final_df = final_df[["Method", "Source", "Ref", "Metric"] + list(range(10))]
-
-for col in range(10):  # forget classes 0 to 9
-    if col in final_df.columns:
-        final_df = final_df[["Method", "Source", "Metric"] + list(range(10))]
-
-
-
-
-
-method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
-
-# Apply metric order BEFORE sorting
-metric_order = [m[1] for m in columns_to_display]
-metric_dtype = pd.CategoricalDtype(categories=metric_order, ordered=True)
-final_df["Metric"] = final_df["Metric"].astype(metric_dtype)
-
-# Apply method order
-method_order_display = [method_name_map[m] for m in method_order if m in method_name_map]
-method_dtype = pd.CategoricalDtype(categories=method_order_display, ordered=True)
-final_df["Method"] = final_df["Method"].astype(method_dtype)
-
-
-# Step 4: Sort
-final_df = final_df.sort_values(["Method", "Source", "Metric"]).reset_index(drop=True)
-
-latex_lines = []
-prev_method = prev_source = None
-
-SHOW_SOURCE_COL = False
-
-# Convert to LaTeX lines manually
-header = ["Method", "Metric"] + list(range(10))
-column_format = "c|c|" + "c" * 10
-
-#header = ["Method", "Source", "Ref", "Metric"] + list(range(10))
-#column_format = "c|c|c|c|" + "c" * 10
-
-
-
-# --- pre-compute how many rows each Method will occupy (needed for \multirow) ---
-method_row_counts = final_df.groupby("Method", observed=False).size().to_dict()
-
-latex = []
-latex.append(r"\begin{table*}[ht]")
-latex.append(r"\centering")
-latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ResNet-18, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}")
-latex.append(r"\label{tab:CIFAR-10_forget_resnet18}")
-latex.append(r"\resizebox{\textwidth}{!}{%")
-latex.append(r"\begin{tabular}{" + column_format + "}")
-latex.append(r"\toprule")
-# latex.append(
-#     r"\multirow[c]{2}{*}{Method} & "
-#     r"\multirow[c]{2}{*}{Source} & "
-#     r"\multirow[c]{2}{*}{Ref} & "
-#     r"\multirow[c]{2}{*}{Metric} & "
-#     r"\multicolumn{10}{c}{Forget Class} \\"
-# )
-
-latex.append(
-    r"\multirow[c]{2}{*}{Method} & "
-    r"\multirow[c]{2}{*}{Metric} & "
-    r"\multicolumn{10}{c}{Forget Class} \\"
-)
-
-
-
-# latex.append(
-#     r"& & & & " +      # four empty columns under the multi-rows
-#     " & ".join(map(str, range(10))) +  # 0 … 9
-#     r" \\"
-# )
-
-latex.append(
-    r"& & " +      # 2 empty columns under the multi-rows
-    " & ".join(map(str, range(10))) +  # 0 … 9
-    r" \\"
-)
-
-
-
-
-latex.append(r"\midrule")
-
-method_source_row_counts = df_filtered.groupby(["method", "source"]).size().to_dict()
-
-prev_method = None
-prev_source_key = None
-prev_ref_key = None
-
-for i, row in final_df.iterrows():
-    method = row["Method"]
-    source = row["Source"]
-    
-    base_method = [k for k, v in method_name_and_ref.items() if v[0] == method]
-    base_method = base_method[0] if base_method else method.lower()
-    ref_text = method_name_and_ref.get(base_method, ("", "–"))[1]
-    if base_method != "original":
-        if source == "synth":
-            ref = "Ours"
-        else:
-            ref = ref_text.replace(" Ours", "")
-    else:
-        ref = ref_text
-    
-    # Handle proper source display for 'original' and 'retrained'
-    source_display = "-" if method in ["Original", "Retrained"] else source
-    source_key = (method, source_display)    
-        
-    if prev_method is not None and method != prev_method:
-        latex.append(r"\midrule")
-
-    if prev_source_key is not None and source_key != prev_source_key and method == prev_method:
-        latex.append(r"\cmidrule(lr){2-" + str(len(header)) + r"}")
-
-    cells = []
-    
-    if method == prev_method:
-        cells.append("")
-    else:
-        n_rows = method_row_counts[method]
-        cells.append(fr"\multirow{{{n_rows}}}{{*}}{{{method}}}")
-    
-    # if source_key == prev_source_key:
-    #     cells.append("")
-    # else:
-    #     n_rows = method_source_row_counts.get((method.lower(), source), 1)
-    #     cells.append(fr"\multirow{{{3}}}{{*}}{{\centering {source_display}}}")
-    
-    
-    # Add reference (no merging)
-    #ref_key = (method, source_display)
-    
-    # if ref_key == prev_ref_key:
-    #     cells.append("")
-    # else:
-    #     cells.append(fr"\multirow[c]{{{3}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
-    
-
-    
-    #prev_ref_key = ref_key    
-    cells.append(row["Metric"])
-    cells.extend([row.get(col, "") for col in header[2:]])
-
-
-
-    row_latex = " & ".join(map(str, cells)) + r" \\"
-    
-    if source == "synth":
-        parts = row_latex.split("&")
-        # Apply gray color to all columns except the first ("Method")
-        parts[1] = r"\cellcolor{gray!15}" + parts[1]
-        for i in range(2, len(parts)):
-            parts[i] = r"\cellcolor{gray!15}" + parts[i]
-        row_latex = " & ".join(parts)
-    
-    
-    latex.append(row_latex)
-
-
-    #latex.append(" & ".join(map(str, cells)) + r" \\")
-    prev_method = method
-    prev_source_key = source_key
-
-
-latex.append(r"\bottomrule")
-latex.append(r"\end{tabular}")
-latex.append(r"}")  # closing resizebox
-latex.append(r"\end{table*}")
-
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/CIFAR-10_unlearning_table_per_class_fc_resnet18.tex", "w") as f:
-    f.write("\n".join(latex))
