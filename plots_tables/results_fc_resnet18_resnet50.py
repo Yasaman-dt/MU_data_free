@@ -162,24 +162,17 @@ for _, row in stats_df.iterrows():
                     val_str = f"{val:.1f}"
                     std_str = f"{std:.1f}"
     
- 
-    
             dset = dataset
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[arch][dset][label], 3)
     
-    
-    
-    
-            if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
-                val_str = f"\\textbf{{{val_str}}}"
-    
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
+            #     val_str = f"\\textbf{{{val_str}}}"
+            
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
         
         values.append(cell)
-
-
 
     grouped_methods[key][dataset] = values
     access_flags[key] = get_data_free_flags(method, source)
@@ -203,7 +196,6 @@ latex_table = r"""\begin{table*}[ht]
 \midrule
 \midrule
 """
-
 
 # Sort by method name for consistency
 prev_arch = None
@@ -243,7 +235,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     base_method = key.split(" (")[0]
 
-
     # if prev_arch is not None and arch != prev_arch:
     #     latex_table += r"\midrule" + "\n"        
         
@@ -254,11 +245,8 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         elif arch == "resnet50":
             latex_table += r"\midrule"+r"\midrule"+r"\midrule"
             latex_table += r"\multicolumn{12}{c}{\textbf{ResNet-50:}} \\" + "\n"
-    
                
     prev_arch = arch
-
-
     # # === INSERT LABEL before each architecture block ===
     # next_idx = idx + 1
     # if next_idx == len(all_keys_sorted) or grouped_methods[all_keys_sorted[next_idx]]["arch"] != arch:
@@ -266,7 +254,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     #     latex_table += r"\midrule" + "\n"
     #     latex_table += rf"\multicolumn{{12}}{{c}}{{\textbf{{{label} $\uparrow$}}}} \\" + "\n"
         
-            
     
     if base_method != prev_base_method:
         if prev_base_method in ["original", "FT", "DELETE"]:
@@ -274,7 +261,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         else:
             latex_table += r"\midrule" + "\n"
 
-        
     D_r_free, D_f_free = access_flags[key]
     values = grouped_methods[key]["CIFAR10"] + grouped_methods[key]["CIFAR100"] + grouped_methods[key]["TinyImageNet"]
 
@@ -302,7 +288,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
         values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
-
         #row = [arch_cell, method_cell, dr_free, df_free] + values_multirow
         row = [method_cell, dr_free, df_free] + values_multirow
         latex_table += " & ".join(row) + r" \\" + "\n"
@@ -313,8 +298,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         #row = ["","", "", ""] + [""] * len(values)
         
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
-        
-                
         
         continue  # skip rest of loop
         
@@ -332,14 +315,11 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     else:
         method_cell = method_display_base
 
-
-
     if not arch_row_printed[arch]:
         arch_cell = rf"\multirow{{{arch_total_rows[arch]}}}{{*}}{{{arch.replace('resnet', 'ResNet-')}}}"
         arch_row_printed[arch] = True
     else:
         arch_cell = ""
-
 
     #row = [arch_cell, method_cell, D_r_free, D_f_free] + values
     row = [method_cell, D_r_free, D_f_free] + values
@@ -360,10 +340,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     #     latex_table += r"\midrule" + "\n"
     #     latex_table += rf"\multicolumn{{12}}{{c}}{{\textbf{{{label} $\uparrow$}}}} \\" + "\n"
         
-            
-            
-    
-
 # Close LaTeX
 latex_table += r"""\bottomrule
 \bottomrule

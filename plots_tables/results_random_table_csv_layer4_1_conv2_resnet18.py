@@ -22,7 +22,7 @@ method_map = {
 }
 
 
-original_path = os.path.join(parent_dir, "results_real/results_original_resnet18.csv")
+original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -73,9 +73,9 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
-cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
-tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
+cifar10_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_fc_resnet18/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
 
 # Add dataset identifiers
 cifar10_df["dataset"] = "CIFAR10"
@@ -170,10 +170,6 @@ for folder_name, source_type in sources:
                 print(f"⚠️ Could not parse: {filename}")
 
 
-
-
-
-
 # === Combine all ===
 if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
@@ -215,7 +211,6 @@ if all_data:
     "CIFAR100": "cifar100"
     })
 
-
     for df in [original_df, retrained_df]:
         if "method" in df.columns:
             df["method"] = df["method"].replace(method_map)
@@ -241,13 +236,10 @@ if all_data:
         output_file = os.path.join(save_dir, filename)
         group_df.to_csv(output_file, index=False)
         #print(f"✅ Saved {output_file}")    
-    
-    
+        
     # === Combine original + best_df
     combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
     combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_layer4_1_conv2/results_total.csv", index=False)
-
-
 
     print("✅ Merged original results with current best results.")
     
@@ -302,29 +294,10 @@ def get_data_free_flags(method, source):
 # Group rows by dataset
 datasets = stats_df["dataset"].unique()
 
-# === Define display names and references
-# method_name_and_ref = {
-#     "original": ("Original", r"–"),
-#     "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", r"–"),
-#     "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", r"–"),
-#     "FT": ("FT", r"\citep{golatkar2020eternal} Ours"),
-#     "NG": ("NG", r"\citep{golatkar2020eternal} Ours"),
-#     "NGFTW": ("NG+", r"\citep{golatkar2020eternal} Ours"),
-#     "RL": ("RL", r"\citep{hayase2020selective} Ours"),
-#     "BS": ("BS", r"\citep{chen2023boundary} Ours"),
-#     "BE": ("BE", r"\citep{chen2023boundary} Ours"),
-#     "LAU": ("LAU", r"\citep{kim2024layer} Ours"),
-#     "SCRUB": ("SCRUB", r"\citep{kurmanji2023towards} Ours"),
-#     "DUCK": ("DUCK", r"\citep{cotogni2023duck} Ours"),
-#     "SCAR": ("SCAR", r"\citep{bonato2024retain} Ours"),
-
-# }
-
-
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
-    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
@@ -335,12 +308,9 @@ method_name_and_ref = {
     "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
-
 }
 
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
-
-
 
 
 # === Define displayed metrics
@@ -425,9 +395,7 @@ for _, row in stats_df.iterrows():
                 if val < 10: val_str = val_str
                 if std < 10: std_str = std_str
         
-        
             dset = dataset
-
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[dataset][label], 3)
@@ -436,20 +404,16 @@ for _, row in stats_df.iterrows():
             # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
             #     val_str = f"\\textbf{{{val_str}}}"
     
-    
             from math import isclose
             
             # Instead of:
             # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
             
             # Use:
-            if label in [r"\mathcal{A}^t_r", "AUS"] and isclose(val, max_min_tracker[dataset][label], abs_tol=1e-4):
-                val_str = f"\\textbf{{{val_str}}}"    
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and isclose(val, max_min_tracker[dataset][label], abs_tol=1e-4):
+            #     val_str = f"\\textbf{{{val_str}}}"    
                 
-                    
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
-    
-
     
         values.append(cell)  
 
@@ -463,13 +427,13 @@ latex_table = r"""\begin{table*}[h]
 \captionsetup{font=small}
 \caption{Class unlearning performance using random samples generated from layer 4 (immediately before the last convolutional layer) of ResNet-18 as the base architecture. Rows highlighted in gray show results obtained with synthetic embeddings.}
 
-\label{tab:results_ngftw_real_vs_synth_layer4_1_conv2}
+\label{tab:results_layer4_1_conv2_resnet18}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|cc|ccc|ccc|ccc}
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule
@@ -484,7 +448,7 @@ latex_table = r"""\begin{table*}[h]
 #          We fine-tune five independently initialized models and perform class-wise unlearning separately for every class.
 #         Reported metrics are the mean and standard deviation computed across all classes and model seeds.}
 
-# \label{tab:results_ngftw_real_vs_synth_layer4_1_conv2}
+# \label{tab:results_layer4_1_conv2_resnet18}
 
 # \resizebox{\textwidth}{!}{
 # \begin{tabular}{c|c|cc|ccc|ccc|ccc}
@@ -596,12 +560,8 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_layer4_1_conv2/results_ngftw_real_vs_synth_layer4_1_conv2.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_random_layer4_1_conv2/results_layer4_1_conv2_resnet18.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
-print("✅ LaTeX table saved to results_ngftw_real_vs_synth_layer4_1_conv2.tex")
-
-
-
-
+print("✅ LaTeX table saved to results_layer4_1_conv2_resnet18.tex")
 

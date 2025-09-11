@@ -53,8 +53,6 @@ method_name_and_ref = {
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
     "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
-
-
 }
 
 
@@ -116,8 +114,8 @@ for _, row in stats_df.iterrows():
             continue
         val_str = f"{val:.3f}" if label == "AUS" else f"{val:.2f}" if label == "\mathcal{A}^t_r" else f"{val:.1f}"
         std_str = f"{std:.3f}" if label == "AUS" else f"{std:.2f}" if label == "\mathcal{A}^t_r" else f"{std:.1f}"
-        if round(val, 3) == round(max_min_tracker[row["arch"]][dataset][label], 3) and label in [r"\mathcal{A}^t_r", "AUS"]:
-            val_str = f"\\textbf{{{val_str}}}"
+        # if round(val, 3) == round(max_min_tracker[row["arch"]][dataset][label], 3) and label in [r"\mathcal{A}^t_r", "AUS"]:
+        #     val_str = f"\\textbf{{{val_str}}}"
         values.append(f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}")
 
 

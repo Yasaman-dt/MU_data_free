@@ -55,23 +55,16 @@ method_name_and_ref = {
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
     "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
-
-
 }
 
 
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
-
-
-
 
 columns_to_display = [
     ("val_test_retain_acc", "\mathcal{A}^t_r"),
     ("val_test_fgt_acc", "\mathcal{A}^t_f"),
     ("AUS", "AUS")
 ]
-
-
 
 
 def sort_key(key):
@@ -115,8 +108,6 @@ for _, row in stats_df.iterrows():
         continue  # Skip DUCK method    
     method = row["method"]
     source = row["source"]
-
-
     dataset = row["dataset"].strip().lower()
     if dataset == "cifar10":
         dataset = "CIFAR10"
@@ -159,24 +150,17 @@ for _, row in stats_df.iterrows():
                     val_str = f"{val:.1f}"
                     std_str = f"{std:.1f}"
     
- 
-    
             dset = dataset
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[arch][dset][label], 3)
     
-    
-    
-    
-            if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
-                val_str = f"\\textbf{{{val_str}}}"
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
+            #     val_str = f"\\textbf{{{val_str}}}"
     
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
         
         values.append(cell)
-
-
 
     grouped_methods[key][dataset] = values
     access_flags[key] = get_data_free_flags(method, source)
@@ -248,12 +232,8 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
             latex_table += r"\midrule"
             latex_table += r"\multicolumn{12}{c}{\textbf{ViT-B-16:}} \\" + "\n"
 
-    
-               
     prev_arch = arch
 
-
-   
     if base_method != prev_base_method:
         if prev_base_method in ["original", "FT", "DELETE"]:
             latex_table += r"\midrule" + "\n" + r"\midrule" 
@@ -300,7 +280,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
-                
         
         continue  # skip rest of loop
         
@@ -417,8 +396,6 @@ for prefix, label in columns_to_display:
             best_value = None
 
         best_per_class[dataset_name][prefix][class_name] = best_value
-        
-        
 
 
 records = []
@@ -463,7 +440,8 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                         value_fmt = f"{value:.1f}"
                         if value < 10:
                             value_fmt = value_fmt     
-                    row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                    #row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                    row[forget_class] = value_fmt
                 else:
                     row[forget_class] = "-"
             else:
@@ -490,18 +468,16 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                         if std < 10:
                             std_fmt = std_fmt
                      
-                    
-                    if is_best:
-                        row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-                    else:
-                        row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    # if is_best:
+                    #     row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    # else:
+                    #     row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
 
                 else:
                     row[forget_class] = "-"
 
         records.append(row)
-
-
 
 
 # === Step 3: Create final DataFrame and format to 2 decimal places ===
@@ -569,7 +545,6 @@ latex.append(
 )
 
 
-
 # latex.append(
 #     r"& & & & " +      # four empty columns under the multi-rows
 #     " & ".join(map(str, range(10))) +  # 0 … 9
@@ -581,8 +556,6 @@ latex.append(
     " & ".join(map(str, range(10))) +  # 0 … 9
     r" \\"
 )
-
-
 
 
 latex.append(r"\midrule")
@@ -646,8 +619,6 @@ for i, row in final_df.iterrows():
     # else:
     #     cells.append(fr"\multirow[c]{{{3}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
     
-
-    
     prev_ref_key = ref_key    
     cells.append(row["Metric"])
     cells.extend([row.get(col, "") for col in header[2:]])
@@ -663,9 +634,7 @@ for i, row in final_df.iterrows():
             parts[i] = r"\cellcolor{gray!15}" + parts[i]
         row_latex = " & ".join(parts)
     
-    
     latex.append(row_latex)
-
 
     #latex.append(" & ".join(map(str, cells)) + r" \\")
     prev_method = method

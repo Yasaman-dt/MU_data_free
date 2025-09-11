@@ -153,8 +153,8 @@ for _, row in stats_df.iterrows():
             tracked_val = round(max_min_tracker[dataset][label], 3)
             
             # Apply bold only if it's the max for retain or AUS
-            if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
-                val_str = f"\\textbf{{{val_str}}}"
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
+            #     val_str = f"\\textbf{{{val_str}}}"
     
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
 
@@ -382,7 +382,7 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                         value_fmt = f"{value:.1f}"
                         if value < 10:
                             value_fmt = value_fmt     
-                    row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                    row[forget_class] = value_fmt #fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
                 else:
                     row[forget_class] = "-"
             else:
@@ -410,10 +410,11 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                             std_fmt = std_fmt
                      
                     
-                    if is_best:
-                        row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-                    else:
-                        row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    # if is_best:
+                    #     row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    # else:
+                    #     row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
 
                 else:
                     row[forget_class] = "-"

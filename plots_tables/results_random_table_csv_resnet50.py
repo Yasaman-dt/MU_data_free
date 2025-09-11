@@ -166,11 +166,9 @@ for folder_name, source_type in sources:
                     if col in df.columns:
                         df[col] = df[col] * 100
 
-
                 all_data.append(df)
             else:
                 print(f"⚠️ Could not parse: {filename}")
-
 
 
 

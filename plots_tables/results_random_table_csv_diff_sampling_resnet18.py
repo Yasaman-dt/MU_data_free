@@ -642,7 +642,3 @@ with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU
 
 print("✅ LaTeX table saved to results_diff_sampling_resnet18.tex")
 
-
-
-
-

@@ -50,16 +50,10 @@ method_name_and_ref = {
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
     "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
-
-
 }
 
 
 method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
-
-
-
-
 
 
 columns_to_display = [
@@ -67,8 +61,6 @@ columns_to_display = [
     ("val_test_fgt_acc", "\mathcal{A}^t_f"),
     ("AUS", "AUS")
 ]
-
-
 
 
 def sort_key(key):
@@ -111,7 +103,6 @@ for _, row in stats_df.iterrows():
         dataset = "TinyImageNet"
     else:
         continue  # skip unknown dataset
-
 
     key = f"{method} ({source})"
     values = []
@@ -159,14 +150,12 @@ for _, row in stats_df.iterrows():
             tracked_val = round(max_min_tracker[dataset][label], 3)
             
             # Apply bold only if it's the max for retain or AUS
-            if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
-                val_str = f"\\textbf{{{val_str}}}"
-    
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
+            #     val_str = f"\\textbf{{{val_str}}}"
+  
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
-
     
         values.append(cell)  
-
 
     grouped_methods[key][dataset] = values
     access_flags[key] = get_data_free_flags(method, source)
@@ -189,7 +178,6 @@ latex_table = r"""\begin{table*}[ht]
 \midrule
 \midrule
 """
-
 
 # Sort by method name for consistency
 
@@ -235,15 +223,12 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
         values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
-
         row = [method_cell, ref_cell, dr_free, df_free] + values_multirow
         latex_table += " & ".join(row) + r" \\" + "\n"
     
         # Now insert an empty second row for spacing and alignment
         row = ["", "", "", ""] + [""] * len(values)
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
-        
-                
         
         continue  # skip rest of loop
 
@@ -257,13 +242,11 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         method_cell = method_display_base
         ref_cell = ref
 
-
     row = [method_cell, ref_cell, D_r_free, D_f_free] + values
 
     latex_table += " & ".join(row) + r" \\" + "\n"
 
     prev_base_method = base_method
-    
     
 
 # Close LaTeX
@@ -342,8 +325,6 @@ for prefix, label in columns_to_display:
 
         best_per_class[dataset_name][prefix][class_name] = best_value
         
-        
-
 
 records = []
 for (method, source), group in df_filtered.groupby(["method", "source"]):
@@ -387,7 +368,8 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                         value_fmt = f"{value:.1f}"
                         if value < 10:
                             value_fmt = value_fmt     
-                    row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                    #row[forget_class] = fr"\textbf{{{value_fmt}}}" if is_best else value_fmt
+                    row[forget_class] = value_fmt
                 else:
                     row[forget_class] = "-"
             else:
@@ -414,20 +396,16 @@ for (method, source), group in df_filtered.groupby(["method", "source"]):
                         if std < 10:
                             std_fmt = std_fmt
                     
-
-                    if is_best:
-                        row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-                    else:
-                        row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
-
-
+                    # if is_best:
+                    #     row[forget_class] = fr"\textbf{{{mean_fmt}}}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    # else:
+                    #     row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
+                    row[forget_class] = fr"{mean_fmt}\text{{\scriptsize\,$\pm$\,{std_fmt}}}"
 
                 else:
                     row[forget_class] = "-"
 
         records.append(row)
-
-
 
 
 # === Step 3: Create final DataFrame and format to 2 decimal places ===
@@ -440,9 +418,6 @@ final_df = pd.DataFrame(records)
 for col in range(10):  # forget classes 0 to 9
     if col in final_df.columns:
         final_df = final_df[["Method", "Source", "Metric"] + list(range(10))]
-
-
-
 
 
 method_name_map = {k: v[0] for k, v in method_name_and_ref.items()}
@@ -473,8 +448,6 @@ column_format = "c|c|" + "c" * 10
 #header = ["Method", "Source", "Ref", "Metric"] + list(range(10))
 #column_format = "c|c|c|c|" + "c" * 10
 
-
-
 # --- pre-compute how many rows each Method will occupy (needed for \multirow) ---
 method_row_counts = final_df.groupby("Method", observed=False).size().to_dict()
 
@@ -501,8 +474,6 @@ latex.append(
     r"\multicolumn{10}{c}{Forget Class} \\"
 )
 
-
-
 # latex.append(
 #     r"& & & & " +      # four empty columns under the multi-rows
 #     " & ".join(map(str, range(10))) +  # 0 … 9
@@ -514,8 +485,6 @@ latex.append(
     " & ".join(map(str, range(10))) +  # 0 … 9
     r" \\"
 )
-
-
 
 
 latex.append(r"\midrule")
@@ -574,13 +543,10 @@ for i, row in final_df.iterrows():
     # else:
     #     cells.append(fr"\multirow[c]{{{3}}}{{*}}{{\centering\arraybackslash {row['Ref']}}}")
     
-
     
     #prev_ref_key = ref_key    
     cells.append(row["Metric"])
     cells.extend([row.get(col, "") for col in header[2:]])
-
-
 
     row_latex = " & ".join(map(str, cells)) + r" \\"
     
