@@ -40,8 +40,8 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
-    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),

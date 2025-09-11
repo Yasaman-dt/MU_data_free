@@ -338,8 +338,8 @@ datasets = stats_df["dataset"].unique()
 
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
-    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
@@ -491,7 +491,7 @@ the corresponding non-shaded rows use original embeddings with the same method.}
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{{Embedding\\Distribution}}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR10}} & \multicolumn{3}{c|}{\textbf{CIFAR100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{{Embedding\\Distribution}}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule

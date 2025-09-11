@@ -45,8 +45,8 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\begin{tabular}{c}Retrained \\ (Full)\end{tabular}", "–"),
-    "RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
+    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
@@ -192,7 +192,7 @@ latex_table = r"""\begin{table*}[ht]
 \caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
-\label{tab:main_results}
+\label{tab:main_results_fc_CNN}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|cc|ccc|ccc|ccc}
