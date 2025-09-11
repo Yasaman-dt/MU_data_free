@@ -4,35 +4,59 @@ import numpy as np
 import torchvision.models as models
 from create_embeddings_utils import get_model
 from torch.utils.data import DataLoader, TensorDataset
+import torch.nn as nn
 
 
+
+def _last_linear(module: nn.Module) -> nn.Linear:
+    """
+    Find the last nn.Linear inside a module (e.g., inside an nn.Sequential).
+    Raises if none is found.
+    """
+    for m in reversed(list(module.modules())):
+        if isinstance(m, nn.Linear):
+            return m
+    raise AttributeError("No nn.Linear found inside the given module.")
 
 def _get_classifier_and_dim(net):
-    # Returns (classifier_module, in_features, out_features)
-    if hasattr(net, "heads"):  # ViT_16_mod path
-        clf = net.heads
-        # heads is nn.Sequential(Dropout, Linear) in your wrapper
-        last = clf[-1] if hasattr(clf, "__getitem__") else clf
-        in_dim = last.in_features
-        out_dim = last.out_features
-        return clf, in_dim, out_dim
-    elif hasattr(net, "fc"):   # ResNet path
-        clf = net.fc
-        in_dim = clf.in_features
-        out_dim = clf.out_features
-        return clf, in_dim, out_dim
-    else:
-        raise AttributeError("Model has neither `heads` nor `fc`.")
+    """
+    Returns (classifier_module, in_features, out_features) for a variety of model wrappers:
+    - ViT wrappers with .heads as nn.Sequential(Dropout, Linear)
+    - timm/torchvision ViTs with .head or .classifier
+    - ResNets with .fc
+    """
+    # Try common classifier attribute names in priority order
+    for attr in ("heads", "head", "classifier", "fc", "classif"):
+        if hasattr(net, attr):
+            clf = getattr(net, attr)
+            # If it's already a Linear, use it; if it's a container (Sequential, Module), find last Linear
+            if isinstance(clf, nn.Linear):
+                in_dim = clf.in_features
+                out_dim = clf.out_features
+                return clf, in_dim, out_dim
+            else:
+                last = _last_linear(clf)  # picks the final Linear inside .heads/.classifier
+                return clf, last.in_features, last.out_features
+
+    # Some timm models route through get_classifier()
+    if hasattr(net, "get_classifier"):
+        clf = net.get_classifier()
+        if isinstance(clf, nn.Linear):
+            return clf, clf.in_features, clf.out_features
+        else:
+            last = _last_linear(clf)
+            return clf, last.in_features, last.out_features
+
+    raise AttributeError("Could not locate a classifier layer (heads/head/classifier/fc).")
     
     
     
-def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, noise_type, device='cuda'):
+def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_type, device='cuda'):
     batch_size = 2000
 
-    # ✅ No image probe; get dim from classifier
-    resnet_model.eval()
-    fc_layer, embedding_dim, _ = _get_classifier_and_dim(resnet_model)
-    fc_layer = fc_layer.to(device).eval()
+    net.eval().to(device)
+    clf, embedding_dim, out_dim = _get_classifier_and_dim(net)
+    clf = clf.to(device).eval()  # works if Linear or Sequential
 
     all_sample_probs = []
     class_counts = {i: 0 for i in range(num_classes)}
@@ -60,7 +84,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, resnet_model, 
         probabilities = log_prob
 
         with torch.no_grad():
-            logits = fc_layer(feature_samples)   # works for both Sequential(heads) and Linear(fc)
+            logits = clf(feature_samples)   # works for both Sequential(heads) and Linear(fc)
             soft_targets = F.softmax(logits, dim=1)
             predicted_labels = torch.argmax(soft_targets, dim=1)
 
