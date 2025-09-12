@@ -190,7 +190,7 @@ def get_trained_model():
         model = get_ViT_trained()
     elif 'swint' in opt.model:
         model = get_Swin_trained()
-    elif 'AllCNN' in opt.model
+    elif 'AllCNN' in opt.model:
         model = get_AllCNN_trained()
     return model
 
