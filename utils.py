@@ -18,6 +18,7 @@ from sklearn.metrics import precision_recall_fscore_support
 import os
 import zipfile
 import tarfile
+from models.swin_transformer import swin_tiny_patch4_window7_224
 
 
 
@@ -175,12 +176,21 @@ def get_AllCNN_trained():
     model.load_state_dict(weights_pretrained)
     return model
 
+def get_Swin_trained():
+    local_path = opt.or_model_weights_path
+    weights_pretrained = torch.load(local_path)
+    model = swin_tiny_patch4_window7_224(pretrained=False, num_classes=opt.num_classes)
+    model.load_state_dict(weights_pretrained)
+    return model
+
 def get_trained_model():
     if 'resnet' in opt.model:
         model = get_resnet_trained()
     elif 'ViT' in opt.model:
         model = get_ViT_trained()
-    elif opt.model == 'AllCNN':
+    elif 'swint' in opt.model:
+        model = get_Swin_trained()
+    elif 'AllCNN' in opt.model
         model = get_AllCNN_trained()
     return model
 

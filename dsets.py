@@ -61,7 +61,7 @@ def get_dsets_remove_class(class_to_remove):
             transforms.Normalize(mean[opt.dataset],std[opt.dataset]),
         ]
 
-    if opt.model =='ViT':
+    if opt.model in ('ViT', 'swint'):
         transform_list.insert(0,transforms.RandomCrop(224, padding=28))
         transform_list.insert(0,transforms.Resize(224, antialias=True))
         transform_list_test.insert(0,transforms.Resize(224, antialias=True))

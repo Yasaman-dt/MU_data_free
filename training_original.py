@@ -8,6 +8,7 @@ import numpy as np
 from torch.utils.data import Subset
 from models.allcnn import AllCNN
 from models.ViT import ViT_16_mod
+from models.swin_transformer import swin_tiny_patch4_window7_224
 from opts import OPT as opt
 import os 
 import wandb
@@ -25,7 +26,6 @@ std = {
         'cifar100': (0.2675, 0.2565, 0.2761),
         'TinyImageNet': (0.229, 0.224, 0.225),
         }
-
 
 
 transform_train = transforms.Compose([
@@ -54,7 +54,7 @@ transform_test_tiny = transforms.Compose([
     ])
 
 
-if opt.model == 'ViT':
+if opt.model in ('ViT', 'swint'):
     transform_train = transforms.Compose([
         transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
         transforms.RandomHorizontalFlip(),
@@ -68,8 +68,6 @@ if opt.model == 'ViT':
     ])
 
 
-
-
 def trainer(removed=None):
     # Initialize the model
     if opt.model == 'resnet18':
@@ -80,9 +78,14 @@ def trainer(removed=None):
         model = torchvision.models.resnet50(pretrained=True).to('cuda')
     elif opt.model=='AllCNN':
         model = AllCNN(n_channels=3, num_classes=opt.num_classes).to('cuda')
-    elif opt.model == 'ViT':           # NEW -------------------------
+    elif opt.model == 'ViT':           
         model = ViT_16_mod(n_classes=opt.num_classes).to('cuda')
-        
+    elif opt.model == "swint":
+        model = swin_tiny_patch4_window7_224(pretrained=False, num_classes=opt.num_classes).to('cuda')   
+    else:
+        raise ValueError(f"Unknown model: {opt.model}")
+
+
     if opt.dataset == 'cifar10':
         os.makedirs(f'./weights/chks_cifar10/original', exist_ok=True)
         # Load CIFAR-10 data

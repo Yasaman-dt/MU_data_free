@@ -156,7 +156,6 @@ class OPT:
             or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_resnet18_m{n_model}.pth'
             if mode == "CR":
                 RT_model_weights_path = root_folder+f'weights/chks_TinyImageNet/retrained/best_checkpoint_without_{class_to_remove}.pth'
-            
      
     elif model == 'resnet50':
         if dataset== 'cifar10':
@@ -181,7 +180,15 @@ class OPT:
             or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_ViT_m{n_model}.pth'
         if dataset== 'TinyImageNet':
             or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_ViT_m{n_model}.pth'
-            
+
+    elif model == 'swint':
+        if dataset == 'cifar10':
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_swin_t_m{n_model}.pth'
+        elif dataset == 'cifar100':
+            or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_swin_t_m{n_model}.pth'
+        elif dataset == 'TinyImageNet':
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_swin_t_m{n_model}.pth'
+
     elif model == 'AllCNN':
         if dataset== 'cifar10':
             or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_AllCNN_m{n_model}.pth'
