@@ -459,8 +459,8 @@ for _, row in stats_df.iterrows():
             tracked_val = round(max_min_tracker[dataset][label], 3)
             
             # Apply bold only if it's the max for retain or AUS
-            if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
-                val_str = f"\\textbf{{{val_str}}}"
+            # if label in [r"\mathcal{A}^t_r", "AUS"] and target_val == tracked_val:
+            #     val_str = f"\\textbf{{{val_str}}}"
     
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
 
