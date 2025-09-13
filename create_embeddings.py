@@ -9,7 +9,7 @@ from create_embeddings_utils import (
     CustomBackboneModel,
     CustomDatasetLoader,
     save_embeddings_to_npz,
-    vit_input_transforms,
+    transformer_input_transforms,
 )
 from tqdm.auto import tqdm
 
@@ -43,10 +43,14 @@ def main(download: bool = True, *_, **__):  # Set download to True
             else:
                 dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-            if model_name == 'ViT':
-                checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_ViT_m{n_model}.pth"
-                # Override transforms to 224 for ViT to match training:contentReference[oaicite:9]{index=9}
-                t_train, t_test = vit_input_transforms(dataset_name)
+            if model_name in ['ViT', 'swint']:
+                if model_name == 'ViT':
+                    checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_ViT_m{n_model}.pth"
+                else:
+                    checkpoint_path = f"{DIR}/weights/chks_{dataset_name_lower}/original/best_checkpoint_swint_m{n_model}.pth"
+                # 224×224 to match training for both ViT & Swin
+                t_train, t_test = transformer_input_transforms(dataset_name)
+
                 data.train_dataset.transform = t_train
                 data.test_dataset.transform = t_test
                 if hasattr(data, 'val_dataset'):

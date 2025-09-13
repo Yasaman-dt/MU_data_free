@@ -1,7 +1,6 @@
 import copy
 import os
 from typing import Literal, Optional
-
 import numpy as np
 import pandas as pd
 import torch
@@ -14,6 +13,7 @@ from torchvision import datasets, transforms
 from tqdm.auto import tqdm
 from models.ViT import ViT_16_mod 
 from torchvision import transforms as T
+from models.swin_transformer import swin_tiny_patch4_window7_224
 
 MODELS = {
     #'densenet' : models.densenet121,
@@ -25,6 +25,7 @@ MODELS = {
     #'resnet50':models.resnet50,
     #'shufflenet':models.shufflenet_v2_x1_0,
     'ViT': ViT_16_mod,
+    'swint': swin_tiny_patch4_window7_224,
 }
 
 DATASETS = {
@@ -46,7 +47,7 @@ def embedder1(model):
 def embedder2(model):
     return nn.Sequential(*list(model.children())[:-1], nn.AdaptiveAvgPool2d((1, 1)))
 
-def vit_input_transforms(dataset_name: str):
+def transformer_input_transforms(dataset_name: str):
     # Match the 224 pipeline you use in training_original.py for ViT
     mean = {
         'CIFAR10': (0.4914, 0.4822, 0.4465),
@@ -185,8 +186,20 @@ def get_model(model_name: str, dataset_name: str, num_classes: int, checkpoint_p
         elif checkpoint_path:
             print(f"Warning: Checkpoint path {checkpoint_path} not found. Using randomly initialized ViT.")
         return model    
-    
-        
+
+    if model_name == 'swint':
+        # your local Swin expects num_classes at build time
+        model = swin_tiny_patch4_window7_224(pretrained=False, num_classes=num_classes)
+        print(f"Looking for checkpoint at: {checkpoint_path}")
+        if checkpoint_path and os.path.exists(checkpoint_path):
+            ckpt = torch.load(checkpoint_path, map_location=torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+            model.load_state_dict(ckpt, strict=False)  # allow head shape mismatches
+            print(f"Loaded Swin checkpoint from {checkpoint_path}")
+        elif checkpoint_path:
+            print(f"Warning: Checkpoint path {checkpoint_path} not found. Using randomly initialized Swin.")
+        return model
+
+      
     if model_name not in MODELS:
         raise ValueError(f"{model_name} not known.")
 
@@ -230,9 +243,6 @@ def get_model(model_name: str, dataset_name: str, num_classes: int, checkpoint_p
         print(f"Warning: Checkpoint path {checkpoint_path} not found. Using randomly initialized weights.")
 
     return model
-
-
-
 
 
 def save_embeddings_to_npz(embedding,
@@ -305,7 +315,6 @@ class CustomBackboneModel:
             raise ValueError(f"{self.model_name} has a custom last layer name.")
         return self
 
-
     @property
     def last_layer(self):
         if self.model_name in ['densenet', 'efficientnet', 'mnasnet', 'mobilenet']:
@@ -317,16 +326,22 @@ class CustomBackboneModel:
 
     @property
     def embedder(self):
-        _embedder = embedder1
-        if self.model_name in ['densenet', 'mnasnet', 'mobilenet', 'shufflenet']:
-            _embedder = embedder2
-
-        return _embedder(self.model)
-
-        if self.model_name == 'ViT':
+        # Transformers: handled explicitly in _embed_loader
+        if self.model_name in ['ViT', 'swint']:
             return None
 
+        # CNNs that need an extra GAP stage
+        if self.model_name in ['densenet', 'mnasnet', 'mobilenet', 'shufflenet']:
+            return embedder2(self.model)
+
+        # Default CNN path (e.g., resnet, googlenet, etc.)
+        if self.model_name in MODELS:
+            return embedder1(self.model)
+
+        # If we got here, it's truly unknown
         raise ValueError(f"Unknown model for embedder: {self.model_name}")
+
+
 
     def _embed_loader(self, dataset: CustomDatasetLoader):
         self.model.eval()
@@ -336,12 +351,16 @@ class CustomBackboneModel:
         with torch.no_grad():
             for _, (inputs, label) in enumerate(tqdm(dataset.loader, desc=f"embedding {dataset.dataset_name} by {self.model_name}", leave=False)):
                 inputs = inputs.to(self.device)
-
+                    
                 if self.model_name == 'ViT':
-                    # Grab pre-FC features via forward_encoder (CLS, 768d):contentReference[oaicite:6]{index=6}
+                    # CLS pre-head features
                     embedding = self.model.forward_encoder(inputs)
+                elif self.model_name == 'swint':
+                    # pooled pre-FC features
+                    feats = self.model.forward_features(inputs)
+                    embedding = self.model.forward_head(feats, pre_logits=True)
                 else:
-                    embedding = self.embedder(inputs)
+                    embedding = self.embedder(inputs)                    
                     
                 embeddings.append(embedding.cpu().numpy())
                 labels.append(label)
