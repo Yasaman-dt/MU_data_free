@@ -12,6 +12,7 @@ from models.swin_transformer import swin_tiny_patch4_window7_224
 from opts import OPT as opt
 import os 
 import wandb
+
 run = wandb.init()
 
 
@@ -115,6 +116,11 @@ def trainer(removed=None):
             trainset = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/train', transform=transform_train)
             testset  = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/val',   transform=transform_test)
             model.heads[-1] = nn.Linear(model.heads[-1].in_features, opt.num_classes).to('cuda')        
+            
+        elif opt.model == 'swint':
+            trainset = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/train', transform=transform_train)
+            testset = torchvision.datasets.ImageFolder(opt.data_path+'/TinyImageNet/val',   transform=transform_test)
+            
         else:
             trainset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/train',transform=transform_train_tiny)
             #testset = torchvision.datasets.ImageFolder(root=opt.data_path+'/TinyImageNet/val/images',transform=transform_test_tiny)
