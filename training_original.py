@@ -82,7 +82,7 @@ def trainer(removed=None):
     elif opt.model == 'ViT':           
         model = ViT_16_mod(n_classes=opt.num_classes).to('cuda')
     elif opt.model == "swint":
-        model = swin_tiny_patch4_window7_224(pretrained=False, num_classes=opt.num_classes).to('cuda')   
+        model = swin_tiny_patch4_window7_224(pretrained=True, num_classes=opt.num_classes).to('cuda')   
     else:
         raise ValueError(f"Unknown model: {opt.model}")
 
