@@ -20,32 +20,29 @@ def _last_linear(module: nn.Module) -> nn.Linear:
 
 def _get_classifier_and_dim(net):
     """
-    Returns (classifier_module, in_features, out_features) for a variety of model wrappers:
-    - ViT wrappers with .heads as nn.Sequential(Dropout, Linear)
-    - timm/torchvision ViTs with .head or .classifier
-    - ResNets with .fc
+    Returns (classifier_module, final_linear, in_features, out_features)
+    - Works for ViT (.heads / .head / .classifier), ResNet (.fc), Swin (.head), etc.
+    - final_linear is the last nn.Linear inside the classifier stack.
     """
     # Try common classifier attribute names in priority order
     for attr in ("heads", "head", "classifier", "fc", "classif"):
         if hasattr(net, attr):
             clf = getattr(net, attr)
-            # If it's already a Linear, use it; if it's a container (Sequential, Module), find last Linear
             if isinstance(clf, nn.Linear):
-                in_dim = clf.in_features
-                out_dim = clf.out_features
-                return clf, in_dim, out_dim
+                # classifier *is* the final linear
+                return clf, clf, clf.in_features, clf.out_features
             else:
-                last = _last_linear(clf)  # picks the final Linear inside .heads/.classifier
-                return clf, last.in_features, last.out_features
+                last = _last_linear(clf)  # final Linear inside the head
+                return clf, last, last.in_features, last.out_features
 
     # Some timm models route through get_classifier()
     if hasattr(net, "get_classifier"):
         clf = net.get_classifier()
         if isinstance(clf, nn.Linear):
-            return clf, clf.in_features, clf.out_features
+            return clf, clf, clf.in_features, clf.out_features
         else:
             last = _last_linear(clf)
-            return clf, last.in_features, last.out_features
+            return clf, last, last.in_features, last.out_features
 
     raise AttributeError("Could not locate a classifier layer (heads/head/classifier/fc).")
     
@@ -55,8 +52,8 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
     batch_size = 2000
 
     net.eval().to(device)
-    clf, embedding_dim, out_dim = _get_classifier_and_dim(net)
-    clf = clf.to(device).eval()  # works if Linear or Sequential
+    clf, final_linear, embedding_dim, out_dim = _get_classifier_and_dim(net)
+    final_linear = final_linear.to(device).eval()  # <- use this for [N, C] embeddings
 
     all_sample_probs = []
     class_counts = {i: 0 for i in range(num_classes)}
@@ -84,7 +81,7 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
         probabilities = log_prob
 
         with torch.no_grad():
-            logits = clf(feature_samples)   # works for both Sequential(heads) and Linear(fc)
+            logits = final_linear(feature_samples)   # works for both Sequential(heads) and Linear(fc)
             soft_targets = F.softmax(logits, dim=1)
             predicted_labels = torch.argmax(soft_targets, dim=1)
 
