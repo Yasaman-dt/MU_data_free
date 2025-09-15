@@ -10,9 +10,9 @@ import csv
 from models.ViT import ViT_16_mod
 from opts import OPT as opt
 import os 
-
 from dsets import get_dsets_remove_class, get_dsets
-
+from models.swin_transformer import swin_tiny_patch4_window7_224
+from torchvision.transforms import InterpolationMode
 import wandb
 run = wandb.init()
 
@@ -57,7 +57,7 @@ transform_test_tiny = transforms.Compose([
 
 
 
-if opt.model == 'ViT':
+if opt.model in ('ViT', 'swint'):
     transform_train = transforms.Compose([
         transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
         transforms.RandomHorizontalFlip(),
@@ -118,8 +118,12 @@ def trainer(class_to_remove, seed):
         model = AllCNN(n_channels=3, num_classes=opt.num_classes).to('cuda')
     elif opt.model == 'ViT':
         model = ViT_16_mod(n_classes=opt.num_classes).to('cuda')
-        
-        
+    elif opt.model == "swint":
+        model = swin_tiny_patch4_window7_224(pretrained=True, num_classes=opt.num_classes).to('cuda')   
+    else:
+        raise ValueError(f"Unknown model: {opt.model}")
+    
+            
     if opt.mode == 'HR':
         if opt.dataset == "cifar10":
             num=5000
