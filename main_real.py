@@ -41,12 +41,16 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
 
-def get_classifier(net):
-    if hasattr(net, "heads"):
+def get_classifier(net: nn.Module) -> nn.Module:
+    if hasattr(net, "heads"):       # ViT
         return net.heads
-    if hasattr(net, "fc"):
+    if hasattr(net, "fc"):          # ResNet
         return net.fc
-    raise AttributeError("Model has neither `heads` nor `fc`.")
+    if hasattr(net, "head"):        # Swin, timm-style
+        return net.head
+    if hasattr(net, "classifier"):  # some backbones use this
+        return net.classifier
+    raise AttributeError("Model has neither `heads`, `fc`, `head`, nor `classifier`.")
 
 
 def AUS(a_t, a_or, a_f):

@@ -17,6 +17,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods import calculate_accuracy
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+import torch.nn as nn
 
 DATASET_NUM_CLASSES = {
     "CIFAR10": 10,
