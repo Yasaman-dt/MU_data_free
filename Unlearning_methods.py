@@ -61,21 +61,29 @@ def choose_method(name):
     
 
 def get_classifier(net: nn.Module) -> nn.Module:
-    """Return the classification head (works for ResNet .fc and ViT .heads)."""
-    if hasattr(net, "heads"):
+    if hasattr(net, "heads"):       # ViT
         return net.heads
-    if hasattr(net, "fc"):
+    if hasattr(net, "fc"):          # ResNet
         return net.fc
-    raise AttributeError("Model has neither `heads` nor `fc`.")
+    if hasattr(net, "head"):        # Swin, timm-style
+        return net.head
+    if hasattr(net, "classifier"):  # some backbones use this
+        return net.classifier
+    raise AttributeError("Model has neither `heads`, `fc`, `head`, nor `classifier`.")
+
 
 def set_classifier(net: nn.Module, head: nn.Module) -> None:
-    """Assign a new classification head back to the model."""
     if hasattr(net, "heads"):
         net.heads = head
     elif hasattr(net, "fc"):
         net.fc = head
+    elif hasattr(net, "head"):
+        net.head = head
+    elif hasattr(net, "classifier"):
+        net.classifier = head
     else:
-        raise AttributeError("Model has neither `heads` nor `fc`.")
+        raise AttributeError("Model has neither `heads`, `fc`, `head`, nor `classifier`.")
+    
     
 def freeze_all_but_fc(model):
     for p in model.parameters():

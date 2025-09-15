@@ -61,13 +61,17 @@ def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
     selected_labels = np.concatenate(selected_labels, axis=0)
     return selected_embeddings, selected_labels
 
-def get_classifier(net):
-    if hasattr(net, "heads"):
-        return net.heads
-    if hasattr(net, "fc"):
-        return net.fc
-    raise AttributeError("Model has neither `heads` nor `fc`.")
 
+def get_classifier(net: nn.Module) -> nn.Module:
+    if hasattr(net, "heads"):       # ViT
+        return net.heads
+    if hasattr(net, "fc"):          # ResNet
+        return net.fc
+    if hasattr(net, "head"):        # Swin, timm-style
+        return net.head
+    if hasattr(net, "classifier"):  # some backbones use this
+        return net.classifier
+    raise AttributeError("Model has neither `heads`, `fc`, `head`, nor `classifier`.")
 
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))

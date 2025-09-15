@@ -183,11 +183,11 @@ class OPT:
 
     elif model == 'swint':
         if dataset == 'cifar10':
-            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_swin_t_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_cifar10/original/best_checkpoint_swint_m{n_model}.pth'
         elif dataset == 'cifar100':
-            or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_swin_t_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_cifar100/original/best_checkpoint_swint_m{n_model}.pth'
         elif dataset == 'TinyImageNet':
-            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_swin_t_m{n_model}.pth'
+            or_model_weights_path = root_folder+f'weights/chks_TinyImageNet/original/best_checkpoint_swint_m{n_model}.pth'
 
     elif model == 'AllCNN':
         if dataset== 'cifar10':
