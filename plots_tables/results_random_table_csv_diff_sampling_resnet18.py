@@ -68,8 +68,6 @@ original_summary = original_df.groupby(['dataset', 'model', 'model_num', 'noise_
 # Flatten the MultiIndex columns for better readability
 original_summary.columns = ['_'.join(col).strip() for col in original_summary.columns.values]
 
-
-
 original_summary = original_summary.reset_index()
 
 original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/results_diff_sampling/original_averaged_results.csv", index=False)

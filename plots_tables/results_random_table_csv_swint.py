@@ -6,12 +6,12 @@ import numpy as np
 
 
 # === Setup paths ===
-parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT"
+parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint"
 sources = [
     ("results_real", "real"),
     ("results_synth_gaussian", "synth"),
-    ("results_synth_uniform", "synth"),
-    ("results_synth_laplace", "synth"),
+    # ("results_synth_uniform", "synth"),
+    # ("results_synth_laplace", "synth"),
 ]
 
 
@@ -26,7 +26,7 @@ method_map = {
 }
 
 
-original_path = os.path.join(parent_dir, "results_real/results_original_ViT.csv")
+original_path = os.path.join(parent_dir, "results_real/results_original_swint.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -62,7 +62,7 @@ original_summary.columns = ['_'.join(col).strip() for col in original_summary.co
 
 original_summary = original_summary.reset_index()
 
-original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/original_averaged_results_ViT.csv", index=False)
+original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/original_averaged_results_swint.csv", index=False)
 
 metrics = ['val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS']
 
@@ -74,21 +74,21 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_ViT_unlearning_summary.csv")
-# cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_ViT_unlearning_summary.csv")
-# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_ViT_unlearning_summary.csv")
+#cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_swint_unlearning_summary.csv")
+# cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_swint_unlearning_summary.csv")
+# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_swint_unlearning_summary.csv")
 
 # Add dataset identifiers
-cifar10_df["dataset"] = "CIFAR10"
+#cifar10_df["dataset"] = "CIFAR10"
 # cifar100_df["dataset"] = "CIFAR100"
 # tinyimagenet_df["dataset"] = "TinyImageNet"
 
 # # Combine all into one DataFrame
-retrained_df =cifar10_df
+#retrained_df =cifar10_df
 # retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
-retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
-retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
-retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
+# retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
+# retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
+# retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
 
 def infer_noise_type(path_or_name: str) -> str:
     s = os.path.normpath(path_or_name).replace("\\", "/").lower()
@@ -106,26 +106,26 @@ def infer_noise_type(path_or_name: str) -> str:
 
 
 original_df["noise_type"] = "none"
-retrained_df["noise_type"] = "none"
+# #retrained_df["noise_type"] = "none"
 
 
-# # Rename the column 'best_val_acc' to 'val_full_retain_acc'
+# # # Rename the column 'best_val_acc' to 'val_full_retain_acc'
 
-# Add 'val_full_fgt_acc' column with all values set to 0
-retrained_df["val_test_fgt_acc"] = 0.0
-retrained_df["train_fgt_acc"] = 0.0
-retrained_df["val_full_fgt_acc"] = 0.0
+# # Add 'val_full_fgt_acc' column with all values set to 0
+# retrained_df["val_test_fgt_acc"] = 0.0
+# retrained_df["train_fgt_acc"] = 0.0
+# retrained_df["val_full_fgt_acc"] = 0.0
 
-val_test_retain_acc_original = original_df['val_test_retain_acc']
-val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+# val_test_retain_acc_original = original_df['val_test_retain_acc']
+# val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
 
-AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+# AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
 
-retrained_df["AUS"] = AUS
+# retrained_df["AUS"] = AUS
 
-# Save the combined DataFrame
-output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_retrained_ViT.csv"
-retrained_df.to_csv(output_path, index=False)
+# # Save the combined DataFrame
+# output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_retrained_swint.csv"
+# retrained_df.to_csv(output_path, index=False)
 
 all_data = []
 
@@ -203,7 +203,7 @@ if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
 
     # Save merged raw results
-    final_df.to_csv(os.path.join(parent_dir, "results_unlearning_ViT.csv"), index=False)
+    final_df.to_csv(os.path.join(parent_dir, "results_unlearning_swint.csv"), index=False)
     print("✅ All results merged.")
 
     # === Refined selection: prefer highest AUS, then smallest val_test_fgt_acc, then largest val_test_retain_acc
@@ -220,18 +220,18 @@ if all_data:
     ).first()
     
     # Save results
-    best_df.to_csv(os.path.join(parent_dir, "results_unlearning_best_per_model_by_aus_ViT.csv"), index=False)
+    best_df.to_csv(os.path.join(parent_dir, "results_unlearning_best_per_model_by_aus_swint.csv"), index=False)
     print("✅ Refined best results saved using AUS → val_test_fgt_acc → val_test_retain_acc.")
 
     #original_df = original_df[original_df["model_num"].isin([2, 3, 4])]
 
 
-    retrained_df["method"] = "retrained"
-    retrained_df["source"] = "real"
-    retrained_df["dataset"] = retrained_df["dataset"].replace({
-    "CIFAR10": "cifar10",
-    "CIFAR100": "cifar100"
-    })
+    # retrained_df["method"] = "retrained"
+    # retrained_df["source"] = "real"
+    # retrained_df["dataset"] = retrained_df["dataset"].replace({
+    # "CIFAR10": "cifar10",
+    # "CIFAR100": "cifar100"
+    # })
     original_df["method"] = "original"
     original_df["source"] = "real"
     original_df["dataset"] = original_df["dataset"].replace({
@@ -240,25 +240,25 @@ if all_data:
     })
 
 
-    # for df in [original_df]:
-    #     if "method" in df.columns:
-    #         df["method"] = df["method"].replace(method_map)
-    for df in [original_df, retrained_df]:
+    for df in [original_df]:
         if "method" in df.columns:
             df["method"] = df["method"].replace(method_map)
+    # for df in [original_df, retrained_df]:
+    #     if "method" in df.columns:
+    #         df["method"] = df["method"].replace(method_map)
         
     # (Optional) Add missing columns if needed
     for col in best_df.columns:
         if col not in original_df.columns:
             original_df[col] = None  # Fill with NaN
-        if col not in retrained_df.columns:
-            retrained_df[col] = None
+        # if col not in retrained_df.columns:
+        #     retrained_df[col] = None
         
     # Align column order
     original_df = original_df[best_df.columns]
-    retrained_df = retrained_df[best_df.columns]
+    #retrained_df = retrained_df[best_df.columns]
     
-    save_dir = os.path.join(parent_dir, "best_per_dataset_method_source_ViT")
+    save_dir = os.path.join(parent_dir, "best_per_dataset_method_source_swint")
     os.makedirs(save_dir, exist_ok=True)
 
 
@@ -269,10 +269,10 @@ if all_data:
         #print(f"✅ Saved {output_file}")    
     
     # === Combine original + best_df
-    combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
-    #combined_df = pd.concat([best_df, original_df], ignore_index=True)
+    #combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
+    combined_df = pd.concat([best_df, original_df], ignore_index=True)
 
-    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_total_ViT.csv", index=False)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_total_swint.csv", index=False)
 
 
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
@@ -282,7 +282,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df1.columns = ['_'.join(col).strip('_') for col in stats_df1.columns.values]
 
-    stats_path1 = os.path.join(parent_dir, "mean_std_results_by_class_model_dataset_method_source_ViT.csv")
+    stats_path1 = os.path.join(parent_dir, "mean_std_results_by_class_model_dataset_method_source_swint.csv")
     stats_df1.to_csv(stats_path1, index=False)
     print("✅ Mean and std of all numeric columns saved.")
 
@@ -296,7 +296,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]
 
-    stats_path = os.path.join(parent_dir, "results_mean_std_all_numeric_ViT.csv")
+    stats_path = os.path.join(parent_dir, "results_mean_std_all_numeric_swint.csv")
     stats_df.to_csv(stats_path, index=False)
     print("✅ Mean and std of all numeric columns saved.")
 

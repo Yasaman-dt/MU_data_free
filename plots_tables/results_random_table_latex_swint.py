@@ -1,13 +1,13 @@
 import pandas as pd
 from collections import defaultdict, Counter
 
-ViT_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_mean_std_all_numeric_ViT.csv")
+swint_df = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_mean_std_all_numeric_swint.csv")
 
 # Add architecture column
-ViT_df["arch"] = "ViT"
+swint_df["arch"] = "swint"
 
 # Combine the data
-stats_df = pd.concat([ViT_df], ignore_index=True)
+stats_df = pd.concat([swint_df], ignore_index=True)
 
 
 # Select key columns to display
@@ -75,7 +75,7 @@ def sort_key(key):
     
     method_idx = method_order.index(method_part) if method_part in method_order else len(method_order)
     source_idx = 0 if source_part == "real" else 1
-    arch_idx = 0 if arch_part == "ViT" else 1  
+    arch_idx = 0 if arch_part == "swint" else 1  
     return (arch_idx, method_idx, source_idx)
 
 
@@ -86,7 +86,7 @@ access_flags = {}  # Store access flags per (method, source) once
 
 max_min_tracker = defaultdict(lambda: defaultdict(dict))  # max_min_tracker[arch][dataset][label]
 
-for arch in ["ViT"]:
+for arch in ["swint"]:
     for dataset in ["CIFAR10", "CIFAR100", "TinyImageNet"]:
         df_filtered = stats_df[
             (stats_df["dataset"].str.lower().str.contains(dataset.lower())) &
@@ -170,10 +170,10 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the base architecture.
+\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using Swin-T as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
-\label{tab:main_results_head_ViT}
+\label{tab:main_results_head_swint}
 
 \resizebox{\textwidth}{!}{
 \begin{tabular}{c|cc|ccc|ccc|ccc}
@@ -211,7 +211,7 @@ for key in grouped_methods:
 
 arch_printed = defaultdict(bool)
 
-insert_ViT_next = False
+insert_swint_next = False
 
 all_keys_sorted = sorted(grouped_methods.keys(), key=sort_key)
 
@@ -228,9 +228,9 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     #     latex_table += r"\midrule" + "\n"        
         
     if prev_arch is None or arch != prev_arch:
-        if arch == "ViT":
+        if arch == "swint":
             latex_table += r"\midrule"
-            latex_table += r"\multicolumn{12}{c}{\textbf{ViT-B-16:}} \\" + "\n"
+            latex_table += r"\multicolumn{12}{c}{\textbf{Swin-T:}} \\" + "\n"
 
     prev_arch = arch
 
@@ -300,7 +300,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
 
     if not arch_row_printed[arch]:
-        arch_cell = rf"\multirow{{{arch_total_rows[arch]}}}{{*}}{{{arch.replace('ViT', 'ViT-B-16')}}}"
+        arch_cell = rf"\multirow{{{arch_total_rows[arch]}}}{{*}}{{{arch.replace('swint', 'Swin-T')}}}"
         arch_row_printed[arch] = True
     else:
         arch_cell = ""
@@ -329,7 +329,7 @@ latex_table += r"""\bottomrule
 """
 
 # === Save to file (UTF-8)
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/table_total_random_head_ViT.tex", "w", encoding="utf-8") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/table_total_random_head_swint.tex", "w", encoding="utf-8") as f:
     f.write(latex_table)
 
 print("✅ LaTeX table saved to table_total_random_fc.tex")
@@ -337,7 +337,7 @@ print("✅ LaTeX table saved to table_total_random_fc.tex")
 
 
 # Load the uploaded data
-df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/mean_std_results_by_class_model_dataset_method_source_ViT.csv")
+df_latex_input = pd.read_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/mean_std_results_by_class_model_dataset_method_source_swint.csv")
 
 # Filter only for CIFAR-10 dataset
 cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
@@ -525,8 +525,8 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ViT-B-16, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
-latex.append(r"\label{tab:CIFAR-10_forget_ViT}")
+latex.append(r"\caption{Class unlearning performance on CIFAR-10 using Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\label{tab:CIFAR-10_forget_swint}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
 latex.append(r"\toprule")
@@ -644,5 +644,5 @@ latex.append(r"\end{tabular}")
 latex.append(r"}")  # closing resizebox
 latex.append(r"\end{table*}")
 
-with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/CIFAR-10_unlearning_table_per_class_head_ViT.tex", "w") as f:
+with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/CIFAR-10_unlearning_table_per_class_head_swint.tex", "w") as f:
     f.write("\n".join(latex))

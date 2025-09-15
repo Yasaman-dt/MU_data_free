@@ -85,42 +85,43 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-# cifar10_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar10_resnet18_unlearning_summary.csv")
-# cifar100_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar100_resnet18_unlearning_summary.csv")
-# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/tinyImagenet_resnet18_unlearning_summary.csv")
+cifar10_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar10_ViT_unlearning_summary.csv")
+# cifar100_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar100_ViT_unlearning_summary.csv")
+# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/tinyImagenet_ViT_unlearning_summary.csv")
 
-# # Add dataset identifiers
-# cifar10_df["dataset"] = "CIFAR10"
+# Add dataset identifiers
+cifar10_df["dataset"] = "CIFAR10"
 # cifar100_df["dataset"] = "CIFAR100"
 # tinyimagenet_df["dataset"] = "TinyImageNet"
 
-# # Combine all into one DataFrame
-# retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
-# retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
-# retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
-# retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
+# Combine all into one DataFrame
+#retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
+retrained_df =cifar10_df
+retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
+retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
+retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
 
 
 
 # Rename the column 'best_val_acc' to 'val_full_retain_acc'
 
-# # Add 'val_full_fgt_acc' column with all values set to 0
-# retrained_df["val_test_fgt_acc"] = 0.0
-# retrained_df["train_fgt_acc"] = 0.0
-# retrained_df["val_full_fgt_acc"] = 0.0
+# Add 'val_full_fgt_acc' column with all values set to 0
+retrained_df["val_test_fgt_acc"] = 0.0
+retrained_df["train_fgt_acc"] = 0.0
+retrained_df["val_full_fgt_acc"] = 0.0
 
-# retrained_df["noise_type"] = "-"
+retrained_df["noise_type"] = "-"
 
-# val_test_retain_acc_original = original_df['val_test_retain_acc']
-# val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+val_test_retain_acc_original = original_df['val_test_retain_acc']
+val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
 
-# AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
 
-# retrained_df["AUS"] = AUS
+retrained_df["AUS"] = AUS
 
-# # Save the combined DataFrame
-# output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_retrained.csv"
-# retrained_df.to_csv(output_path, index=False)
+# Save the combined DataFrame
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_retrained.csv"
+retrained_df.to_csv(output_path, index=False)
 
 all_data = []
 
@@ -196,9 +197,6 @@ for folder_name, source_type in sources:
 
 
 
-
-
-
 # === Combine all ===
 if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
@@ -229,12 +227,12 @@ if all_data:
     #original_df = original_df[original_df["model_num"].isin([2, 3, 4])]
 
 
-    # retrained_df["method"] = "retrained"
-    # retrained_df["source"] = "real"
-    # retrained_df["dataset"] = retrained_df["dataset"].replace({
-    # "CIFAR10": "cifar10",
-    # "CIFAR100": "cifar100"
-    # })
+    retrained_df["method"] = "retrained"
+    retrained_df["source"] = "real"
+    retrained_df["dataset"] = retrained_df["dataset"].replace({
+    "CIFAR10": "cifar10",
+    "CIFAR100": "cifar100"
+    })
     original_df["method"] = "original"
     original_df["source"] = "real"
     original_df["dataset"] = original_df["dataset"].replace({
@@ -243,9 +241,9 @@ if all_data:
     })
 
 
-    # for df in [original_df, retrained_df]:
-    #     if "method" in df.columns:
-    #         df["method"] = df["method"].replace(method_map)
+    for df in [original_df, retrained_df]:
+        if "method" in df.columns:
+            df["method"] = df["method"].replace(method_map)
 
 
     for df in [original_df]:
@@ -277,8 +275,8 @@ if all_data:
     
     
     # === Combine original + best_df
-    #combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
-    combined_df = pd.concat([best_df, original_df], ignore_index=True)
+    combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
+    #combined_df = pd.concat([best_df, original_df], ignore_index=True)
     combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_total.csv", index=False)
 
 
@@ -351,8 +349,6 @@ method_name_and_ref = {
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
     "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
-
-
 }
 
 
@@ -456,9 +452,7 @@ for _, row in stats_df.iterrows():
                 if val < 10: val_str = val_str
                 if std < 10: std_str = std_str
         
-        
             dset = dataset
-
 
             target_val = round(val, 3)
             tracked_val = round(max_min_tracker[dataset][label], 3)
@@ -469,13 +463,10 @@ for _, row in stats_df.iterrows():
     
             cell = f"{val_str}\\scriptsize{{\\,$\\pm$\\,{std_str}}}"
 
-    
         values.append(cell)  
-
 
     grouped_methods[key][dataset] = values
     access_flags[key] = get_data_free_flags(method, source)
-
 
 latex_table = r"""\begin{table*}[ht]
 \centering
@@ -496,8 +487,6 @@ the corresponding non-shaded rows use original embeddings with the same method.}
 \midrule
 \midrule
 """
-
-
 
 
 # Sort by method name for consistency
@@ -561,7 +550,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     ref_cell = ref
 
-
     if base_method == "original":
         method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
         #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
@@ -579,8 +567,6 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         #row = ["", "", "", ""] + [""] * len(values)
         row = ["", "", ""] + [""] * len(values)
         latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
-        
-             
         
         continue  # skip rest of loop
 
@@ -603,13 +589,11 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         latex_table += " & ".join(colored_row) + r" \\" + "\n"
         continue 
 
-
     latex_table += " & ".join(row) + r" \\" + "\n"
 
     prev_base_method = base_method
     
     
-
 # Close LaTeX
 latex_table += r"""\bottomrule
 \bottomrule
