@@ -37,7 +37,7 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "retrained": (r"\makecell{Retrained}", "–"),
     "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
@@ -88,8 +88,8 @@ for dataset in ["CIFAR10", "CIFAR100", "TinyImageNet"]:
             max_min_tracker[dataset][label] = df_filtered[metric_mean].max()
 
 for _, row in stats_df.iterrows():
-    if row["method"] == "DUCK":
-        continue  # Skip DUCK method    
+    if row["method"] in ["DUCK", "RE"]:
+        continue
     method = row["method"]
     source = row["source"]
 
@@ -289,11 +289,8 @@ cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
 #    "val_test_retain_acc_mean", "val_test_retain_acc_std",
 #    "AUS_mean","AUS_std"]]
 
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
 
-# Add display name (human-readable method name)
 df_filtered["Display Name"] = df_filtered["method"].map(lambda m: method_name_and_ref[m][0])
-
 
 columns_to_display = [
     ("val_test_retain_acc", r"$\mathcal{A}^t_r \uparrow$"),
@@ -308,7 +305,7 @@ best_per_class = defaultdict(lambda: defaultdict(dict))  # e.g., best_per_class[
 
 # Only process for current dataset, e.g., CIFAR10
 dataset_name = "cifar10"
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
+df_filtered = cifar10_df[~cifar10_df["method"].isin(["DUCK", "RE"])]
 
 for prefix, label in columns_to_display:
     metric_mean = f"{prefix}_mean"
