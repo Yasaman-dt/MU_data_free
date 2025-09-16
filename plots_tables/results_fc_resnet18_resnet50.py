@@ -45,7 +45,7 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "retrained": (r"\makecell{Retrained}", "–"),
     "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
@@ -114,8 +114,8 @@ for arch in ["resnet18", "resnet50"]:
 
 
 for _, row in stats_df.iterrows():
-    if row["method"] == "DUCK":
-        continue  # Skip DUCK method    
+    if row["method"] in ["DUCK", "RE"]:
+        continue
     method = row["method"]
     source = row["source"]
 
