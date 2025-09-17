@@ -106,8 +106,8 @@ for arch in ["ViT", "swint"]:
 
 
 for _, row in stats_df.iterrows():
-    if row["method"] == "DUCK":
-        continue  # Skip DUCK method    
+    if row["method"] in ["DUCK", "RE"]:
+        continue  
     method = row["method"]
     source = row["source"]
 
