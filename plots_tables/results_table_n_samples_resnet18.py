@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # === Setup paths ===
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/"
-original_path = os.path.join(parent_dir, "results_real/results_original.csv")
+original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -31,9 +31,6 @@ original_df["train_retain_acc"] = 0
 original_df["train_fgt_acc"] = 0
 
 
-
-
-
 # Define the metrics for which we want to compute mean and variance
 metrics = [
     'Train Acc', 'Test Acc', 'train_retain_acc', 'train_fgt_acc',
@@ -42,20 +39,19 @@ metrics = [
 ]
 
 method_map = {
-    "FT": "FineTuning",
-    "BE": "BoundaryExpanding",
-    "RL": "RandomLabels",
+    "FineTuning": "FT",
+    "BoundaryExpanding": "BE",
+    "RandomLabels": "RL",
+    "Negative Gradient": "NG"
 }
 
 all_data = []
 
-
 sources = [
     ("results_n_samples/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
-    ("results_n_samples/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
-]
-
-
+    #("results_n_samples/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
+    ("results_n_samples/results_synth_gaussian/", None, "synth"),
+    ]
 
 for folder_name, sigma, source_type in sources:
     base_dir = os.path.join(parent_dir, folder_name)
@@ -241,7 +237,7 @@ if all_data:
     
     # === Combine original + best_df
     combined_df = pd.concat([best_df], ignore_index=True)
-    combined_df.to_csv("results_n_samples/results_total.csv", index=False)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_n_samples/results_total.csv", index=False)
 
     print("✅ Merged original results with current best results.")
     

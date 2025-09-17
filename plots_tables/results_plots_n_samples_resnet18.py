@@ -5,6 +5,7 @@ import os
 import matplotlib.patches as patches
 from matplotlib.ticker import LogLocator, LogFormatterSciNotation
 import matplotlib
+from collections import OrderedDict
 
 matplotlib.rcParams.update({
     'text.usetex': False
@@ -69,18 +70,6 @@ melted_df = df.melt(id_vars=["dataset", "method", "model", "model_num", "source"
                      var_name="metric",
                      value_name="value")
 
-
-# custom_palette = {"#0000FF",       # Blue
-#                   "#FF0000",      # Red
-#                   "#008000",      # Green
-#                   "#7f7f7f"  # Gray
-# }
-
-# colors = ['Red', 'Blue', 'Green', 'Yellow', 'Orange']
-# frequency = [20, 15, 25, 18, 12]
-
-#palette = sns.crayon_palette(colors)
-
 g = sns.relplot(
     data=melted_df,
     x="samples_per_class",
@@ -140,9 +129,9 @@ for col, ax in enumerate(g.axes[0]):  # Loop through top row only
     title = ax.get_title().split("=")[-1].strip()  # Extract dataset name only
     # Custom formatting for specific datasets
     if title.lower() == "cifar10":
-        display_title = "CIFAR10"
+        display_title = "CIFAR-10"
     elif title.lower() == "cifar100":
-        display_title = "CIFAR100"
+        display_title = "CIFAR-100"
     elif title.lower() == "tinyimagenet":
         display_title = "TinyImageNet"
     ax.set_title(r"$\mathbf{" + display_title + "}$")  # Bold the dataset name without "dataset="
@@ -203,13 +192,9 @@ for row in range(len(g.row_names)):
     for col, dataset in enumerate(g.col_names):
         ax = g.axes[row, col]
         ax.set_xscale("log")
-
-
         ax.minorticks_on()
         ax.tick_params(which='major', bottom=True, left =True)
         ax.tick_params(which='minor', bottom=True)
-   
-        
         ax.grid(True)
 
         if dataset == "cifar10":
@@ -220,5 +205,125 @@ for row in range(len(g.row_names)):
             ax.set_xlim(1,600)  
 
 # Save the plot before showing it
-plot_with_black_box(g, "plot_n_sample")
+plot_with_black_box(g, "plot_n_sample_resnet18")
 #plt.savefig(f"results_n_samples/plot_n_sample.png", dpi=600, bbox_inches='tight')
+
+
+
+# --- Per-dataset row-of-3 figures (legend only inside AUS panel) ------------
+
+metric_keys   = ["val_test_fgt_acc", "val_test_retain_acc", "AUS"]
+metric_titles = {
+    "val_test_fgt_acc":   "Forget Test Accuracy (%)",
+    "val_test_retain_acc":"Retain Test Accuracy (%)",
+    "AUS":                "AUS",
+}
+dataset_titles = {"cifar10": "CIFAR-10", "cifar100": "CIFAR-100", "tinyimagenet": "TinyImageNet"}
+xlims = {"cifar10": (1, 6000), "cifar100": (1, 600), "tinyimagenet": (1, 600)}
+
+melted_df["metric"] = pd.Categorical(melted_df["metric"], categories=metric_keys, ordered=True)
+
+# Stable style/marker mapping across all datasets
+method_levels = list(pd.unique(melted_df["method"]))
+
+for ds in ["cifar10", "cifar100", "tinyimagenet"]:
+    sub = melted_df[melted_df["dataset"] == ds].copy()
+    if sub.empty:
+        continue
+
+    g_ds = sns.relplot(
+        data=sub,
+        x="samples_per_class",
+        y="value",
+        hue="method",             
+        style="method",
+        markers="o",
+        dashes=True,
+        palette="tab10",
+        col="metric",              # 1 row × 3 columns
+        col_order=metric_keys,
+        facet_kws={"sharex": False, "sharey": False},
+        kind="line",
+        err_style="band",
+        errorbar=("ci", 95),
+        markeredgewidth=0,
+        linewidth=3)
+
+    for ax in g_ds.axes.flat:
+        for collection in ax.collections:
+            collection.set_alpha(0.1)
+    for ax in g_ds.axes.flat:
+        for line in ax.lines:
+            line.set_markersize(8) 
+
+    # no subplot titles
+    for ax in g_ds.axes[0]:
+        ax.set_title("")
+
+    g_ds.fig.subplots_adjust(wspace=0.25)
+                
+    # axes styling
+    for ax in g_ds.axes[0]:
+        ax.set_xscale("log")
+        ax.minorticks_on()
+        ax.tick_params(which="major", bottom=True, left=True)
+        ax.tick_params(which="minor", bottom=True, left=True)
+        ax.set_xlabel("# Samples per Class")
+        ax.grid(True)
+
+    # dataset-specific x-range
+    if ds in xlims:
+        for ax in g_ds.axes[0]:
+            ax.set_xlim(*xlims[ds])
+
+    from matplotlib.ticker import MaxNLocator, ScalarFormatter
+    from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+    # force integer ticks on y-axis
+    for ax in g_ds.axes[0]:
+        ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # integers only
+        ax.yaxis.set_major_formatter(ScalarFormatter())         # remove .0
+    
+    # y labels (independent ranges per panel)
+    g_ds.axes[0][0].set_ylabel("Forget Test Accuracy (%)")
+    g_ds.axes[0][0].yaxis.set_label_position("left")
+    g_ds.axes[0][0].yaxis.tick_left()
+    
+    g_ds.axes[0][1].set_ylabel("Retain Test Accuracy (%)")
+    g_ds.axes[0][1].yaxis.set_label_position("left")
+    g_ds.axes[0][1].yaxis.tick_left()
+    
+    g_ds.axes[0][2].set_ylabel("AUS")
+    g_ds.axes[0][2].yaxis.set_label_position("left")
+    g_ds.axes[0][2].yaxis.tick_left()
+
+    fig_legend = g_ds._legend
+    handles = fig_legend.legendHandles
+    labels  = [t.get_text() for t in fig_legend.get_texts()]
+    fig_legend.remove()
+    
+    # (optional) enforce your explicit order
+    order = [labels.index(m) for m in method_levels if m in labels]
+    handles = [handles[i] for i in order]
+    labels  = [labels[i]  for i in order]
+      
+    ax_af = g_ds.axes[0][0]
+    ax_af.yaxis.set_major_locator(MultipleLocator(10))    # ticks every 5
+    ax_af.yaxis.set_major_formatter(ScalarFormatter())   # no decimals
+    
+    # Retain accuracy (middle panel)
+    ax_ar = g_ds.axes[0][1]
+    ax_ar.yaxis.set_major_locator(MultipleLocator(5))    
+    ax_ar.yaxis.set_major_formatter(ScalarFormatter())   
+    
+    # AUS (right panel)
+    ax_aus = g_ds.axes[0][2]
+    ax_aus.set_ylim(0.5, 1.03)                                  # cap at 1.0
+    ax_aus.yaxis.set_major_locator(MultipleLocator(0.1))       # ticks every 0.1
+    ax_aus.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+    
+    ax_last = g_ds.axes[0, 2]
+    ax_last.legend(handles, labels, title="method",
+                   loc="lower right", frameon=True, ncol=1)
+    
+    plot_with_black_box(g_ds, f"plot_n_sample_resnet18_{ds}")
