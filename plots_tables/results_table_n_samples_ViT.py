@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # === Setup paths ===
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/"
-original_path = os.path.join(parent_dir, "results_fc_resnet18/results_real/results_original_resnet18.csv")
+original_path = os.path.join(parent_dir, "results_head_ViT/results_real/results_original_ViT.csv")
 
 original_df = pd.read_csv(original_path)
 
@@ -30,7 +30,6 @@ original_df["epoch"] = 0
 original_df["train_retain_acc"] = 0
 original_df["train_fgt_acc"] = 0
 
-
 # Define the metrics for which we want to compute mean and variance
 metrics = [
     'Train Acc', 'Test Acc', 'train_retain_acc', 'train_fgt_acc',
@@ -48,11 +47,12 @@ method_map = {
 
 all_data = []
 
+
 sources = [
-    ("results_n_samples/sigma0.5_persamplefix/results_synth", 0.5, "synth"),
-    #("results_n_samples/sigma0.0_persamplefix/results_synth", 0.0, "synth"),
-    ("results_n_samples/results_synth_gaussian/", None, "synth"),
+    ("results_n_samples_ViT/results_synth_gaussian/", None, "synth"),
     ]
+
+
 
 for folder_name, sigma, source_type in sources:
     base_dir = os.path.join(parent_dir, folder_name)
@@ -145,7 +145,7 @@ if all_data:
     final_df = pd.concat(all_data, ignore_index=True)
 
     # Save merged raw results
-    final_df.to_csv(os.path.join(parent_dir, f"results_n_samples/results_unlearning.csv"), index=False)
+    final_df.to_csv(os.path.join(parent_dir, f"results_n_samples_ViT/results_unlearning.csv"), index=False)
     print("✅ All results merged.")
 
     final_df = final_df[final_df['model_num'].between(2,4)]  # This filters the data
@@ -209,13 +209,13 @@ if all_data:
 
     best_df = new_df
     # Save results
-    best_df.to_csv(os.path.join(parent_dir, "results_n_samples/results_unlearning_best_per_model_by_aus.csv"), index=False)
+    best_df.to_csv(os.path.join(parent_dir, "results_n_samples_ViT/results_unlearning_best_per_model_by_aus.csv"), index=False)
     print("✅ Refined best results saved using AUS → val_test_fgt_acc → val_test_retain_acc.")
 
 
 
     # === Save one file per (dataset, method, source) ===
-    save_dir = os.path.join(parent_dir, "results_n_samples/best_per_dataset_method_source")
+    save_dir = os.path.join(parent_dir, "results_n_samples_ViT/best_per_dataset_method_source")
     os.makedirs(save_dir, exist_ok=True)
 
 
@@ -238,7 +238,7 @@ if all_data:
     
     # === Combine original + best_df
     combined_df = pd.concat([best_df], ignore_index=True)
-    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_n_samples/results_total.csv", index=False)
+    combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_n_samples_ViT/results_total.csv", index=False)
 
     print("✅ Merged original results with current best results.")
     
@@ -249,7 +249,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df1.columns = ['_'.join(col).strip('_') for col in stats_df1.columns.values]
 
-    stats_path1 = os.path.join(parent_dir, "results_n_samples/results_mean_variance_for_fix_samples_per_class.csv")
+    stats_path1 = os.path.join(parent_dir, "results_n_samples_ViT/results_mean_variance_for_fix_samples_per_class.csv")
     stats_df1.to_csv(stats_path1, index=False)
     print("✅ Mean and std of all numeric columns saved.")
 
@@ -260,7 +260,7 @@ if all_data:
     # Flatten multi-level column names
     stats_df2.columns = ['_'.join(col).strip('_') for col in stats_df2.columns.values]
 
-    stats_path2 = os.path.join(parent_dir, "results_n_samples/results_mean_variance_for_fix_samples_per_class_&_forget_Class.csv")
+    stats_path2 = os.path.join(parent_dir, "results_n_samples_ViT/results_mean_variance_for_fix_samples_per_class_&_forget_Class.csv")
     stats_df2.to_csv(stats_path2, index=False)
     print("✅ Mean and std of all numeric columns saved.")
     
