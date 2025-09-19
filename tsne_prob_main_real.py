@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import os
-from generate_part_samples_randomly import RemainingResNet
+from generate_part_samples_randomly_resnet18 import RemainingResNet
 
 # Config
 dataset_name = "cifar10"

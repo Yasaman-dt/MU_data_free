@@ -18,7 +18,7 @@ from itertools import cycle
 import time
 import copy
 
-from generate_part_samples_randomly import TruncatedResNet, RemainingResNet
+from generate_part_samples_randomly_resnet18 import TruncatedResNet, RemainingResNet
 
 
 

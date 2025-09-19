@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 import os
-from generate_part_samples_randomly import RemainingResNet, TruncatedResNet
+from generate_part_samples_randomly_resnet18 import RemainingResNet, TruncatedResNet
 from matplotlib.lines import Line2D
 
 # Config
@@ -335,7 +335,7 @@ tsne_and_plot(balanced_synth_embeddings_flat, balanced_synth_labels, "T-SNE of S
 
 def load_truncated_and_remaining(model_path):
     from create_embeddings_utils import get_model
-    from generate_part_samples_randomly import TruncatedResNet, RemainingResNet  # make sure TruncatedResNet is defined
+    from generate_part_samples_randomly_resnet18 import TruncatedResNet, RemainingResNet  # make sure TruncatedResNet is defined
     base_model = get_model("resnet18", dataset_name, num_classes, checkpoint_path=model_path).to(device)
     truncated = TruncatedResNet(base_model).to(device)
     remaining = RemainingResNet(base_model).to(device)
@@ -348,7 +348,7 @@ def load_truncated_and_remaining(model_path):
 
 
 # ---- 1. Load truncated and remaining parts ----
-from generate_part_samples_randomly import TruncatedResNet  # make sure it's defined
+from generate_part_samples_randomly_resnet18 import TruncatedResNet  # make sure it's defined
 truncated_orig, remaining_orig = load_truncated_and_remaining(original_model_path)
 truncated_unl, remaining_unl = load_truncated_and_remaining(unlearned_model_path)
 

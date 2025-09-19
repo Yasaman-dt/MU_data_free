@@ -11,7 +11,7 @@ import os
 import torch
 import numpy as np
 #from generate_emb_samples_randomly import generate_emb_samples_balanced
-from generate_part_samples_randomly import generate_emb_samples_balanced
+from generate_part_samples_randomly_resnet18 import generate_emb_samples_balanced
 #from generate_emb_samples import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from torchvision.datasets import CIFAR10, CIFAR100
 from torch.utils.data import Subset
 from torchvision import datasets, transforms
-from generate_part_samples_randomly import TruncatedResNet, RemainingResNet
+from generate_part_samples_randomly_resnet18 import TruncatedResNet, RemainingResNet
 
 
 
