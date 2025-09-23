@@ -971,8 +971,23 @@ class Delete(BaseMethod):
                     print(f"[Early Stopping] AUS < 0.4 for 20 consecutive epochs.")
                     break
 
-                # your CSV logger here...
-                # log_epoch_to_csv(...)
+                log_epoch_to_csv(
+                    epoch=epoch,
+                    train_retain_acc=round(acc_train_ret, 4),
+                    train_fgt_acc=round(acc_train_fgt, 4),
+                    val_test_retain_acc=round(acc_test_val_ret, 4),
+                    val_test_fgt_acc=round(acc_test_val_fgt, 4),
+                    val_full_retain_acc=round(acc_full_val_ret, 4),
+                    val_full_fgt_acc=round(acc_full_val_fgt, 4),
+                    AUS=round(aus, 4),
+                    mode=opt.method,
+                    dataset=opt.dataset,
+                    model=opt.model,
+                    class_to_remove=self.class_to_remove,
+                    seed=opt.seed,
+                    retain_count=retain_count,
+                    forget_count=forget_count,
+                    total_count=total_count)
 
             self.scheduler.step()
 
