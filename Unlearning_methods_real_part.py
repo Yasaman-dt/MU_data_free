@@ -75,7 +75,8 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
 
-    return 100 * correct / total if total > 0 else 0
+    return correct / total if total > 0 else 0
+
 def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
@@ -196,10 +197,10 @@ class BaseMethod:
         merged_model.layer4[1].bn2 = self.Remainingmodel.layer4_1_bn2
         merged_model.avgpool = self.Remainingmodel.avgpool
         merged_model.fc = self.Remainingmodel.fc
-        a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
+        a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)
         print(a_or_value)
         
-        a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)/100
+        a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)
         print(a_or_value)
         
         zero_acc_fgt_counter = 0  # Track consecutive epochs with acc_test_fgt == 0
@@ -227,12 +228,12 @@ class BaseMethod:
             epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
-                acc_train_ret = evaluate_embedding_accuracy(merged_model, self.train_retain_loader_img, opt.device)/100
-                acc_train_fgt = evaluate_embedding_accuracy(merged_model, self.train_fgt_loader_img, opt.device)/100
-                acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
-                acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)/100
-                acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)/100
-                acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)/100
+                acc_train_ret = evaluate_embedding_accuracy(merged_model, self.train_retain_loader_img, opt.device)
+                acc_train_fgt = evaluate_embedding_accuracy(merged_model, self.train_fgt_loader_img, opt.device)
+                acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)
+                acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)
+                acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)
+                acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)
                 self.net.train()
                 
                 a_t = Complex(acc_test_val_ret, 0.0)
@@ -613,10 +614,9 @@ class NGFT_weighted(BaseMethod):
         merged_model.layer4[1].bn2 = self.Remainingmodel.layer4_1_bn2
         merged_model.avgpool = self.Remainingmodel.avgpool
         merged_model.fc = self.Remainingmodel.fc
-        a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
-        print(a_or_value)
+        a_or_value = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)
         
-        a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)/100
+        a_or_value = evaluate_embedding_accuracy(merged_model.fc, self.test_retain_loader, opt.device)
         print(a_or_value)
         forget_loader_img = cycle(self.train_fgt_loader_img)
         retain_count = count_samples(self.train_retain_loader)
@@ -643,12 +643,12 @@ class NGFT_weighted(BaseMethod):
             epoch_times.append(duration)
             with torch.no_grad():
                 self.net.eval()
-                acc_train_ret = evaluate_embedding_accuracy(merged_model, self.train_retain_loader_img, opt.device)/100
-                acc_train_fgt = evaluate_embedding_accuracy(merged_model, self.train_fgt_loader_img, opt.device)/100
-                acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)/100
-                acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)/100
-                acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)/100
-                acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)/100
+                acc_train_ret = evaluate_embedding_accuracy(merged_model, self.train_retain_loader_img, opt.device)
+                acc_train_fgt = evaluate_embedding_accuracy(merged_model, self.train_fgt_loader_img, opt.device)
+                acc_test_val_ret = evaluate_embedding_accuracy(merged_model, self.test_retain_loader_img, opt.device)
+                acc_test_val_fgt = evaluate_embedding_accuracy(merged_model, self.test_fgt_loader_img, opt.device)
+                acc_full_val_ret = evaluate_embedding_accuracy(merged_model.fc, self.retainfull_loader_real, opt.device)
+                acc_full_val_fgt = evaluate_embedding_accuracy(merged_model.fc, self.forgetfull_loader_real, opt.device)
 
                 self.net.train()
 
@@ -815,7 +815,7 @@ class Delete(BaseMethod):
         with torch.no_grad():
             # Baseline (original) retain accuracy on images using the teacher/full original
             # (this is your A_or)
-            self.a_or_value = evaluate_embedding_accuracy(self._merged_teacher, test_retain_loader_img, opt.device) / 100.0
+            self.a_or_value = evaluate_embedding_accuracy(self._merged_teacher, test_retain_loader_img, opt.device)
 
         # Early-stop bookkeeping
         self.zero_acc_patience = 1000
@@ -866,12 +866,12 @@ class Delete(BaseMethod):
         # Initial accuracies
         with torch.no_grad():
             self._merged_full = self._build_merged_full()              # ensure fresh refs
-            init_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)/100.0
-            init_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)/100.0
-            init_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)/100.0
-            init_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)/100.0
-            init_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)/100.0
-            init_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)/100.0
+            init_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)
+            init_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)
+            init_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)
+            init_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)
+            init_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)
+            init_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)
 
         best_acc_train_ret    = init_train_ret
         best_acc_train_fgt    = init_train_fgt
@@ -908,12 +908,12 @@ class Delete(BaseMethod):
                 self.Remainingmodel.eval()
                 self._merged_full = self._build_merged_full()  # refresh merged to reference current tail
 
-                acc_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)/100.0
-                acc_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)/100.0
-                acc_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)/100.0
-                acc_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)/100.0
-                acc_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)/100.0
-                acc_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)/100.0
+                acc_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)
+                acc_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)
+                acc_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)
+                acc_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)
+                acc_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)
+                acc_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)
 
                 a_t  = Complex(acc_test_val_ret, 0.0)
                 a_f  = Complex(acc_test_val_fgt, 0.0)

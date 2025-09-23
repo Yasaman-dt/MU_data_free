@@ -298,16 +298,16 @@ if __name__ == "__main__":
 
 
             if dataset_name_lower == "cifar10":
-                train_dataset_real = CIFAR10(root="./data/CIFAR10", train=True, download=True, transform=train_transform)
-                test_dataset_real = CIFAR10(root="./data/CIFAR10", train=False, download=True, transform=test_transform)
+                train_dataset_real = CIFAR10(root="./datasets/CIFAR10", train=True, download=True, transform=train_transform)
+                test_dataset_real = CIFAR10(root="./datasets/CIFAR10", train=False, download=True, transform=test_transform)
                 
             if dataset_name_lower == "cifar100":
-                train_dataset_real = CIFAR100(root="./data/CIFAR100", train=True, download=True, transform=train_transform)
-                test_dataset_real = CIFAR100(root="./data/CIFAR100", train=False, download=True, transform=test_transform)
+                train_dataset_real = CIFAR100(root="./datasets/CIFAR100", train=True, download=True, transform=train_transform)
+                test_dataset_real = CIFAR100(root="./datasets/CIFAR100", train=False, download=True, transform=test_transform)
 
             if dataset_name_lower == "TinyImageNet":
-                train_dir = os.path.join("./data/TinyImageNet", "train")
-                val_dir = os.path.join("./data/TinyImageNet", "val")
+                train_dir = os.path.join("./datasets/TinyImageNet", "train")
+                val_dir = os.path.join("./datasets/TinyImageNet", "val")
 
 
                 train_dataset_real = datasets.ImageFolder(train_dir, transform=train_transform)
