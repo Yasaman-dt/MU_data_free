@@ -885,7 +885,7 @@ class Delete(BaseMethod):
         total_count  = retain_count + forget_count
 
         for epoch in tqdm(range(self.epochs)):
-            t0 = time.time()
+            start_time = time.time()
             self.Remainingmodel.train()
 
             # TRAIN on FORGET FEATURES
@@ -901,8 +901,11 @@ class Delete(BaseMethod):
                 loss.backward()
                 self.optimizer.step()
 
-            epoch_times.append(time.time() - t0)
-
+            end_time = time.time()
+            duration = end_time - start_time
+            epoch_times.append(duration)
+            
+            
             # EVAL + AUS
             with torch.no_grad():
                 self.Remainingmodel.eval()
@@ -973,6 +976,7 @@ class Delete(BaseMethod):
 
                 log_epoch_to_csv(
                     epoch=epoch,
+                    epoch_times=duration,
                     train_retain_acc=round(acc_train_ret, 4),
                     train_fgt_acc=round(acc_train_fgt, 4),
                     val_test_retain_acc=round(acc_test_val_ret, 4),
