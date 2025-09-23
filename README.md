@@ -1,4 +1,6 @@
 # MU_data_free
+methods: FT, NG, NGFTW, RL, SCAR, BS, BE, SCRUB, DUCK, RE, LAU, BT, DELETE
+models: resnet18, resnet50, ViT, swint
 
 conda activate /projets/Zdehghani/torch_env
 
@@ -15,3 +17,5 @@ CUDA_VISIBLE_DEVICES=0 python  create_embeddings.py
 cd bash
 chmod +x job_synth_cifar10.sh 
 ./job_synth.sh FT 0.01 1 5000 0 200 resnet18
+
+
