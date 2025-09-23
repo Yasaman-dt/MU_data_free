@@ -25,9 +25,8 @@ n_model = opt.n_model
 def freeze_all_but_fc(model):
     for p in model.parameters():
         p.requires_grad = False
-    for p in model.fc.parameters():
-        p.requires_grad = True
-        
+    for p in get_classifier(model).parameters():
+        p.requires_grad = True 
             
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
@@ -394,12 +393,13 @@ class FineTuning(BaseMethod):
         self.target_accuracy=0.0
         self.class_to_remove = class_to_remove
         self.head_fc = get_classifier(self.net)
-
+        freeze_all_but_fc(self.net)
 
     def loss_f(self, inputs, targets, test=None):
         outputs = self.head_fc(inputs)
         loss = self.criterion(outputs, targets)
         return loss
+
 
 class RandomLabels(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -1660,9 +1660,6 @@ class SCRUB(BaseMethod):
         self.head_fc = get_classifier(self.net)
 
 
-
-
-
     def run(self):
         def normalize(logit):
             mean = logit.mean(dim=-1, keepdims=True)
@@ -1953,7 +1950,7 @@ class SCRUB(BaseMethod):
             retain_count=retain_count,
             forget_count=forget_count,
             total_count=total_count)
-        self.student.fc = student_fc
+        set_classifier(self.student, student_fc)
 
         return self.student
 

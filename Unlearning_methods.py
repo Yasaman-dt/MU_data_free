@@ -2115,7 +2115,7 @@ class SCRUB(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
         
-        self.student.fc = student_fc
+        set_classifier(self.student, student_fc)
 
         return self.student
 

@@ -40,6 +40,8 @@ def choose_method(name):
         return NGFT_weighted
     elif name=='RL':
         return RandomLabels
+    elif name == 'DELETE':
+        return Delete
     else:
         raise ValueError(f"[choose_method] Unknown method: {name}")
 
@@ -745,3 +747,260 @@ class NGFT_weighted(BaseMethod):
         return merged_model
 
 
+
+class Delete(BaseMethod):
+    """
+    Split-layer delete:
+      - Freeze the backbone up to split; train only 'RemainingResNet' tail.
+      - Teacher = frozen deepcopy of initial net; teacher_tail is RemainingResNet(teacher).
+      - On forget *features*, set teacher logit[target] -> -inf (anti-target),
+        train student tail via KLDiv (log_softmax vs softmax) to match anti-target.
+      - Evaluate student tail on feature loaders; evaluate merged full model on image loaders.
+    """
+    def __init__(self,
+                 net,
+                 train_retain_loader_img,
+                 train_fgt_loader_img,
+                 test_retain_loader_img,
+                 test_fgt_loader_img,
+                 train_retain_loader,   # features at split
+                 train_fgt_loader,      # features at split
+                 test_retain_loader,    # features at split (optional)
+                 test_fgt_loader,       # features at split (optional)
+                 retainfull_loader_real,  # IMAGES (full pipeline)
+                 forgetfull_loader_real,  # IMAGES (full pipeline)
+                 class_to_remove=None):
+
+        super().__init__(net,
+                         train_retain_loader_img,
+                         train_fgt_loader_img,
+                         test_retain_loader_img,
+                         test_fgt_loader_img,
+                         train_retain_loader,
+                         train_fgt_loader,
+                         test_retain_loader,
+                         test_fgt_loader,
+                         retainfull_loader_real,
+                         forgetfull_loader_real)
+
+        self.class_to_remove = class_to_remove
+
+        # Student parts
+        self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device).eval()   # frozen feature extractor up to split
+        for p in self.Truncatedmodel.parameters(): p.requires_grad = False
+
+        self.Remainingmodel = RemainingResNet(self.net).to(opt.device)         # the tail we will train
+        for p in self.Remainingmodel.parameters(): p.requires_grad = True
+
+        # Teacher (frozen) and teacher tail (for targets)
+        self.teacher = deepcopy(self.net).to(opt.device).eval()
+        for p in self.teacher.parameters(): p.requires_grad = False
+        self.teacher_tail = RemainingResNet(self.teacher).to(opt.device).eval()
+        for p in self.teacher_tail.parameters(): p.requires_grad = False
+
+        # Loss / optimizer / scheduler
+        self.kl = nn.KLDivLoss(reduction='batchmean')
+        self.optimizer = optim.SGD(self.Remainingmodel.parameters(),
+                                   lr=opt.lr_unlearn, momentum=0.9,
+                                   weight_decay=0.0, nesterov=False)
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=self.epochs)
+
+        # For AUS, we need baseline retain accuracy of the original model (pre-unlearning).
+        # Build a 'live' merged model wrapper so we can always evaluate current/teacher quickly.
+        self._merged_full = self._build_merged_full()        # merged(student tail)
+        self._merged_full.eval()
+        self._merged_teacher = self._build_merged_full(use_teacher=True)  # merged(teacher tail)
+        self._merged_teacher.eval()
+
+        with torch.no_grad():
+            # Baseline (original) retain accuracy on images using the teacher/full original
+            # (this is your A_or)
+            self.a_or_value = evaluate_embedding_accuracy(self._merged_teacher, test_retain_loader_img, opt.device) / 100.0
+
+        # Early-stop bookkeeping
+        self.zero_acc_patience = 1000
+        self.patience = opt.patience
+
+        # Optional sanity prints
+        # for images, labels in self.train_retain_loader: print("train_retain_loader (features):", images.shape, labels.shape); break
+        # for images, labels in self.test_retain_loader_img: print("test_retain_loader_img (images):", images.shape, labels.shape); break
+
+    def _build_merged_full(self, use_teacher: bool = False):
+        """
+        Returns a FULL ResNet model that uses:
+          - all early blocks from self.net (student backbone)
+          - tail blocks from RemainingResNet(student or teacher)
+        We copy references so updates to Remainingmodel parameters are reflected.
+        """
+        base = copy.deepcopy(self.net)  # structural shell
+
+        # pick whose tail to reference
+        tail_src = self.teacher_tail if use_teacher else self.Remainingmodel
+
+        # replace tail modules by reference
+        base.layer4[1].conv2 = tail_src.layer4_1_conv2
+        base.layer4[1].bn2   = tail_src.layer4_1_bn2
+        base.avgpool         = tail_src.avgpool
+        base.fc              = tail_src.fc
+        return base.to(opt.device)
+
+    @torch.no_grad()
+    def _anti_target_probs(self, feats, y):
+        """
+        feats: features at the split (B, C, H, W). Use TEACHER tail to get logits,
+               then scatter -inf on the true class to create anti-target distribution.
+        """
+        t_logits = self.teacher_tail(feats)        # [B, num_classes]
+        t_logits = t_logits.clone()
+        t_logits.scatter_(1, y.view(-1, 1), float('-inf'))
+        return F.softmax(t_logits, dim=1)
+
+    def run(self):
+        best_state = None
+        best_aus   = -float('inf')
+        best_epoch = -1
+        aus_hist   = []
+        zero_fgt   = 0
+        epoch_times = []
+
+        # Initial accuracies
+        with torch.no_grad():
+            self._merged_full = self._build_merged_full()              # ensure fresh refs
+            init_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)/100.0
+            init_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)/100.0
+            init_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)/100.0
+            init_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)/100.0
+            init_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)/100.0
+            init_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)/100.0
+
+        best_acc_train_ret    = init_train_ret
+        best_acc_train_fgt    = init_train_fgt
+        best_acc_test_val_ret = init_test_val_ret
+        best_acc_test_val_fgt = init_test_val_fgt
+        best_acc_full_val_ret = init_full_val_ret
+        best_acc_full_val_fgt = init_full_val_fgt
+
+        retain_count = count_samples(self.train_retain_loader)
+        forget_count = count_samples(self.train_fgt_loader)
+        total_count  = retain_count + forget_count
+
+        for epoch in tqdm(range(self.epochs)):
+            t0 = time.time()
+            self.Remainingmodel.train()
+
+            # TRAIN on FORGET FEATURES
+            for imgs, yf in self.train_fgt_loader_img:
+                imgs, yf = imgs.to(opt.device), yf.to(opt.device)
+                with torch.no_grad():
+                    feats = self.Truncatedmodel(imgs)          # -> [B, 512, 2, 2] on CIFAR
+                tgt_prob = self._anti_target_probs(feats, yf)   # teacher tail on split-feats
+                logits   = self.Remainingmodel(feats)           # student tail on split-feats
+                loss = self.kl(F.log_softmax(logits, dim=1), tgt_prob)
+
+                self.optimizer.zero_grad(set_to_none=True)
+                loss.backward()
+                self.optimizer.step()
+
+            epoch_times.append(time.time() - t0)
+
+            # EVAL + AUS
+            with torch.no_grad():
+                self.Remainingmodel.eval()
+                self._merged_full = self._build_merged_full()  # refresh merged to reference current tail
+
+                acc_train_ret    = evaluate_embedding_accuracy(self._merged_full, self.train_retain_loader_img, opt.device)/100.0
+                acc_train_fgt    = evaluate_embedding_accuracy(self._merged_full, self.train_fgt_loader_img,   opt.device)/100.0
+                acc_test_val_ret = evaluate_embedding_accuracy(self._merged_full, self.test_retain_loader_img, opt.device)/100.0
+                acc_test_val_fgt = evaluate_embedding_accuracy(self._merged_full, self.test_fgt_loader_img,    opt.device)/100.0
+                acc_full_val_ret = evaluate_embedding_accuracy(self._merged_full.fc, self.retainfull_loader_real, opt.device)/100.0
+                acc_full_val_fgt = evaluate_embedding_accuracy(self._merged_full.fc, self.forgetfull_loader_real, opt.device)/100.0
+
+                a_t  = Complex(acc_test_val_ret, 0.0)
+                a_f  = Complex(acc_test_val_fgt, 0.0)
+                a_or = Complex(self.a_or_value,  0.0)
+                aus  = AUS(a_t, a_or, a_f).value
+                aus_hist.append(aus)
+
+                print(f"[epoch {epoch}] loss={loss.item():.4f} | "
+                      f"Train Ret {acc_train_ret:.3f}  Fgt {acc_train_fgt:.3f} | "
+                      f"Val Ret {acc_test_val_ret:.3f}  Fgt {acc_test_val_fgt:.3f} | "
+                      f"Full Ret {acc_full_val_ret:.3f}  Fgt {acc_full_val_fgt:.3f} | AUS {aus:.3f}")
+
+                # checkpoint best by AUS (save FULL model weights for convenience)
+                if aus > best_aus:
+                    best_aus   = aus
+                    best_epoch = epoch
+                    best_state = deepcopy(self._merged_full.state_dict())
+                    best_acc_train_ret    = acc_train_ret
+                    best_acc_train_fgt    = acc_train_fgt
+                    best_acc_test_val_ret = acc_test_val_ret
+                    best_acc_test_val_fgt = acc_test_val_fgt
+                    best_acc_full_val_ret = acc_full_val_ret
+                    best_acc_full_val_fgt = acc_full_val_fgt
+
+                if getattr(opt, "save_model", False):
+                    ckpt_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(ckpt_dir, exist_ok=True)
+                    ckpt_path = os.path.join(
+                        ckpt_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_lr{opt.lr_unlearn}.pt"
+                    )
+                    torch.save(best_state, ckpt_path)
+                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
+                else:
+                    print(f"[Checkpoint NOT saved] AUS={aus:.4f} (kept in memory)")
+
+                # early-stops
+                if acc_test_val_fgt == 0.0:
+                    zero_fgt += 1
+                else:
+                    zero_fgt = 0
+                if zero_fgt >= self.zero_acc_patience:
+                    print(f"[Early Stopping] forget acc=0 for {self.zero_acc_patience} consecutive epochs.")
+                    break
+
+                if len(aus_hist) > self.patience:
+                    recent = aus_hist[-self.patience:]
+                    decreasing = all(recent[i] > recent[i+1] for i in range(self.patience-1))
+                    no_change  = all(abs(recent[i] - recent[i+1]) < 1e-4 for i in range(self.patience-1))
+                    if decreasing or no_change:
+                        print(f"[Early Stopping] AUS trend at epoch {epoch+1}.")
+                        break
+
+                if len(aus_hist) >= 20 and sum(a < 0.4 for a in aus_hist[-20:]) >= 20:
+                    print(f"[Early Stopping] AUS < 0.4 for 20 consecutive epochs.")
+                    break
+
+                # your CSV logger here...
+                # log_epoch_to_csv(...)
+
+            self.scheduler.step()
+
+        # Restore best into self.net (so caller gets a standard full model)
+        if best_state is not None:
+            self.net.load_state_dict(best_state)
+
+        # Summary CSV
+        unlearning_time_until_best = sum(epoch_times[:best_epoch + 1]) if best_epoch >= 0 else 0.0
+        log_summary_across_classes(
+            best_epoch=best_epoch,
+            train_retain_acc=round(best_acc_train_ret, 4),
+            train_fgt_acc=round(best_acc_train_fgt, 4),
+            val_test_retain_acc=round(best_acc_test_val_ret, 4),
+            val_test_fgt_acc=round(best_acc_test_val_fgt, 4),
+            val_full_retain_acc=round(best_acc_full_val_ret, 4),
+            val_full_fgt_acc=round(best_acc_full_val_fgt, 4),
+            AUS=round(best_aus, 4),
+            mode=opt.method,
+            dataset=opt.dataset,
+            model=opt.model,
+            class_to_remove=self.class_to_remove,
+            seed=opt.seed,
+            retain_count=retain_count,
+            forget_count=forget_count,
+            total_count=total_count,
+            unlearning_time_until_best=round(unlearning_time_until_best, 4)
+        )
+
+        self.net.eval()
+        return self.net
