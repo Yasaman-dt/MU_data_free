@@ -86,17 +86,17 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 # Load the uploaded CSV files
 cifar10_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar10_ViT_unlearning_summary.csv")
-# cifar100_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar100_ViT_unlearning_summary.csv")
-# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/tinyImagenet_ViT_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/cifar100_ViT_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_head_ViT/results_real/retrained/tinyImagenet_ViT_unlearning_summary.csv")
 
 # Add dataset identifiers
 cifar10_df["dataset"] = "CIFAR10"
-# cifar100_df["dataset"] = "CIFAR100"
-# tinyimagenet_df["dataset"] = "TinyImageNet"
+cifar100_df["dataset"] = "CIFAR100"
+tinyimagenet_df["dataset"] = "TinyImageNet"
 
 # Combine all into one DataFrame
-#retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
-retrained_df =cifar10_df
+retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
+#retrained_df =cifar10_df
 retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
 retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
 retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
@@ -112,12 +112,66 @@ retrained_df["val_full_fgt_acc"] = 0.0
 
 retrained_df["noise_type"] = "-"
 
-val_test_retain_acc_original = original_df['val_test_retain_acc']
-val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+retrained_df['Forget Class'] = pd.to_numeric(retrained_df['Forget Class'], errors='coerce')
+original_df['Forget Class']  = pd.to_numeric(original_df['Forget Class'], errors='coerce')
 
-AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+# --- Ensure retrained has model_num by broadcasting over originals ---
 
-retrained_df["AUS"] = AUS
+# 1) Normalize/ensure model_num on originals
+if 'Model Num' in original_df.columns:
+    original_df.rename(columns={'Model Num': 'model_num'}, inplace=True)
+if 'n_model' in original_df.columns and 'model_num' not in original_df.columns:
+    original_df.rename(columns={'n_model': 'model_num'}, inplace=True)
+original_df['model_num'] = pd.to_numeric(original_df['model_num'], errors='coerce')
+
+# 2) If retrained already has model_num, keep it.
+#    Otherwise, replicate retrained rows across each original model_num per (dataset, Forget Class).
+if 'model_num' not in retrained_df.columns or retrained_df['model_num'].isna().all():
+    key_cols = ['dataset', 'Forget Class']
+
+    # All original seeds (model_num) available for each (dataset, Forget Class)
+    orig_models = (
+        original_df[key_cols + ['model_num']]
+        .dropna(subset=['model_num'])
+        .drop_duplicates()
+    )
+
+    # Cartesian/broadcast: one row per (dataset, Forget Class, model_num),
+    # copying the single retrained metrics across the original model_num's
+    retrained_df = orig_models.merge(retrained_df, on=key_cols, how='left')
+
+    # Optional sanity check: warn if some (dataset, Forget Class) in originals
+    # had no matching retrained entry
+    missing_pairs = retrained_df[retrained_df['val_test_retain_acc'].isna()]
+    if not missing_pairs.empty:
+        print("[WARN] Missing retrained rows for these (dataset, Forget Class):")
+        print(missing_pairs[key_cols].drop_duplicates().to_string(index=False))
+
+# Ensure numeric type after merge
+retrained_df['model_num'] = pd.to_numeric(retrained_df['model_num'], errors='coerce')
+
+key_cols = ['dataset', 'Forget Class', 'model_num']
+
+orig_baseline = (
+    original_df[key_cols + ['val_test_retain_acc']]
+    .dropna(subset=['val_test_retain_acc'])
+    .groupby(key_cols, as_index=False)['val_test_retain_acc']
+    .mean()
+    .rename(columns={'val_test_retain_acc': 'val_test_retain_acc_orig'})
+)
+
+retrained_df = retrained_df.merge(orig_baseline, on=key_cols, how='left')
+
+unmatched = retrained_df[retrained_df['val_test_retain_acc_orig'].isna()]
+if not unmatched.empty:
+    print("[WARN] No matching original baseline for these rows:")
+    print(unmatched[key_cols].drop_duplicates().to_string(index=False))
+
+retrained_df['AUS'] = 1 - (
+    (retrained_df['val_test_retain_acc_orig'] - retrained_df['val_test_retain_acc']) / 100.0
+)
+# retrained_df['AUS'] = retrained_df['AUS'].clip(0, 1)  # optional
+
 
 # Save the combined DataFrame
 output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_ViT/results_diff_sampling/results_retrained.csv"
@@ -336,7 +390,7 @@ datasets = stats_df["dataset"].unique()
 
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "retrained": (r"\makecell{Retrained}", "–"),
     "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
@@ -403,8 +457,8 @@ for dataset in ["CIFAR10", "CIFAR100", "TinyImageNet"]:
             max_min_tracker[dataset][label] = df_filtered[metric_mean].max()
 
 for _, row in stats_df.iterrows():
-    if row["method"] == "DUCK":
-        continue  # Skip DUCK method    
+    if row["method"] in ["DUCK", "RE", "SCRUB", "FT"]:
+        continue   
     method = row["method"]
     source = row["source"]
     noise  = row["noise_type"]   

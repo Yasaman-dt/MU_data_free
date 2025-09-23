@@ -70,12 +70,18 @@ melted_df = df.melt(id_vars=["dataset", "method", "model", "model_num", "source"
                      var_name="metric",
                      value_name="value")
 
+method_order = ["DELETE", "NG", "NG+", "RL", "FT", "SCRUB"]
+melted_df["method"] = pd.Categorical(melted_df["method"], categories=method_order, ordered=True)
+
+
 g = sns.relplot(
     data=melted_df,
     x="samples_per_class",
     y="value",
     hue="method",
     style="method",
+    hue_order=method_order,
+    style_order=method_order,
     markers="o",
     dashes=True,
     palette='tab10',
@@ -231,12 +237,15 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
     if sub.empty:
         continue
 
+    
     g_ds = sns.relplot(
         data=sub,
         x="samples_per_class",
         y="value",
         hue="method",             
         style="method",
+        hue_order=method_order,
+        style_order=method_order,
         markers="o",
         dashes=True,
         palette="tab10",
@@ -248,6 +257,7 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
         errorbar=("ci", 95),
         markeredgewidth=0,
         linewidth=3)
+
 
     for ax in g_ds.axes.flat:
         for collection in ax.collections:
@@ -298,22 +308,22 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
     g_ds.axes[0][2].yaxis.tick_left()
 
     fig_legend = g_ds._legend
-    handles = fig_legend.legendHandles
-    labels  = [t.get_text() for t in fig_legend.get_texts()]
     fig_legend.remove()
     
     # (optional) enforce your explicit order
-    order = [labels.index(m) for m in method_levels if m in labels]
+    order = [labels.index(m) for m in method_order if m in labels]
     handles = [handles[i] for i in order]
     labels  = [labels[i]  for i in order]
       
     ax_af = g_ds.axes[0][0]
+    ax_af.set_ylim(-3, 90)                                  # cap at 1.0
     ax_af.yaxis.set_major_locator(MultipleLocator(10))    # ticks every 5
     ax_af.yaxis.set_major_formatter(ScalarFormatter())   # no decimals
     
     # Retain accuracy (middle panel)
     ax_ar = g_ds.axes[0][1]
-    ax_ar.yaxis.set_major_locator(MultipleLocator(5))    
+    ax_ar.set_ylim(-3, 90)                                  # cap at 1.0
+    ax_ar.yaxis.set_major_locator(MultipleLocator(10))    
     ax_ar.yaxis.set_major_formatter(ScalarFormatter())   
     
     # AUS (right panel)
@@ -321,6 +331,8 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
     ax_aus.set_ylim(0.5, 1.03)                                  # cap at 1.0
     ax_aus.yaxis.set_major_locator(MultipleLocator(0.1))       # ticks every 0.1
     ax_aus.yaxis.set_major_formatter(FormatStrFormatter("%.1f"))
+
+
     
     ax_last = g_ds.axes[0, 1]
     ax_last.legend(handles, labels, title="method",

@@ -70,12 +70,19 @@ melted_df = df.melt(id_vars=["dataset", "method", "model", "model_num", "source"
                      var_name="metric",
                      value_name="value")
 
+method_order = ["DELETE", "NG", "NG+", "RL", "FT", "SCRUB"
+]
+melted_df["method"] = pd.Categorical(melted_df["method"], categories=method_order, ordered=True)
+
+
 g = sns.relplot(
     data=melted_df,
     x="samples_per_class",
     y="value",
     hue="method",
     style="method",
+    hue_order=method_order,
+    style_order=method_order,
     markers="o",
     dashes=True,
     palette='tab10',
@@ -210,6 +217,7 @@ plot_with_black_box(g, "plot_n_sample_ViT")
 
 
 
+
 # --- Per-dataset row-of-3 figures (legend only inside AUS panel) ------------
 
 metric_keys   = ["val_test_fgt_acc", "val_test_retain_acc", "AUS"]
@@ -237,6 +245,8 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
         y="value",
         hue="method",             
         style="method",
+        hue_order=method_order,
+        style_order=method_order,
         markers="o",
         dashes=True,
         palette="tab10",
@@ -308,12 +318,14 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
     labels  = [labels[i]  for i in order]
       
     ax_af = g_ds.axes[0][0]
+    ax_af.set_ylim(-3, 100)                                  # cap at 1.0
     ax_af.yaxis.set_major_locator(MultipleLocator(10))    # ticks every 5
     ax_af.yaxis.set_major_formatter(ScalarFormatter())   # no decimals
     
     # Retain accuracy (middle panel)
     ax_ar = g_ds.axes[0][1]
-    ax_ar.yaxis.set_major_locator(MultipleLocator(5))    
+    ax_ar.set_ylim(-3, 100)                                  # cap at 1.0
+    ax_ar.yaxis.set_major_locator(MultipleLocator(10))    
     ax_ar.yaxis.set_major_formatter(ScalarFormatter())   
     
     # AUS (right panel)

@@ -9,9 +9,10 @@ import numpy as np
 parent_dir = r"C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint"
 sources = [
     ("results_real", "real"),
-    ("results_synth_gaussian", "synth"),
-    # ("results_synth_uniform", "synth"),
-    # ("results_synth_laplace", "synth"),
+    ("results_synth_gaussian_10000perclass", "synth"),
+    ("results_synth_gaussian_seed42", "synth"),
+    ("results_synth_gaussian_seed0", "synth"),
+    ("results_synth_laplace", "synth"),
 ]
 
 
@@ -74,21 +75,21 @@ df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) e
 
 
 # Load the uploaded CSV files
-#cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_swint_unlearning_summary.csv")
-# cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_swint_unlearning_summary.csv")
-# tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_swint_unlearning_summary.csv")
+cifar10_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar10_swint_unlearning_summary.csv")
+cifar100_df = pd.read_csv(f"{parent_dir}/results_real/retrained/cifar100_swint_unlearning_summary.csv")
+tinyimagenet_df = pd.read_csv(f"{parent_dir}/results_real/retrained/tinyImagenet_swint_unlearning_summary.csv")
 
 # Add dataset identifiers
-#cifar10_df["dataset"] = "CIFAR10"
-# cifar100_df["dataset"] = "CIFAR100"
-# tinyimagenet_df["dataset"] = "TinyImageNet"
+cifar10_df["dataset"] = "CIFAR10"
+cifar100_df["dataset"] = "CIFAR100"
+tinyimagenet_df["dataset"] = "TinyImageNet"
 
-# # Combine all into one DataFrame
-#retrained_df =cifar10_df
-# retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
-# retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
-# retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
-# retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
+# Combine all into one DataFrame
+retrained_df =cifar10_df
+retrained_df = pd.concat([cifar10_df, cifar100_df, tinyimagenet_df], ignore_index=True)
+retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
+retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
+retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
 
 def infer_noise_type(path_or_name: str) -> str:
     s = os.path.normpath(path_or_name).replace("\\", "/").lower()
@@ -106,26 +107,80 @@ def infer_noise_type(path_or_name: str) -> str:
 
 
 original_df["noise_type"] = "none"
-# #retrained_df["noise_type"] = "none"
+retrained_df["noise_type"] = "none"
 
 
-# # # Rename the column 'best_val_acc' to 'val_full_retain_acc'
+# Rename the column 'best_val_acc' to 'val_full_retain_acc'
 
-# # Add 'val_full_fgt_acc' column with all values set to 0
-# retrained_df["val_test_fgt_acc"] = 0.0
-# retrained_df["train_fgt_acc"] = 0.0
-# retrained_df["val_full_fgt_acc"] = 0.0
+# Add 'val_full_fgt_acc' column with all values set to 0
+retrained_df["val_test_fgt_acc"] = 0.0
+retrained_df["train_fgt_acc"] = 0.0
+retrained_df["val_full_fgt_acc"] = 0.0
 
-# val_test_retain_acc_original = original_df['val_test_retain_acc']
-# val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+retrained_df['Forget Class'] = pd.to_numeric(retrained_df['Forget Class'], errors='coerce')
+original_df['Forget Class']  = pd.to_numeric(original_df['Forget Class'], errors='coerce')
 
-# AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+# --- Ensure retrained has model_num by broadcasting over originals ---
 
-# retrained_df["AUS"] = AUS
+# 1) Normalize/ensure model_num on originals
+if 'Model Num' in original_df.columns:
+    original_df.rename(columns={'Model Num': 'model_num'}, inplace=True)
+if 'n_model' in original_df.columns and 'model_num' not in original_df.columns:
+    original_df.rename(columns={'n_model': 'model_num'}, inplace=True)
+original_df['model_num'] = pd.to_numeric(original_df['model_num'], errors='coerce')
 
-# # Save the combined DataFrame
-# output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_retrained_swint.csv"
-# retrained_df.to_csv(output_path, index=False)
+# 2) If retrained already has model_num, keep it.
+#    Otherwise, replicate retrained rows across each original model_num per (dataset, Forget Class).
+if 'model_num' not in retrained_df.columns or retrained_df['model_num'].isna().all():
+    key_cols = ['dataset', 'Forget Class']
+
+    # All original seeds (model_num) available for each (dataset, Forget Class)
+    orig_models = (
+        original_df[key_cols + ['model_num']]
+        .dropna(subset=['model_num'])
+        .drop_duplicates()
+    )
+
+    # Cartesian/broadcast: one row per (dataset, Forget Class, model_num),
+    # copying the single retrained metrics across the original model_num's
+    retrained_df = orig_models.merge(retrained_df, on=key_cols, how='left')
+
+    # Optional sanity check: warn if some (dataset, Forget Class) in originals
+    # had no matching retrained entry
+    missing_pairs = retrained_df[retrained_df['val_test_retain_acc'].isna()]
+    if not missing_pairs.empty:
+        print("[WARN] Missing retrained rows for these (dataset, Forget Class):")
+        print(missing_pairs[key_cols].drop_duplicates().to_string(index=False))
+
+# Ensure numeric type after merge
+retrained_df['model_num'] = pd.to_numeric(retrained_df['model_num'], errors='coerce')
+
+key_cols = ['dataset', 'Forget Class', 'model_num']
+
+orig_baseline = (
+    original_df[key_cols + ['val_test_retain_acc']]
+    .dropna(subset=['val_test_retain_acc'])
+    .groupby(key_cols, as_index=False)['val_test_retain_acc']
+    .mean()
+    .rename(columns={'val_test_retain_acc': 'val_test_retain_acc_orig'})
+)
+
+retrained_df = retrained_df.merge(orig_baseline, on=key_cols, how='left')
+
+unmatched = retrained_df[retrained_df['val_test_retain_acc_orig'].isna()]
+if not unmatched.empty:
+    print("[WARN] No matching original baseline for these rows:")
+    print(unmatched[key_cols].drop_duplicates().to_string(index=False))
+
+retrained_df['AUS'] = 1 - (
+    (retrained_df['val_test_retain_acc_orig'] - retrained_df['val_test_retain_acc']) / 100.0
+)
+# retrained_df['AUS'] = retrained_df['AUS'].clip(0, 1)  # optional
+
+
+# Save the combined DataFrame
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_retrained_swint.csv"
+retrained_df.to_csv(output_path, index=False)
 
 all_data = []
 
@@ -226,12 +281,12 @@ if all_data:
     #original_df = original_df[original_df["model_num"].isin([2, 3, 4])]
 
 
-    # retrained_df["method"] = "retrained"
-    # retrained_df["source"] = "real"
-    # retrained_df["dataset"] = retrained_df["dataset"].replace({
-    # "CIFAR10": "cifar10",
-    # "CIFAR100": "cifar100"
-    # })
+    retrained_df["method"] = "retrained"
+    retrained_df["source"] = "real"
+    retrained_df["dataset"] = retrained_df["dataset"].replace({
+    "CIFAR10": "cifar10",
+    "CIFAR100": "cifar100"
+    })
     original_df["method"] = "original"
     original_df["source"] = "real"
     original_df["dataset"] = original_df["dataset"].replace({
@@ -240,23 +295,23 @@ if all_data:
     })
 
 
-    for df in [original_df]:
-        if "method" in df.columns:
-            df["method"] = df["method"].replace(method_map)
-    # for df in [original_df, retrained_df]:
+    # for df in [original_df]:
     #     if "method" in df.columns:
     #         df["method"] = df["method"].replace(method_map)
+    for df in [original_df, retrained_df]:
+        if "method" in df.columns:
+            df["method"] = df["method"].replace(method_map)
         
     # (Optional) Add missing columns if needed
     for col in best_df.columns:
         if col not in original_df.columns:
             original_df[col] = None  # Fill with NaN
-        # if col not in retrained_df.columns:
-        #     retrained_df[col] = None
+        if col not in retrained_df.columns:
+            retrained_df[col] = None
         
     # Align column order
     original_df = original_df[best_df.columns]
-    #retrained_df = retrained_df[best_df.columns]
+    retrained_df = retrained_df[best_df.columns]
     
     save_dir = os.path.join(parent_dir, "best_per_dataset_method_source_swint")
     os.makedirs(save_dir, exist_ok=True)
@@ -269,15 +324,41 @@ if all_data:
         #print(f"✅ Saved {output_file}")    
     
     # === Combine original + best_df
-    #combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
-    combined_df = pd.concat([best_df, original_df], ignore_index=True)
+    combined_df = pd.concat([best_df, original_df, retrained_df], ignore_index=True)
+    #combined_df = pd.concat([best_df, original_df], ignore_index=True)
 
     combined_df.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_head_swint/results_total_swint.csv", index=False)
 
 
+    col = 'val_test_fgt_acc'
+    
+    if col in combined_df.columns:
+        # Exempt original model rows from filtering
+        is_original = combined_df.get('method', '').astype(str).str.lower().eq('original')
+    
+        # Apply >50 filter only to non-original rows
+        mask_bad = (~is_original) & combined_df[col].notna() & (combined_df[col] > 20)
+    
+        removed_rows = combined_df[mask_bad].copy()
+        kept_rows = combined_df[~mask_bad].copy()
+    
+        removed_path = os.path.join(parent_dir, "filtered_out_rows_over50_val_test_fgt_acc_swint.csv")
+        kept_path = os.path.join(parent_dir, "filtered_in_rows_over50_val_test_fgt_acc_swint.csv")
+        removed_rows.to_csv(removed_path, index=False)
+        kept_rows.to_csv(kept_path, index=False)
+    
+        print(f"🧹 Filtered out {len(removed_rows)} rows with {col} > 50 (excluding original). Kept {len(kept_rows)} rows for stats.")
+    else:
+        print(f"⚠️ Column '{col}' not found; proceeding without filtering.")
+
+    
+    #df_final = combined_df
+    df_final = kept_rows
+
+
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
-    numeric_cols1 = combined_df.select_dtypes(include='number').columns
-    stats_df1 = combined_df.groupby(['Forget Class', "dataset", "method", "model", "source"])[numeric_cols1].agg(['mean', 'std']).reset_index()
+    numeric_cols1 = df_final.select_dtypes(include='number').columns
+    stats_df1 = df_final.groupby(['Forget Class', "dataset", "method", "model", "source"])[numeric_cols1].agg(['mean', 'std']).reset_index()
 
     # Flatten multi-level column names
     stats_df1.columns = ['_'.join(col).strip('_') for col in stats_df1.columns.values]
@@ -290,8 +371,8 @@ if all_data:
     print("✅ Merged original results with current best results.")
     
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
-    numeric_cols = combined_df.select_dtypes(include='number').columns
-    stats_df = combined_df.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
+    numeric_cols = df_final.select_dtypes(include='number').columns
+    stats_df = df_final.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
 
     # Flatten multi-level column names
     stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]

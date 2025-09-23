@@ -88,6 +88,14 @@ access_flags = {}  # Store access flags per (method, source) once
 
 max_min_tracker = defaultdict(lambda: defaultdict(dict))  # max_min_tracker[arch][dataset][label]
 
+exclude_mask = (
+    ((stats_df["arch"] == "ViT") & (stats_df["method"] == "SCRUB")) |
+    ((stats_df["arch"] == "swint") & (stats_df["method"] == "RL")) |
+    ((stats_df["arch"] == "swint") & (stats_df["method"] == "BS")) |
+    ((stats_df["arch"] == "swint") & (stats_df["method"] == "DELETE"))
+)
+stats_df = stats_df[~exclude_mask].copy()
+
 for arch in ["ViT", "swint"]:
     for dataset in ["CIFAR10", "CIFAR100", "TinyImageNet"]:
         df_filtered = stats_df[
@@ -106,7 +114,7 @@ for arch in ["ViT", "swint"]:
 
 
 for _, row in stats_df.iterrows():
-    if row["method"] in ["DUCK", "RE"]:
+    if row["method"] in ["DUCK", "RE", "FT"]:
         continue  
     method = row["method"]
     source = row["source"]
@@ -172,7 +180,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 and Swin-T as the base architecture.
+\caption{Class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 and Swin-T as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results_head_transformer}
@@ -219,6 +227,7 @@ all_keys_sorted = sorted(grouped_methods.keys(), key=sort_key)
 
 arch_row_printed = defaultdict(bool)
 
+
 for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     arch = grouped_methods[key]["arch"]
 
@@ -238,7 +247,9 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     prev_arch = arch
     
     if base_method != prev_base_method:
-        if prev_base_method in ["original", "FT", "DELETE"]:
+        if arch== "ViT" and prev_base_method in ["original", "retrained", "DELETE"]:
+            latex_table += r"\midrule" + "\n" + r"\midrule" 
+        elif arch== "swint" and prev_base_method in ["original", "retrained", "NG"]:
             latex_table += r"\midrule" + "\n" + r"\midrule" 
         else:
             latex_table += r"\midrule" + "\n"

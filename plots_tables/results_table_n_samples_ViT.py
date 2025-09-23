@@ -52,7 +52,7 @@ sources = [
     ("results_n_samples_ViT/results_synth_gaussian/", None, "synth"),
     ]
 
-
+SKIP_METHODS = {"FT", "SCRUB"}
 
 for folder_name, sigma, source_type in sources:
     base_dir = os.path.join(parent_dir, folder_name)
@@ -99,6 +99,9 @@ for folder_name, sigma, source_type in sources:
                     df["model_num"] = model_num
                     df["lr"] = lr_value
                     df["method"] = method_map.get(method, method)  # Replace if in map, else keep original
+                    if df["method"].iloc[0] in SKIP_METHODS:
+                        # print(f"Skipping method: {df['method'].iloc[0]} (from dir {method})")
+                        continue
                     df["source"] = "synth"
                     df["samples_per_class"] = samples_per_class
                     df["sigma"] = sigma

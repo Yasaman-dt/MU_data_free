@@ -104,8 +104,8 @@ for arch in ["swint"]:
 
 
 for _, row in stats_df.iterrows():
-    if row["method"] in ["DUCK", "RE"]:
-        continue
+    if row["method"] in ["DUCK", "RE", "DELETE", "BS", "FT", "RL"]:
+        continue  
     method = row["method"]
     source = row["source"]
     dataset = row["dataset"].strip().lower()
@@ -170,7 +170,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using Swin-T as the base architecture.
+\caption{Class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using Swin-T as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results_head_swint}
@@ -378,7 +378,7 @@ best_per_class = defaultdict(lambda: defaultdict(dict))  # e.g., best_per_class[
 
 # Only process for current dataset, e.g., CIFAR10
 dataset_name = "cifar10"
-df_filtered = cifar10_df[~cifar10_df["method"].isin(["DUCK", "RE"])]
+df_filtered = cifar10_df[~cifar10_df["method"].isin(["DUCK", "RE", "DELETE", "BS", "FT", "RL"])]
 
 for prefix, label in columns_to_display:
     metric_mean = f"{prefix}_mean"
@@ -523,7 +523,7 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\caption{Class unlearning performance for CIFAR-10 using Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
 latex.append(r"\label{tab:CIFAR-10_forget_swint}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")

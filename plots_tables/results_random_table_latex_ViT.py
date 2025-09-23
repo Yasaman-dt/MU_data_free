@@ -42,7 +42,7 @@ datasets = stats_df["dataset"].unique()
 # === Define display names and references
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained (Full)}", "–"),
+    "retrained": (r"\makecell{Retrained}", "–"),
     "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
@@ -104,8 +104,8 @@ for arch in ["ViT"]:
 
 
 for _, row in stats_df.iterrows():
-    if row["method"] == "DUCK":
-        continue  # Skip DUCK method    
+    if row["method"] in ["DUCK", "RE"]:
+        continue    
     method = row["method"]
     source = row["source"]
     dataset = row["dataset"].strip().lower()
@@ -170,7 +170,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the base architecture.
+\caption{Class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results_head_ViT}
@@ -361,7 +361,6 @@ cifar10_df = df_latex_input[df_latex_input["dataset"] == "cifar10"].copy()
 #    "val_test_retain_acc_mean", "val_test_retain_acc_std",
 #    "AUS_mean","AUS_std"]]
 
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
 
 # Add display name (human-readable method name)
 df_filtered["Display Name"] = df_filtered["method"].map(lambda m: method_name_and_ref[m][0])
@@ -373,14 +372,13 @@ columns_to_display = [
     ("AUS", r"AUS $\uparrow$")
 ]
 
-from collections import defaultdict
 
 # Track best value (max or min) for each class and metric
 best_per_class = defaultdict(lambda: defaultdict(dict))  # e.g., best_per_class[dataset][metric][class_id]
 
 # Only process for current dataset, e.g., CIFAR10
 dataset_name = "cifar10"
-df_filtered = cifar10_df[cifar10_df["method"] != "DUCK"]
+df_filtered = cifar10_df[~cifar10_df["method"].isin(["DUCK", "RE", "FT", "SCRUB"])]
 
 for prefix, label in columns_to_display:
     metric_mean = f"{prefix}_mean"
@@ -525,7 +523,7 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ViT-B-16, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\caption{Class unlearning performance for CIFAR-10 using ViT-B-16, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
 latex.append(r"\label{tab:CIFAR-10_forget_ViT}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
