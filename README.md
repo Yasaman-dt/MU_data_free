@@ -1,17 +1,14 @@
 # MU_data_free
 
-**0) Environment & Requirements**
-# Activate your conda env
+# 0) Environment & Requirements
+**Activate your conda env**
 conda activate torch_env
-# Install dependencies
-# All required libraries are listed in: bash/requirements.txt
 pip install -r bash/requirements.txt
 
 
-**1) Train “Original” (baseline) models**   
+# 1) Train “Original” (baseline) models 
 cd MU_data_free/
-# Example: first original ResNet-18 on CIFAR-10
-# models: resnet18, resnet50, ViT, swint
+**models: resnet18, resnet50, ViT, swint**
 CUDA_VISIBLE_DEVICES=0 \
 python training_original.py \
   --model resnet18 \
@@ -20,15 +17,15 @@ python training_original.py \
   --n_model 1
 
 
-**2) Create dataset embeddings**
+# 2) Create dataset embeddings
 CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
 
 
-**3) Evaluate originals**
+# 3) Evaluate originals
 CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
 
 
-**4) Train Oracle (retrained-from-scratch) model**
+# 4) Train Oracle (retrained-from-scratch) model
 CUDA_VISIBLE_DEVICES=0 \
 python training_oracle.py \
   --model resnet18 \
@@ -37,7 +34,7 @@ python training_oracle.py \
   --run_rt_model
 
 
-# 5)Unlearning Experiments
+# 5) Unlearning Experiments
 **methods: FT(Finetuning), NG(Negative Gradient), NGFTW(Negative Gradient+), RL(Random Labels), BS(Boundary Shrink), BE(Boundary Expanding), SCRUB, SCAR, DELETE**
 cd bash
 chmod +x job_real_cifar10.sh job_synth_cifar10.sh job_part_real_cifar10.sh job_part_synth_cifar10.sh
