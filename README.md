@@ -18,7 +18,7 @@ A source-free framework for **class unlearning** in image classification with op
 `resnet18 (ResNet-18)`, `resnet50 (ResNet-50)`, `ViT (ViT-B-16)`, `swint (Swin-T)`
 
 **Datasets**  
-`cifar10`, `cifar100` , 'TinyImageNet' (job scripts provided in `bash/`)
+`cifar10`, `cifar100` , `TinyImageNet` (job scripts provided in `bash/`)
 
 ---
 
@@ -69,7 +69,7 @@ CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
 
 ## 3) Evaluate originals → CSV
 
-Produces a CSV with baseline metrics (e.g., accuracy) for later comparison.
+Produces a CSV with baseline metrics for later comparison.
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
