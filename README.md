@@ -169,7 +169,7 @@ Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 
 ---
 
-## Examples (copy–paste)
+## Examples
 
 ```bash
 # Train original ResNet-50 models on CIFAR-10
@@ -184,14 +184,17 @@ CUDA_VISIBLE_DEVICES=0 python training_oracle.py --model ViT --dataset cifar100 
 # Create embeddings
 CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
 
-# FC-only unlearning (real embeddings) with DELETE on Swin-T
-./bash/job_real_cifar10.sh DELETE 0.005 3 5000 0 100 swint
+# FC-only unlearning (real embeddings) with DELETE on ResNet-18
+./bash/job_real_cifar10.sh DELETE 0.01 3 5000 0 100 resnet18
 
-# FC-only unlearning (synthetic) with NGFTW on ResNet-18 + Gaussian
-./bash/job_synth_cifar10.sh NGFTW 0.01 1 5000 0 200 resnet18 gaussian
+# FC-only unlearning (synthetic) with DELETE on ResNet-18 + Gaussian
+./bash/job_synth_cifar10.sh DELETE 0.01 1 5000 0 200 resnet18 gaussian
 
-# Partial-layer unlearning (real) with RL on ResNet-50
-./bash/job_part_real_cifar10.sh RL 0.02 1 5000 0 150 resnet50
+# Partial-layer unlearning (synthetic) with RL on ResNet-18
+./bash/job_part_synth_cifar10.sh DELETE 0.01 1 5000 0 200 resnet18
+
+# Partial-layer unlearning (real) with RL on ResNet-18
+./bash/job_part_real_cifar10.sh DELETE 0.01 1 5000 0 200 resnet18
 ```
 
 
