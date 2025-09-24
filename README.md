@@ -1,4 +1,4 @@
-# MU_data_free
+# MU_source_free
 
 # 0) Environment & Requirements
 **Activate your conda env**
