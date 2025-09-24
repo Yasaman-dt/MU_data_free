@@ -18,7 +18,7 @@ A lightweight framework for **class unlearning** in image classification with op
 `resnet18 (ResNet-18)`, `resnet50 (ResNet-50)`, `ViT (ViT-B-16)`, `swint (Swin-T)`
 
 **Datasets**  
-`cifar10`, `cifar100` (TinyImageNet job scripts provided in `bash/`)
+`cifar10`, `cifar100` , 'TinyImageNet' (job scripts provided in `bash/`)
 
 ---
 
