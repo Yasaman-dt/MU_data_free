@@ -36,10 +36,15 @@ python training_oracle.py \
 
 # 5) Unlearning Experiments
 **methods: FT(Finetuning), NG(Negative Gradient), NGFTW(Negative Gradient+), RL(Random Labels), BS(Boundary Shrink), BE(Boundary Expanding), SCRUB, SCAR, DELETE**
+
 cd bash
+
 chmod +x job_real_cifar10.sh job_synth_cifar10.sh job_part_real_cifar10.sh job_part_synth_cifar10.sh
+
 chmod +x job_real_cifar100.sh job_synth_cifar100.sh job_part_real_cifar100.sh job_part_synth_cifar100.sh
+
 chmod +x job_real_tiny.sh job_synth_tiny.sh job_part_real_tiny.sh job_part_synth_tiny.sh
+
 
 **A) FC-only unlearning with real embeddings**
 
