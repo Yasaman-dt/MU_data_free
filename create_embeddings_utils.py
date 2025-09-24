@@ -21,8 +21,8 @@ MODELS = {
     #'googlenet':models.googlenet,
     #'mnasnet':models.mnasnet1_0,
     #'mobilenet':models.mobilenet_v2,
-    #'resnet18':models.resnet18,
-    #'resnet50':models.resnet50,
+    'resnet18':models.resnet18,
+    'resnet50':models.resnet50,
     #'shufflenet':models.shufflenet_v2_x1_0,
     'ViT': ViT_16_mod,
     'swint': swin_tiny_patch4_window7_224,
@@ -32,13 +32,13 @@ DATASETS = {
     'CIFAR10' : datasets.CIFAR10,
     #'STL10' : datasets.STL10,
     #'SVHN' : datasets.SVHN,
-    #'CIFAR100' : datasets.CIFAR100,
+    'CIFAR100' : datasets.CIFAR100,
     #'Caltech101': datasets.Caltech101,
     #'DTD': datasets.DTD,
     #'FGVCAircraft': datasets.FGVCAircraft,
     #'Flowers102': datasets.Flowers102,
     #'OxfordPets': datasets.OxfordIIITPet,
-    #'TinyImageNet': datasets.ImageFolder  
+    'TinyImageNet': datasets.ImageFolder  
 
 }
 
