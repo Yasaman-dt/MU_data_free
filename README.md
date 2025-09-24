@@ -12,7 +12,7 @@ A lightweight framework for **class unlearning** in image classification with op
 
 **Methods**  
 `FT` (Finetuning), `NG` (Negative Gradient), `NGFTW` (Negative Gradient+), `RL` (Random Labels),
-`SCAR`, `BS` (Boundary Shrink), `BE` (Boundary Expand), `SCRUB`, `DUCK`, `RE`, `LAU`, `BT`, `DELETE`
+`SCAR`, `BS` (Boundary Shrink), `BE` (Boundary Expand), `SCRUB`, `DELETE`
 
 **Backbones**  
 `resnet18 (ResNet-18)`, `resnet50 (ResNet-50)`, `ViT (ViT-B-16)`, `swint (Swin-T)`
