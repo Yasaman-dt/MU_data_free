@@ -37,8 +37,8 @@ python training_oracle.py \
   --run_rt_model
 
 
-**5) Unlearning Experiments**
-# methods: FT(Finetuning), NG(Negative Gradient), NGFTW(Negative Gradient+), RL(Random Labels), BS(Boundary Shrink), BE(Boundary Expanding), SCRUB, SCAR, DELETE
+# 5)Unlearning Experiments
+**methods: FT(Finetuning), NG(Negative Gradient), NGFTW(Negative Gradient+), RL(Random Labels), BS(Boundary Shrink), BE(Boundary Expanding), SCRUB, SCAR, DELETE**
 cd bash
 chmod +x job_real_cifar10.sh job_synth_cifar10.sh job_part_real_cifar10.sh job_part_synth_cifar10.sh
 chmod +x job_real_cifar100.sh job_synth_cifar100.sh job_part_real_cifar100.sh job_part_synth_cifar100.sh
