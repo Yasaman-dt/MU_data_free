@@ -1,6 +1,6 @@
-# MU_data_free
+# A Universal Source-Free Class Unlearning Framework via Synthetic Embeddings
 
-A lightweight framework for **class unlearning** in image classification with options for
+A source-free framework for **class unlearning** in image classification with options for
 - **FC-only** unlearning using *real* or *synthetic* embeddings,
 - **partial-layer** unlearning (before the last conv),
 - multiple unlearning **methods** and **backbones**,
