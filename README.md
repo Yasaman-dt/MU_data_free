@@ -8,7 +8,7 @@ A source-free framework for **class unlearning** in image classification with op
 
 ---
 
-## Supported Methods & Models
+## Supported Methods & Models & Datasets
 
 **Methods**  
 `FT` (Finetuning), `NG` (Negative Gradient), `NGFTW` (Negative Gradient+), `RL` (Random Labels),
