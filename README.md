@@ -59,7 +59,7 @@ CUDA_VISIBLE_DEVICES=0 python training_original.py \
 
 ## 2) Create dataset embeddings
 
-Computes/stores feature embeddings used by several unlearning settings (e.g., FC-only, partial-layer).
+Computes/stores feature embeddings used by several unlearning settings 
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
