@@ -148,27 +148,6 @@ Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 
 ---
 
-## Script → Entry Point → Arguments
-
-| Script                          | Entry point              | Core arguments                                                                                  |
-|---------------------------------|--------------------------|--------------------------------------------------------------------------------------------------|
-| `job_real_cifar10.sh`           | `main_real.py`           | `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL`                                          |
-| `job_synth_cifar10.sh`          | `main.py`                | `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL NOISE`                                    |
-| `job_part_real_cifar10.sh`      | `main_real_part.py`      | `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL`                                          |
-| `job_part_synth_cifar10.sh`     | `main_part.py`           | `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL`                                          |
-| `job_real_cifar100.sh`          | `main_real.py`           | same as above (CIFAR-100)                                                                       |
-| `job_synth_cifar100.sh`         | `main.py`                | same as above (CIFAR-100)                                                                       |
-| `job_part_real_cifar100.sh`     | `main_real_part.py`      | same as above (CIFAR-100)                                                                       |
-| `job_part_synth_cifar100.sh`    | `main_part.py`           | same as above (CIFAR-100)                                                                       |
-| `job_real_tiny.sh`              | `main_real.py`           | same as above (TinyImageNet)                                                                    |
-| `job_synth_tiny.sh`             | `main.py`                | same as above (TinyImageNet)                                                                    |
-| `job_part_real_tiny.sh`         | `main_real_part.py`      | same as above (TinyImageNet)                                                                    |
-| `job_part_synth_tiny.sh`        | `main_part.py`           | same as above (TinyImageNet)                                                                    |
-
-> The job scripts forward the arguments in order to the corresponding Python entry point. Inspect each `bash/job_*.sh` if you need to tweak defaults (logs/paths/seeds).
-
----
-
 ## Examples
 
 ```bash
