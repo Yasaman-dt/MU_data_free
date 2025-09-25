@@ -79,7 +79,7 @@ CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
 
 ## 4) Train Oracle (retrained-from-scratch)
 
-The **Oracle** is the upper bound that retrains from scratch as if the forget request were applied to the data directly.
+The **Oracle** is the upper bound which is the retrained model from scratch with retainset.
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python training_oracle.py \
