@@ -185,7 +185,7 @@ CUDA_VISIBLE_DEVICES=0 python training_oracle.py --model ViT --dataset cifar100 
 CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
 
 # FC-only unlearning (real embeddings) with DELETE on ResNet-18
-./bash/job_real_cifar10.sh DELETE 0.01 3 5000 0 100 resnet18
+./bash/job_real_cifar10.sh DELETE 0.01 1 5000 0 100 resnet18
 
 # FC-only unlearning (synthetic) with DELETE on ResNet-18 + Gaussian
 ./bash/job_synth_cifar10.sh DELETE 0.01 1 5000 0 200 resnet18 gaussian
