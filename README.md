@@ -172,14 +172,14 @@ Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 ## Examples
 
 ```bash
-# Train original ResNet-50 models on CIFAR-10
-CUDA_VISIBLE_DEVICES=0 python training_original.py --model resnet50 --dataset cifar10 --run_original --n_model 1
+# Train original ResNet-18 models on CIFAR-10
+CUDA_VISIBLE_DEVICES=0 python training_original.py --model resnet18 --dataset cifar10 --run_original --n_model 1
 
 # Evaluate originals → CSV
 CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
 
 # Train Oracle on CIFAR-100 (ViT)
-CUDA_VISIBLE_DEVICES=0 python training_oracle.py --model ViT --dataset cifar100 --mode CR --run_rt_model
+CUDA_VISIBLE_DEVICES=0 python training_oracle.py --model resnet18 --dataset cifar10 --mode CR --run_rt_model
 
 # Create embeddings
 CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
