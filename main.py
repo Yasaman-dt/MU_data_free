@@ -447,7 +447,7 @@ if __name__ == "__main__":
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
-                forget_class = class_to_remove[0]
+                #forget_class = class_to_remove[0]
                 train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_train_m{n_model}.npz"
                 
                 if dataset_name_lower == "TinyImageNet":

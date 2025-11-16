@@ -113,40 +113,42 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
 
         timestamp1 = time.time()
 
+        print("class_to_remove:", class_to_remove)
 
-        print("forget_class:",forget_class)
-        print("class_to_remove:",class_to_remove)
-        
-        # Step 1: Generate synthetic retain samples in feature space
+        # Step 1: Load full embeddings
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
-    
+
         data = np.load(data_path)
         embeddings_real = data["embeddings"]  # Shape: (N, 512)
-        labels_real = data["labels"]  # Shape: (N,)
-    
+        labels_real = data["labels"]          # Shape: (N,)
+
         print(f"Loaded Embeddings: {embeddings_real.shape}")
-    
+
         # Convert to tensors
         embeddings_tensor_real = torch.tensor(embeddings_real, dtype=torch.float32)
         labels_tensor_real = torch.tensor(labels_real, dtype=torch.long)
-    
-        # Split into forget and retain sets
-        forget_mask_real = labels_tensor_real == forget_class
-        retain_mask_real = labels_tensor_real != forget_class
-    
-        # Forget set (samples from class 0)
+
+        # Multi-class forget: build tensor of forget classes
+        forget_tensor_real = torch.tensor(class_to_remove, device=labels_tensor_real.device)
+
+        # Split into forget and retain sets (multi-class aware)
+        forget_mask_real = torch.isin(labels_tensor_real, forget_tensor_real)
+        retain_mask_real = ~forget_mask_real
+
+        # Forget set
         forget_embeddings_real = embeddings_tensor_real[forget_mask_real]
-        forget_labels_real = labels_tensor_real[forget_mask_real]
-    
-        # Retain set (samples from all other classes)
+        forget_labels_real     = labels_tensor_real[forget_mask_real]
+
+        # Retain set
         retain_embeddings_real = embeddings_tensor_real[retain_mask_real]
-        retain_labels_real = labels_tensor_real[retain_mask_real]
-    
+        retain_labels_real     = labels_tensor_real[retain_mask_real]
+
         print(f"Forget set size: {forget_embeddings_real.shape}, Retain set size: {retain_embeddings_real.shape}")
+
     
         # Create DataLoaders for validation
-        forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
-        retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
+        forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), opt.batch_size, shuffle=False)
+        retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), opt.batch_size, shuffle=False)
             
 
             
@@ -283,7 +285,9 @@ if __name__ == "__main__":
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
                 batch_size = opt.batch_size
-                forget_class = class_to_remove[0]
+                #forget_class = class_to_remove[0]
+                forget_tensor = torch.tensor(class_to_remove, dtype=torch.long, device=device)
+
                 train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_train_m{n_model}.npz"
                 
                 if dataset_name_lower == "TinyImageNet":
@@ -339,33 +343,39 @@ if __name__ == "__main__":
                 
                 # -------------------- Separate Forget and Retain Sets --------------------
                 # Forget set
-                forget_mask_train = (train_labels == forget_class)
+                #forget_mask_train = (train_labels == forget_class)
+                forget_mask_train  = torch.isin(train_labels, forget_tensor)
                 forget_features_train = train_emb[forget_mask_train]
                 forget_labels_train = train_labels[forget_mask_train]
 
 
                 # Retain set
-                retain_mask_train = (train_labels != forget_class)
+                #retain_mask_train = (train_labels != forget_class)
+                retain_mask_train  = ~forget_mask_train
                 retain_features_train = train_emb[retain_mask_train]
                 retain_labels_train = train_labels[retain_mask_train]
                 
                 # Forget set
-                forget_mask_test = (test_labels == forget_class)
+                #forget_mask_test = (test_labels == forget_class)
+                forget_mask_test  = torch.isin(test_labels, forget_tensor)
                 forget_features_test = test_emb[forget_mask_test]
                 forget_labels_test = test_labels[forget_mask_test]
                 
                 # Retain set
-                retain_mask_test = (test_labels != forget_class)
+                #retain_mask_test = (test_labels != forget_class)
+                retain_mask_test  = ~forget_mask_test
                 retain_features_test = test_emb[retain_mask_test]
                 retain_labels_test = test_labels[retain_mask_test]
                 
                 # Forget set
-                forget_mask_full = (full_labels == forget_class)
+                #forget_mask_full = (full_labels == forget_class)
+                forget_mask_full  = torch.isin(full_labels, forget_tensor)
                 forget_features_full = full_emb[forget_mask_full]
                 forget_labels_full = full_labels[forget_mask_full]
                 
                 # Retain set
-                retain_mask_full = (full_labels != forget_class)
+                #retain_mask_full = (full_labels != forget_class)
+                retain_mask_full  = ~forget_mask_full
                 retain_features_full = full_emb[retain_mask_full]
                 retain_labels_full = full_labels[retain_mask_full]
                 
