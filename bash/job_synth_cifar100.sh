@@ -32,5 +32,6 @@ python main.py  \
     --patience 50  \
     --samples_per_class $SAMPLE_PER_CLASS  \
     --n_model $N_MODEL\
+    --forget_mode single \
     --noise_type $NOISE
 "

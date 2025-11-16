@@ -30,5 +30,6 @@ python main_real.py  \
     --epochs $epoch  \
     --patience 50  \
     --samples_per_class $SAMPLE_PER_CLASS  \
+    --forget_mode single \
     --n_model $N_MODEL
 "
