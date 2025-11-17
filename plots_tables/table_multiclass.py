@@ -132,6 +132,10 @@ def infer_noise_type(path_or_name: str) -> str:
         return "gaussian"
     return "unknown"
 
+def make_red(text: str) -> str:
+    if text in ("", "-"):
+        return text
+    return rf"\textcolor{{red}}{{{text}}}"
 
 # ------------------------------------------------------------
 #  Helper: format mean ± std for LaTeX
@@ -145,9 +149,11 @@ def fmt_pm(row: pd.Series, metric: str) -> str:
 
     # 3 decimals for AUS, 2 for all accuracy metrics
     if metric == "AUS":
-        return f"{m:.3f} $\\pm$ {s:.3f}"
+        val = f"{m:.3f} $\\pm$ {s:.3f}"
     else:
-        return f"{m:.2f} $\\pm$ {s:.2f}"
+        val = f"{m:.2f} $\\pm$ {s:.2f}"
+
+    return make_red(val)
 
 
 def count_forget(s):
@@ -173,7 +179,7 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     Writes a LaTeX table with column groups for each num_forget in forget_list.
     First columns: Method, D_r-free, D_f-free.
     """
-    method_order = ["original", "FT", "RL", "NG", "BE", "DELETE", "NGFTW", "RE"]  # Including "original"
+    method_order = ["original", "FT", "NG", "RL","BE", "DELETE", "NGFTW", "RE"]  # Including "original"
 
     method_display = {m: method_name_and_ref.get(m, (m, "–"))[0] for m in method_order}
 
@@ -192,12 +198,16 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     lines = []
     lines.append(r"\begin{table}[t]")
     lines.append(r"\centering")
-    lines.append(rf"\caption{{Unlearning performance on CIFAR-100 using ResNet-18 as the base architecture. "
-                 r"Rows highlighted in gray correspond to methods applied on synthetic embeddings, "
-                 r"while the non-shaded rows use original embeddings. "
-                 r"Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates "
-                 r"without access to the retain or forget set, respectively, with (\cmark) indicating data-free "
-                 r"operation and (\xmark) indicating that the corresponding data is required.}}")
+    caption_text = (
+        r"Unlearning performance on CIFAR-100 using ResNet-18 as the base architecture. "
+        r"Rows highlighted in gray correspond to methods applied on synthetic embeddings, "
+        r"while the non-shaded rows use original embeddings. "
+        r"Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates "
+        r"without access to the retain or forget set, respectively, with (\cmark) indicating data-free "
+        r"operation and (\xmark) indicating that the corresponding data is required."
+    )
+
+    lines.append(rf"\caption{{{make_red(caption_text)}}}")
     lines.append(r"\label{tab:ResNet-18_cifar100_multi_class}")
     lines.append(r"\resizebox{0.99\linewidth}{!}{%")
     lines.append(r"\begin{tabular}{c|cc|ccc|ccc|ccc}")
