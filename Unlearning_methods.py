@@ -1696,24 +1696,24 @@ class BoundaryExpanding(BaseMethod):
                             raise ValueError("No nn.Linear layer found in classifier head")
                         return last_lin
 
-                    last_linear = find_final_linear(head)
-                    last_linear.weight.copy_(widen_model.weight[:num_classes])
-                    if last_linear.bias is not None and widen_model.bias is not None:
-                        last_linear.bias.copy_(widen_model.bias[:num_classes])
+                    # last_linear = find_final_linear(head)
+                    # last_linear.weight.copy_(widen_model.weight[:num_classes])
+                    # if last_linear.bias is not None and widen_model.bias is not None:
+                    #     last_linear.bias.copy_(widen_model.bias[:num_classes])
 
-                    best_model_state = deepcopy(self.net.state_dict())
+                    # best_model_state = deepcopy(self.net.state_dict())
 
 
-                    checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                    os.makedirs(checkpoint_dir, exist_ok=True)
+                    # checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    # os.makedirs(checkpoint_dir, exist_ok=True)
 
-                    checkpoint_path = os.path.join(
-                        checkpoint_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                    )
+                    # checkpoint_path = os.path.join(
+                    #     checkpoint_dir,
+                    #     f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    # )
 
-                    torch.save(best_model_state, checkpoint_path)
-                    print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
+                    # torch.save(best_model_state, checkpoint_path)
+                    # print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
 
                     best_results = {
                         "Epoch": epoch + 1,

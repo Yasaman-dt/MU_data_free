@@ -44,8 +44,8 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Configuration
 datasets = {
-    "CIFAR10": 10,
-    #"CIFAR100": 100,
+    #"CIFAR10": 10,
+    "CIFAR100": 100,
     #"TinyImageNet": 200,
 }
 
@@ -74,6 +74,8 @@ def evaluate_model(model, data_loader, device):
 for dataset_name, num_classes in datasets.items():
     for n_model in n_models:
         for forget_class in range(0, num_classes):  # just a subset for demo
+
+
 
 
 
@@ -262,7 +264,7 @@ for dataset_name, num_classes in datasets.items():
                 "Test Acc": test_accuracy,
                 "Train Retain Acc": train_retain_acc,
                 "Train Forget Acc": train_fgt_acc,
-                "Val Test Retain Acc": val_test_retain_acc,
+                "Val Test Retain Acc": val_test_retain_acsc,
                 "Val Test Forget Acc": val_test_fgt_acc,
                 "Val Full Retain Acc": val_full_retain_acc,
                 "Val Full Forget Acc": val_full_fgt_acc,

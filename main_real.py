@@ -129,8 +129,12 @@ def main(train_retain_loader_real, train_fgt_loader_real, test_retain_loader, te
         labels_tensor_real = torch.tensor(labels_real, dtype=torch.long)
 
         # Multi-class forget: build tensor of forget classes
-        forget_tensor_real = torch.tensor(class_to_remove, device=labels_tensor_real.device)
-
+        forget_tensor_real = torch.tensor(
+            class_to_remove,
+            dtype=torch.long,
+            device=labels_tensor_real.device,
+        )
+        
         # Split into forget and retain sets (multi-class aware)
         forget_mask_real = torch.isin(labels_tensor_real, forget_tensor_real)
         retain_mask_real = ~forget_mask_real
