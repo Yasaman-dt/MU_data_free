@@ -11,7 +11,8 @@ import os
 import torch
 import numpy as np
 #from generate_emb_samples import generate_emb_samples_balanced
-from generate_emb_samples_randomly import generate_emb_samples_balanced
+#from generate_emb_samples_randomly import generate_emb_samples_balanced
+from generate_emb_samples_randomly_conf import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods import calculate_accuracy
@@ -340,9 +341,13 @@ if __name__ == "__main__":
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
+            # all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
+            #     num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
+            # )
+            
             all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
-            )
+                num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device, min_confidence=0.7,
+            )            
             
             #print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
             #prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
