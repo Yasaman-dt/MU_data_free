@@ -88,6 +88,7 @@ class OPT:
         seed = [42]
         if dataset == 'cifar10':
             single_class_runs = [[i*1] for i in range(10)]#[ [0], [1], ..., [9] ]#
+            #single_class_runs = [[0]]
             permutation_map = [4, 3, 5, 9, 8, 1, 0, 7, 6, 2]            
             
             if forget_mode == "single":
