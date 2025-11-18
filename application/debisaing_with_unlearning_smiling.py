@@ -40,6 +40,9 @@ transform_test = transforms.Compose([
 test_dataset = datasets.CelebA(root=data_dir, split='test', transform=transform_test, download=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
+smiling_idx = 31
+gender_idx = 20
+
 # Extract real embeddings
 def extract_real_embeddings(model, dataloader, device):
     model.eval()
@@ -47,8 +50,8 @@ def extract_real_embeddings(model, dataloader, device):
     with torch.no_grad():
         for inputs, full_labels in dataloader:
             inputs = inputs.to(device)
-            smiling_labels = full_labels[:, 34].to(device)
-            gender_labels = full_labels[:, 20].to(device)
+            smiling_labels = full_labels[:, smiling_idx].to(device)
+            gender_labels = full_labels[:, gender_idx].to(device)
             features = model.resnet(inputs)
             features = features.view(features.size(0), -1)
             embeddings = model.fc(features)
@@ -74,8 +77,8 @@ def evaluate_synthetic_embeddings(model, forget_embeddings, retain_embeddings, p
     return accuracy_forget, accuracy_retain
 
 
-
-def evaluate_real_embeddings(model, test_loader, device, smiling_idx=34, gender_idx=20):
+ 
+def evaluate_real_embeddings(model, test_loader, device, smiling_idx=smiling_idx, gender_idx=gender_idx):
     model.eval()
     total_forget, correct_forget, total_retain, correct_retain = 0, 0, 0, 0
     with torch.no_grad():
@@ -85,10 +88,8 @@ def evaluate_real_embeddings(model, test_loader, device, smiling_idx=34, gender_
             gender_labels = full_labels[:, gender_idx].to(device)
             smiling_output, _ = model(inputs)
             predicted_smiling = torch.round(torch.sigmoid(smiling_output)).squeeze()
-            # forget_mask = (smiling_labels == 1) & (gender_labels == 0)
-            # retain_mask = ~forget_mask
-            retain_mask = (smiling_labels == 1) & (gender_labels == 1)
-            forget_mask = ~retain_mask
+            forget_mask = (smiling_labels == 1) & (gender_labels == 1)
+            retain_mask = ~forget_mask
 
             if forget_mask.any():
                 correct_forget += predicted_smiling[forget_mask].eq(smiling_labels[forget_mask]).sum().item()
@@ -98,11 +99,12 @@ def evaluate_real_embeddings(model, test_loader, device, smiling_idx=34, gender_
                 total_retain += retain_mask.sum().item()
     forget_acc = (correct_forget / total_forget * 100) if total_forget > 0 else 0.0
     retain_acc = (correct_retain / total_retain * 100) if total_retain > 0 else 0.0
-    print(f"[REAL TEST] Forget (smiling male) accuracy:  {forget_acc:.2f}%")
-    print(f"[REAL TEST] Retain (others) accuracy:       {retain_acc:.2f}%")
+    print(f"[REAL TEST] Forget accuracy:  {forget_acc:.2f}%")
+    print(f"[REAL TEST] Retain accuracy:  {retain_acc:.2f}%")
     return forget_acc, retain_acc
 
-def evaluate_real_groups(model, test_loader, device, smiling_idx=34, gender_idx=20):
+
+def evaluate_real_groups(model, test_loader, device, smiling_idx=smiling_idx, gender_idx=gender_idx):
     model.eval()
     correct_male_smile, total_male_smile = 0, 0
     correct_female_smile, total_female_smile = 0, 0
@@ -115,8 +117,8 @@ def evaluate_real_groups(model, test_loader, device, smiling_idx=34, gender_idx=
             gender_labels = full_labels[:, gender_idx].to(device)
             smiling_output, _ = model(inputs)
             predicted_smiling = torch.round(torch.sigmoid(smiling_output)).squeeze()
-            male_mask = (gender_labels == 0)
-            female_mask = (gender_labels == 1)
+            male_mask = (gender_labels == 1)
+            female_mask = (gender_labels == 0)
             smile_mask = (smiling_labels == 1)
             nosmile_mask = (smiling_labels == 0)
             ms_mask = male_mask & smile_mask
@@ -147,7 +149,7 @@ def evaluate_real_groups(model, test_loader, device, smiling_idx=34, gender_idx=
 
 # Load model and data
 model = DualHeadResNet18()
-model.load_state_dict(torch.load('best_dual_head_model.pth'))
+model.load_state_dict(torch.load('best_dual_head_model_smiling.pth'))
 model = model.to(device)
 real_embeddings, real_smiling_labels, real_gender_labels = extract_real_embeddings(model, test_loader, device)
 
@@ -206,10 +208,8 @@ for epoch in range(num_epochs):
             smiling_prob = torch.sigmoid(smiling_logits)
             pseudo_smile = (smiling_prob > 0.5).float()
             pseudo_gender = gender_logits.argmax(dim=1)
-            #forget_mask = (pseudo_smile == 1) & (pseudo_gender == 0)
-            #retain_mask = ~forget_mask
-            retain_mask = (pseudo_smile == 1) & (pseudo_gender == 1)
-            forget_mask = ~retain_mask
+            forget_mask = (pseudo_smile == 1) & (pseudo_gender == 0)
+            retain_mask = ~forget_mask
 
 
         if retain_mask.sum() == 0 or forget_mask.sum() == 0:
@@ -253,6 +253,6 @@ for epoch in range(num_epochs):
     # Print synthetic train accuracies
     syn_forget_acc = (syn_correct_forget / syn_total_forget * 100) if syn_total_forget > 0 else 0.0
     syn_retain_acc = (syn_correct_retain / syn_total_retain * 100) if syn_total_retain > 0 else 0.0
-    print(f"[SYN TRAIN] Forget (smiling male → 0) accuracy: {syn_forget_acc:.2f}%")
-    print(f"[SYN TRAIN] Retain (pseudo-smile) accuracy:     {syn_retain_acc:.2f}%")
+    print(f"[SYN TRAIN] Forget accuracy: {syn_forget_acc:.2f}%")
+    print(f"[SYN TRAIN] Retain accuracy:     {syn_retain_acc:.2f}%")
     print(f"[REAL TEST SUMMARY] Forget: {real_forget_acc:.2f}% | Retain: {real_retain_acc:.2f}%")

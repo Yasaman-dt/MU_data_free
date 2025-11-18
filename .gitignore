@@ -2,6 +2,7 @@ __pycache__
 chechpoints_main
 chechpoints_main_real
 datasets
+data
 embeddings
 out_real
 out_synth_gaussian
@@ -12,4 +13,3 @@ results_synth_gaussian
 results_synth_laplace
 results_synth_uniform
 weights
-

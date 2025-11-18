@@ -66,13 +66,13 @@ test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
 # Load your trained model
 model = DualHeadResNet18()  # Assuming you've trained it using the DualHeadResNet18 class
-model.load_state_dict(torch.load('best_dual_head_model.pth'))
+model.load_state_dict(torch.load('best_dual_head_model_smiling.pth'))
 model = model.to(device)
 
 # Set the model to evaluation mode
 model.eval()
 
-def evaluate_bias(model, test_loader, smiling_idx=34, gender_idx=20):
+def evaluate_bias(model, test_loader, smiling_idx=31, gender_idx=20):
     correct_smiling_female = 0
     correct_smiling_male = 0
     correct_non_smiling_female = 0
@@ -94,22 +94,22 @@ def evaluate_bias(model, test_loader, smiling_idx=34, gender_idx=20):
             _, predicted_gender = torch.max(gender_output, 1)
 
             # Smiling and Female
-            smiling_female_mask = (smiling_labels == 1) & (gender_labels == 1)
+            smiling_female_mask = (smiling_labels == 1) & (gender_labels == 0)
             correct_smiling_female += predicted_smiling[smiling_female_mask].eq(smiling_labels[smiling_female_mask]).sum().item()
             total_smiling_female += smiling_female_mask.sum().item()
 
             # Smiling and Male
-            smiling_male_mask = (smiling_labels == 1) & (gender_labels == 0)
+            smiling_male_mask = (smiling_labels == 1) & (gender_labels == 1)
             correct_smiling_male += predicted_smiling[smiling_male_mask].eq(smiling_labels[smiling_male_mask]).sum().item()
             total_smiling_male += smiling_male_mask.sum().item()
 
             # Non-Smiling and Female
-            non_smiling_female_mask = (smiling_labels == 0) & (gender_labels == 1)
+            non_smiling_female_mask = (smiling_labels == 0) & (gender_labels == 0)
             correct_non_smiling_female += predicted_smiling[non_smiling_female_mask].eq(smiling_labels[non_smiling_female_mask]).sum().item()
             total_non_smiling_female += non_smiling_female_mask.sum().item()
 
             # Non-Smiling and Male
-            non_smiling_male_mask = (smiling_labels == 0) & (gender_labels == 0)
+            non_smiling_male_mask = (smiling_labels == 0) & (gender_labels == 1)
             correct_non_smiling_male += predicted_smiling[non_smiling_male_mask].eq(smiling_labels[non_smiling_male_mask]).sum().item()
             total_non_smiling_male += non_smiling_male_mask.sum().item()
 
@@ -118,6 +118,25 @@ def evaluate_bias(model, test_loader, smiling_idx=34, gender_idx=20):
     smiling_accuracy_male = (correct_smiling_male / total_smiling_male * 100) if total_smiling_male > 0 else 0
     non_smiling_accuracy_female = (correct_non_smiling_female / total_non_smiling_female * 100) if total_non_smiling_female > 0 else 0
     non_smiling_accuracy_male = (correct_non_smiling_male / total_non_smiling_male * 100) if total_non_smiling_male > 0 else 0
+
+    total_smiling = total_smiling_female + total_smiling_male
+    total_non_smiling = total_non_smiling_female + total_non_smiling_male
+    total_female = total_smiling_female + total_non_smiling_female
+    total_male = total_smiling_male + total_non_smiling_male
+
+    correct_smiling = correct_smiling_female + correct_smiling_male
+    correct_non_smiling = correct_non_smiling_female + correct_non_smiling_male
+    correct_female = correct_smiling_female + correct_non_smiling_female
+    correct_male = correct_smiling_male + correct_non_smiling_male
+
+    # 1) accuracy on smiling (ignore gender)
+    smiling_acc_overall = (correct_smiling / total_smiling * 100) if total_smiling > 0 else 0
+    # 2) accuracy on non-smiling (ignore gender)
+    non_smiling_acc_overall = (correct_non_smiling / total_non_smiling * 100) if total_non_smiling > 0 else 0
+    # 3) accuracy on females (ignore smiling)
+    female_acc_overall = (correct_female / total_female * 100) if total_female > 0 else 0
+    # 4) accuracy on males (ignore smiling)
+    male_acc_overall = (correct_male / total_male * 100) if total_male > 0 else 0
 
     print(f"Smiling Females: {total_smiling_female}")
     print(f"Smiling Males: {total_smiling_male}")
@@ -129,10 +148,18 @@ def evaluate_bias(model, test_loader, smiling_idx=34, gender_idx=20):
     print(f"Non-Smiling Accuracy for Females: {non_smiling_accuracy_female:.2f}%")
     print(f"Non-Smiling Accuracy for Males: {non_smiling_accuracy_male:.2f}%")
 
+    print(f"\n[Ignoring gender]")
+    print(f"Smiling Accuracy (overall): {smiling_acc_overall:.2f}%")
+    print(f"Non-Smiling Accuracy (overall): {non_smiling_acc_overall:.2f}%")
+
+    print(f"\n[Ignoring smiling]")
+    print(f"Female Accuracy (overall): {female_acc_overall:.2f}%")
+    print(f"Male Accuracy (overall): {male_acc_overall:.2f}%")
+
     if abs(smiling_accuracy_female - smiling_accuracy_male) > 10:
-        print("Potential Bias Detected in Smiling Prediction")
+        print("\nPotential Bias Detected in Smiling Prediction")
     else:
-        print("No Significant Bias Detected in Smiling Prediction")
+        print("\nNo Significant Bias Detected in Smiling Prediction")
 
 # Test the bias in predictions
 evaluate_bias(model, test_loader)

@@ -341,13 +341,14 @@ if __name__ == "__main__":
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
-            # all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
-            #     num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
-            # )
-            
             all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
-                num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device, min_confidence=0.7,
-            )            
+                num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device
+            )
+            
+            # all_features_synth, all_labels_synth, all_probability_synth, all_sample_probs_synth = generate_emb_samples_balanced(
+            #     num_classes, opt.samples_per_class, original_pretr_model, noise_type=opt.noise_type, device=device,
+            #     min_confidence=0.05, max_confidence=0.9
+            # )            
             
             #print("\n=== Class-wise Gaussian Densities of Synthetic Samples ===")
             #prob_stats = analyze_sample_probabilities(all_labels_synth, all_sample_probs_synth, num_classes)
