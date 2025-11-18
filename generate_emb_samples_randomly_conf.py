@@ -48,7 +48,7 @@ def _get_classifier_and_dim(net):
     
     
     
-def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_type, device='cuda', min_confidence=0.0):
+def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_type, device='cuda', min_confidence=0.0, max_confidence=0.0):
     batch_size = 2000
 
     net.eval().to(device)
@@ -88,15 +88,11 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
         for i in range(batch_size):
             class_name = int(predicted_labels[i])
             class_conf = float(soft_targets[i, class_name])
-
-            # pick threshold for this class
-            if per_class_min_conf is not None:
-                thr = float(per_class_min_conf[class_name])
-            else:
-                thr = float(min_confidence)
+            #thr = float(min_confidence)
+            thr = float(max_confidence)
 
             # skip samples that are not confident enough
-            if class_conf < thr:
+            if class_conf > thr:
                 continue
 
             # keep sample if we still need this class
