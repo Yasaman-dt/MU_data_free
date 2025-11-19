@@ -179,7 +179,7 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     Writes a LaTeX table with column groups for each num_forget in forget_list.
     First columns: Method, D_r-free, D_f-free.
     """
-    method_order = ["original", "FT", "NG", "RL","BE", "DELETE", "NGFTW", "RE"]  # Including "original"
+    method_order = ["original", "FT", "NG", "RL","BE", "DELETE", "NGFTW", "SCRUB"]  # Including "original"
 
     method_display = {m: method_name_and_ref.get(m, (m, "–"))[0] for m in method_order}
 
@@ -199,7 +199,7 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     lines.append(r"\begin{table}[t]")
     lines.append(r"\centering")
     caption_text = (
-        r"Unlearning performance on CIFAR-100 using ResNet-18 as the base architecture. "
+        r"Multi class unlearning performance on CIFAR-100 using ResNet-18 as the base architecture. "
         r"Rows highlighted in gray correspond to methods applied on synthetic embeddings, "
         r"while the non-shaded rows use original embeddings. "
         r"Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates "
