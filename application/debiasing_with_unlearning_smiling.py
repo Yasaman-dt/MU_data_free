@@ -27,7 +27,6 @@ class DualHeadResNet18(nn.Module):
         gender_output = self.gender_head(x)
         return smiling_output, gender_output
 
-
 # Set device
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -41,118 +40,122 @@ transform_test = transforms.Compose([
 test_dataset = datasets.CelebA(root=data_dir, split='test', transform=transform_test, download=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-earing_idx = 34
+smiling_idx = 31
 gender_idx = 20
 
 # Extract real embeddings
 def extract_real_embeddings(model, dataloader, device):
     model.eval()
-    all_embeddings, all_earing_labels, all_gender_labels = [], [], []
+    all_embeddings, all_smiling_labels, all_gender_labels = [], [], []
     with torch.no_grad():
         for inputs, full_labels in dataloader:
             inputs = inputs.to(device)
-            earing_labels = full_labels[:, earing_idx].to(device)
+            smiling_labels = full_labels[:, smiling_idx].to(device)
             gender_labels = full_labels[:, gender_idx].to(device)
-            features = model.resnet(inputs)
-            features = features.view(features.size(0), -1)
-            embeddings = model.fc(features)
+
+            features = model.resnet(inputs)                # backbone
+            embeddings = features.view(features.size(0), -1)  # PRE-fc
+            # embeddings shape: [B, 512], same as syn_feat
+
             all_embeddings.append(embeddings)
-            all_earing_labels.append(earing_labels)
+            all_smiling_labels.append(smiling_labels)
             all_gender_labels.append(gender_labels)
-    return torch.cat(all_embeddings), torch.cat(all_earing_labels), torch.cat(all_gender_labels)
+
+    return torch.cat(all_embeddings), torch.cat(all_smiling_labels), torch.cat(all_gender_labels)
+
 
 # Evaluation functions
-def evaluate_synthetic_embeddings(model, forget_embeddings, retain_embeddings, predicted_earing, predicted_gender, forget_mask, retain_mask):
+def evaluate_synthetic_embeddings(model, forget_embeddings, retain_embeddings, predicted_smiling, predicted_gender, forget_mask, retain_mask):
     model.eval()
     with torch.no_grad():
-        earing_logits_f = model.earing_head(model.fc(forget_embeddings))
-        predicted_earing_f = torch.round(torch.sigmoid(earing_logits_f)).squeeze()
-        correct_forget = predicted_earing_f.eq(torch.zeros_like(predicted_earing_f)).sum().item()
-        accuracy_forget = correct_forget / len(predicted_earing_f) * 100 if len(predicted_earing_f) > 0 else 0
-        earing_logits_r = model.earing_head(model.fc(retain_embeddings))
-        predicted_earing_r = torch.round(torch.sigmoid(earing_logits_r)).squeeze()
-        correct_retain = predicted_earing_r.eq(predicted_earing[retain_mask].float()).sum().item()
-        accuracy_retain = correct_retain / len(predicted_earing_r) * 100 if len(predicted_earing_r) > 0 else 0
-    print(f"Synthetic Forget Accuracy (Target: Not earing): {accuracy_forget:.2f}%")
-    print(f"Synthetic Retain Accuracy (Target: Original earing): {accuracy_retain:.2f}%")
+        smiling_logits_f = model.smiling_head(model.fc(forget_embeddings))
+        predicted_smiling_f = torch.round(torch.sigmoid(smiling_logits_f)).squeeze()
+        correct_forget = predicted_smiling_f.eq(torch.zeros_like(predicted_smiling_f)).sum().item()
+        accuracy_forget = correct_forget / len(predicted_smiling_f) * 100 if len(predicted_smiling_f) > 0 else 0
+        smiling_logits_r = model.smiling_head(model.fc(retain_embeddings))
+        predicted_smiling_r = torch.round(torch.sigmoid(smiling_logits_r)).squeeze()
+        correct_retain = predicted_smiling_r.eq(predicted_smiling[retain_mask].float()).sum().item()
+        accuracy_retain = correct_retain / len(predicted_smiling_r) * 100 if len(predicted_smiling_r) > 0 else 0
+    print(f"Synthetic Forget Accuracy (Target: Not Smiling): {accuracy_forget:.2f}%")
+    print(f"Synthetic Retain Accuracy (Target: Original Smiling): {accuracy_retain:.2f}%")
     return accuracy_forget, accuracy_retain
 
 
  
-def evaluate_real_embeddings(model, test_loader, device, earing_idx=earing_idx, gender_idx=gender_idx):
+def evaluate_real_embeddings(model, test_loader, device, smiling_idx=smiling_idx, gender_idx=gender_idx):
     model.eval()
     total_forget, correct_forget, total_retain, correct_retain = 0, 0, 0, 0
     with torch.no_grad():
         for inputs, full_labels in test_loader:
             inputs = inputs.to(device)
-            earing_labels = full_labels[:, earing_idx].to(device)
+            smiling_labels = full_labels[:, smiling_idx].to(device)
             gender_labels = full_labels[:, gender_idx].to(device)
-            earing_output, _ = model(inputs)
-            predicted_earing = torch.round(torch.sigmoid(earing_output)).squeeze()
-            forget_mask = (earing_labels == 1) & (gender_labels == 0)
+            smiling_output, _ = model(inputs)
+            predicted_smiling = torch.round(torch.sigmoid(smiling_output)).squeeze()
+            forget_mask = (smiling_labels == 1) & (gender_labels == 1)
             retain_mask = ~forget_mask
 
             if forget_mask.any():
-                correct_forget += predicted_earing[forget_mask].eq(earing_labels[forget_mask]).sum().item()
+                correct_forget += predicted_smiling[forget_mask].eq(smiling_labels[forget_mask]).sum().item()
                 total_forget += forget_mask.sum().item()
             if retain_mask.any():
-                correct_retain += predicted_earing[retain_mask].eq(earing_labels[retain_mask]).sum().item()
+                correct_retain += predicted_smiling[retain_mask].eq(smiling_labels[retain_mask]).sum().item()
                 total_retain += retain_mask.sum().item()
     forget_acc = (correct_forget / total_forget * 100) if total_forget > 0 else 0.0
     retain_acc = (correct_retain / total_retain * 100) if total_retain > 0 else 0.0
     print(f"[REAL TEST] Forget accuracy:  {forget_acc:.2f}%")
-    print(f"[REAL TEST] Retain accuracy:       {retain_acc:.2f}%")
+    print(f"[REAL TEST] Retain accuracy:  {retain_acc:.2f}%")
     return forget_acc, retain_acc
 
 
-def evaluate_real_groups(model, test_loader, device, earing_idx=earing_idx, gender_idx=gender_idx):
+def evaluate_real_groups(model, test_loader, device, smiling_idx=smiling_idx, gender_idx=gender_idx):
     model.eval()
-    correct_male_earing, total_male_earing = 0, 0
-    correct_female_earing, total_female_earing = 0, 0
-    correct_male_noearing, total_male_noearing = 0, 0
-    correct_female_noearing, total_female_noearing = 0, 0
+    correct_male_smile, total_male_smile = 0, 0
+    correct_female_smile, total_female_smile = 0, 0
+    correct_male_nosmile, total_male_nosmile = 0, 0
+    correct_female_nosmile, total_female_nosmile = 0, 0
     with torch.no_grad():
         for inputs, full_labels in test_loader:
             inputs = inputs.to(device)
-            earing_labels = full_labels[:, earing_idx].to(device)
+            smiling_labels = full_labels[:, smiling_idx].to(device)
             gender_labels = full_labels[:, gender_idx].to(device)
-            earing_output, _ = model(inputs)
-            predicted_earing = torch.round(torch.sigmoid(earing_output)).squeeze()
+            smiling_output, _ = model(inputs)
+            predicted_smiling = torch.round(torch.sigmoid(smiling_output)).squeeze()
             male_mask = (gender_labels == 1)
             female_mask = (gender_labels == 0)
-            earing_mask = (earing_labels == 1)
-            noearing_mask = (earing_labels == 0)
-            ms_mask = male_mask & earing_mask
+            smile_mask = (smiling_labels == 1)
+            nosmile_mask = (smiling_labels == 0)
+            ms_mask = male_mask & smile_mask
             if ms_mask.any():
-                correct_male_earing += predicted_earing[ms_mask].eq(earing_labels[ms_mask]).sum().item()
-                total_male_earing += ms_mask.sum().item()
-            fs_mask = female_mask & earing_mask
+                correct_male_smile += predicted_smiling[ms_mask].eq(smiling_labels[ms_mask]).sum().item()
+                total_male_smile += ms_mask.sum().item()
+            fs_mask = female_mask & smile_mask
             if fs_mask.any():
-                correct_female_earing += predicted_earing[fs_mask].eq(earing_labels[fs_mask]).sum().item()
-                total_female_earing += fs_mask.sum().item()
-            mns_mask = male_mask & noearing_mask
+                correct_female_smile += predicted_smiling[fs_mask].eq(smiling_labels[fs_mask]).sum().item()
+                total_female_smile += fs_mask.sum().item()
+            mns_mask = male_mask & nosmile_mask
             if mns_mask.any():
-                correct_male_noearing += predicted_earing[mns_mask].eq(earing_labels[mns_mask]).sum().item()
-                total_male_noearing += mns_mask.sum().item()
-            fns_mask = female_mask & noearing_mask
+                correct_male_nosmile += predicted_smiling[mns_mask].eq(smiling_labels[mns_mask]).sum().item()
+                total_male_nosmile += mns_mask.sum().item()
+            fns_mask = female_mask & nosmile_mask
             if fns_mask.any():
-                correct_female_noearing += predicted_earing[fns_mask].eq(earing_labels[fns_mask]).sum().item()
-                total_female_noearing += fns_mask.sum().item()
-    male_earing_acc = (correct_male_earing / total_male_earing * 100) if total_male_earing > 0 else 0.0
-    female_earing_acc = (correct_female_earing / total_female_earing * 100) if total_female_earing > 0 else 0.0
-    male_noearing_acc = (correct_male_noearing / total_male_noearing * 100) if total_male_noearing > 0 else 0.0
-    female_noearing_acc = (correct_female_noearing / total_female_noearing * 100) if total_female_noearing > 0 else 0.0
-    print(f"[REAL TEST] Male   & earing      acc: {male_earing_acc:.2f}%")
-    print(f"[REAL TEST] Female & earing      acc: {female_earing_acc:.2f}%")
-    print(f"[REAL TEST] Male   & Not earing  acc: {male_noearing_acc:.2f}%")
-    print(f"[REAL TEST] Female & Not earing  acc: {female_noearing_acc:.2f}%")
-    return male_earing_acc, female_earing_acc, male_noearing_acc, female_noearing_acc
+                correct_female_nosmile += predicted_smiling[fns_mask].eq(smiling_labels[fns_mask]).sum().item()
+                total_female_nosmile += fns_mask.sum().item()
+    male_smile_acc = (correct_male_smile / total_male_smile * 100) if total_male_smile > 0 else 0.0
+    female_smile_acc = (correct_female_smile / total_female_smile * 100) if total_female_smile > 0 else 0.0
+    male_nosmile_acc = (correct_male_nosmile / total_male_nosmile * 100) if total_male_nosmile > 0 else 0.0
+    female_nosmile_acc = (correct_female_nosmile / total_female_nosmile * 100) if total_female_nosmile > 0 else 0.0
+    print(f"[REAL TEST] Male   & Smiling      acc: {male_smile_acc:.2f}%")
+    print(f"[REAL TEST] Female & Smiling      acc: {female_smile_acc:.2f}%")
+    print(f"[REAL TEST] Male   & Not Smiling  acc: {male_nosmile_acc:.2f}%")
+    print(f"[REAL TEST] Female & Not Smiling  acc: {female_nosmile_acc:.2f}%")
+    return male_smile_acc, female_smile_acc, male_nosmile_acc, female_nosmile_acc
 
 # Load model and data
 model = DualHeadResNet18()
-model.load_state_dict(torch.load('best_dual_head_model_earing.pth'))
+model.load_state_dict(torch.load('best_dual_head_model_smiling.pth'))
 model = model.to(device)
-real_embeddings, real_earing_labels, real_gender_labels = extract_real_embeddings(model, test_loader, device)
+real_embeddings, real_smiling_labels, real_gender_labels = extract_real_embeddings(model, test_loader, device)
 
 # Define loss and optimizer
 optimizer = optim.SGD([
@@ -202,14 +205,14 @@ for epoch in range(num_epochs):
     for step in range(steps_per_epoch):
         syn_feat = torch.randn(synthetic_batch_size, 512, device=device)
         z = model.fc(syn_feat)
-        earing_logits = model.earing_head(z).squeeze(1)
+        smiling_logits = model.smiling_head(z).squeeze(1)
         gender_logits = model.gender_head(z)
 
         with torch.no_grad():
-            earing_prob = torch.sigmoid(earing_logits)
-            pseudo_earing = (earing_prob > 0.5).float()
+            smiling_prob = torch.sigmoid(smiling_logits)
+            pseudo_smile = (smiling_prob > 0.5).float()
             pseudo_gender = gender_logits.argmax(dim=1)
-            forget_mask = (pseudo_earing == 1) & (pseudo_gender == 0)
+            forget_mask = (pseudo_smile == 1) & (pseudo_gender == 0)
             retain_mask = ~forget_mask
 
 
@@ -217,18 +220,18 @@ for epoch in range(num_epochs):
             continue
 
         # Retain set
-        earing_logits_r = earing_logits[retain_mask].squeeze()
+        smiling_logits_r = smiling_logits[retain_mask].squeeze()
         gender_logits_r = gender_logits[retain_mask]
-        target_earing_r = pseudo_earing[retain_mask].squeeze()
+        target_smile_r = pseudo_smile[retain_mask].squeeze()
         target_gender_r = pseudo_gender[retain_mask].long()
-        loss_r = criterion(earing_logits_r, target_earing_r)
+        loss_r = criterion(smiling_logits_r, target_smile_r)
 
         # Forget set
-        earing_logits_f = earing_logits[forget_mask]
+        smiling_logits_f = smiling_logits[forget_mask]
         gender_logits_f = gender_logits[forget_mask]
-        target_earing_f = torch.zeros_like(earing_logits_f)
+        target_smile_f = torch.zeros_like(smiling_logits_f)
         target_gender_f = pseudo_gender[forget_mask].long()
-        loss_f = criterion(earing_logits_f, target_earing_f)
+        loss_f = criterion(smiling_logits_f, target_smile_f)
 
         Nr = retain_mask.sum().item()
         Nf = forget_mask.sum().item()
@@ -241,12 +244,12 @@ for epoch in range(num_epochs):
         optimizer.step()
 
         with torch.no_grad():
-            pred_r = (torch.sigmoid(earing_logits_r) > 0.5).float()
-            syn_correct_retain += pred_r.eq(target_earing_r).sum().item()
-            syn_total_retain += target_earing_r.numel()
-            pred_f = (torch.sigmoid(earing_logits_f) > 0.5).float()
-            syn_correct_forget += pred_f.eq(target_earing_f).sum().item()
-            syn_total_forget += target_earing_f.numel()
+            pred_r = (torch.sigmoid(smiling_logits_r) > 0.5).float()
+            syn_correct_retain += pred_r.eq(target_smile_r).sum().item()
+            syn_total_retain += target_smile_r.numel()
+            pred_f = (torch.sigmoid(smiling_logits_f) > 0.5).float()
+            syn_correct_forget += pred_f.eq(target_smile_f).sum().item()
+            syn_total_forget += target_smile_f.numel()
 
     # Update learning rate
     scheduler.step()

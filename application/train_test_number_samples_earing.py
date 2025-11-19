@@ -12,9 +12,9 @@ transform = transforms.Compose([
 ])
 
 male_idx = 20      # 'Male'
-smiling_idx = 31   # 'smiling' (0-based index in CelebA attrs)
+earing_idx = 34   # 'earing' (0-based index in CelebA attrs)
 
-def count_gender_smiling(split):
+def count_gender_earing(split):
     dataset = datasets.CelebA(root=data_dir,
                               split=split,
                               transform=transform,
@@ -25,12 +25,12 @@ def count_gender_smiling(split):
 
     for _, attrs in loader:
         gender = attrs[:, male_idx]      # 0 = female, 1 = male
-        smiling = attrs[:, smiling_idx]  # 0 = not smiling, 1 = smiling
+        earing = attrs[:, earing_idx]  # 0 = not earing, 1 = earing
 
         female_mask = (gender == 0)
         male_mask   = (gender == 1)
-        smile_mask  = (smiling == 1)
-        nosmile_mask = (smiling == 0)
+        smile_mask  = (earing == 1)
+        nosmile_mask = (earing == 0)
 
         fm += (female_mask & smile_mask).sum().item()
         fn += (female_mask & nosmile_mask).sum().item()
@@ -38,11 +38,11 @@ def count_gender_smiling(split):
         mn += (male_mask & nosmile_mask).sum().item()
 
     print(f"=== {split.upper()} SPLIT ===")
-    print(f"Smiling Females:     {fm}")
-    print(f"Non-Smiling Females: {fn}")
-    print(f"Smiling Males:       {mm}")
-    print(f"Non-Smiling Males:   {mn}")
+    print(f"earing Females:     {fm}")
+    print(f"Non-earing Females: {fn}")
+    print(f"earing Males:       {mm}")
+    print(f"Non-earing Males:   {mn}")
 
 # Call for train and test
-count_gender_smiling('train')
-count_gender_smiling('test')
+count_gender_earing('train')
+count_gender_earing('test')
