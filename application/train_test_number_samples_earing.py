@@ -38,10 +38,10 @@ def count_gender_earing(split):
         mn += (male_mask & nosmile_mask).sum().item()
 
     print(f"=== {split.upper()} SPLIT ===")
-    print(f"earing Females:     {fm}")
-    print(f"Non-earing Females: {fn}")
-    print(f"earing Males:       {mm}")
-    print(f"Non-earing Males:   {mn}")
+    print(f"Males earing:       {mm}")
+    print(f"Females earing:     {fm}")
+    print(f"Males Non-earing:   {mn}")
+    print(f"Females Non-earing: {fn}")
 
 # Call for train and test
 count_gender_earing('train')

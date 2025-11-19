@@ -138,23 +138,25 @@ def evaluate_bias(model, test_loader, earing_idx=34, gender_idx=20):
     # 4) accuracy on males (ignore earing)
     male_acc_overall = (correct_male / total_male * 100) if total_male > 0 else 0
 
-    print(f"earing Females: {total_earing_female}")
-    print(f"earing Males: {total_earing_male}")
-    print(f"Non-earing Females: {total_non_earing_female}")
-    print(f"Non-earing Males: {total_non_earing_male}")
+    print(f"Males earing: {total_earing_male}")
+    print(f"Females earing: {total_earing_female}")
+    print(f"Males Non-earing: {total_non_earing_male}")
+    print(f"Females Non-earing: {total_non_earing_female}")
 
-    print(f"earing Accuracy for Females: {earing_accuracy_female:.2f}%")
     print(f"earing Accuracy for Males: {earing_accuracy_male:.2f}%")
-    print(f"Non-earing Accuracy for Females: {non_earing_accuracy_female:.2f}%")
+    print(f"earing Accuracy for Females: {earing_accuracy_female:.2f}%")
     print(f"Non-earing Accuracy for Males: {non_earing_accuracy_male:.2f}%")
+    print(f"Non-earing Accuracy for Females: {non_earing_accuracy_female:.2f}%")
+
+
+    print(f"\n[Ignoring earing]")
+    print(f"Male Accuracy (overall): {male_acc_overall:.2f}%")
+    print(f"Female Accuracy (overall): {female_acc_overall:.2f}%")
 
     print(f"\n[Ignoring gender]")
     print(f"earing Accuracy (overall): {earing_acc_overall:.2f}%")
     print(f"Non-earing Accuracy (overall): {non_earing_acc_overall:.2f}%")
 
-    print(f"\n[Ignoring earing]")
-    print(f"Female Accuracy (overall): {female_acc_overall:.2f}%")
-    print(f"Male Accuracy (overall): {male_acc_overall:.2f}%")
 
     if abs(earing_accuracy_female - earing_accuracy_male) > 10:
         print("\nPotential Bias Detected in earing Prediction")
