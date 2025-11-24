@@ -150,17 +150,16 @@ def evaluate_real_marginals(model, test_loader, device,
     earing_acc = (correct_earing / total_earing * 100) if total_earing > 0 else 0.0
     nonearing_acc = (correct_nonearing / total_nonearing * 100) if total_nonearing > 0 else 0.0
 
-    print(f"[REAL TEST] Male (all)          earing acc: {male_acc:.2f}%")
-    print(f"[REAL TEST] Female (all)        earing acc: {female_acc:.2f}%")
-    print(f"[REAL TEST] Earing=1 (all)      acc:       {earing_acc:.2f}%")
-    print(f"[REAL TEST] Earing=0 (all)      acc:       {nonearing_acc:.2f}%")
+    print(f"[REAL TEST] Male (all)          acc: {male_acc:.2f}%")
+    print(f"[REAL TEST] Female (all)        acc: {female_acc:.2f}%")
+    print(f"[REAL TEST] Earing=1 (all)      acc: {earing_acc:.2f}%")
+    print(f"[REAL TEST] Earing=0 (all)      acc: {nonearing_acc:.2f}%")
 
     return male_acc, female_acc, earing_acc, nonearing_acc
 
 
 
-def evaluate_real_groups(model, test_loader, device,
-                         earing_idx=earing_idx, gender_idx=gender_idx):
+def evaluate_real_groups(model, test_loader, device, earing_idx=earing_idx, gender_idx=gender_idx):
     model.eval()
     correct_male_earing, total_male_earing = 0, 0
     correct_female_earing, total_female_earing = 0, 0
@@ -173,51 +172,65 @@ def evaluate_real_groups(model, test_loader, device,
             gender_labels = full_labels[:, gender_idx].to(device)
             earing_output, _ = model(inputs)
             predicted_earing = torch.round(torch.sigmoid(earing_output)).squeeze()
-
             male_mask = (gender_labels == 1)
             female_mask = (gender_labels == 0)
             earing_mask = (earing_labels == 1)
             noearing_mask = (earing_labels == 0)
-
             ms_mask = male_mask & earing_mask
             if ms_mask.any():
-                correct_male_earing += predicted_earing[ms_mask].eq(
-                    earing_labels[ms_mask]
-                ).sum().item()
+                correct_male_earing += predicted_earing[ms_mask].eq(earing_labels[ms_mask]).sum().item()
                 total_male_earing += ms_mask.sum().item()
-
             fs_mask = female_mask & earing_mask
             if fs_mask.any():
-                correct_female_earing += predicted_earing[fs_mask].eq(
-                    earing_labels[fs_mask]
-                ).sum().item()
+                correct_female_earing += predicted_earing[fs_mask].eq(earing_labels[fs_mask]).sum().item()
                 total_female_earing += fs_mask.sum().item()
-
             mns_mask = male_mask & noearing_mask
             if mns_mask.any():
-                correct_male_noearing += predicted_earing[mns_mask].eq(
-                    earing_labels[mns_mask]
-                ).sum().item()
+                correct_male_noearing += predicted_earing[mns_mask].eq(earing_labels[mns_mask]).sum().item()
                 total_male_noearing += mns_mask.sum().item()
-
             fns_mask = female_mask & noearing_mask
             if fns_mask.any():
-                correct_female_noearing += predicted_earing[fns_mask].eq(
-                    earing_labels[fns_mask]
-                ).sum().item()
+                correct_female_noearing += predicted_earing[fns_mask].eq(earing_labels[fns_mask]).sum().item()
                 total_female_noearing += fns_mask.sum().item()
-
     male_earing_acc = (correct_male_earing / total_male_earing * 100) if total_male_earing > 0 else 0.0
     female_earing_acc = (correct_female_earing / total_female_earing * 100) if total_female_earing > 0 else 0.0
     male_noearing_acc = (correct_male_noearing / total_male_noearing * 100) if total_male_noearing > 0 else 0.0
     female_noearing_acc = (correct_female_noearing / total_female_noearing * 100) if total_female_noearing > 0 else 0.0
-
     print(f"[REAL TEST] Male   & earing      acc: {male_earing_acc:.2f}%")
     print(f"[REAL TEST] Female & earing      acc: {female_earing_acc:.2f}%")
     print(f"[REAL TEST] Male   & Not earing  acc: {male_noearing_acc:.2f}%")
     print(f"[REAL TEST] Female & Not earing  acc: {female_noearing_acc:.2f}%")
+    
+    # Ignoring gender: earing vs non-earing overall
+    earing_correct = correct_male_earing + correct_female_earing
+    earing_total = total_male_earing + total_female_earing
 
-    return male_earing_acc, female_earing_acc, male_noearing_acc, female_noearing_acc
+    non_earing_correct = correct_male_noearing + correct_female_noearing
+    non_earing_total = total_male_noearing + total_female_noearing
+
+    earing_acc_overall = (earing_correct / earing_total * 100) if earing_total > 0 else 0.0
+    non_earing_acc_overall = (non_earing_correct / non_earing_total * 100) if non_earing_total > 0 else 0.0
+
+    # Ignoring earing: female vs male overall
+    female_correct = correct_female_earing + correct_female_noearing
+    female_total = total_female_earing + total_female_noearing
+
+    male_correct = correct_male_earing + correct_male_noearing
+    male_total = total_male_earing + total_male_noearing
+
+    female_acc_overall = (female_correct / female_total * 100) if female_total > 0 else 0.0
+    male_acc_overall = (male_correct / male_total * 100) if male_total > 0 else 0.0
+
+
+    # print(f"Male Accuracy (overall): {male_acc_overall:.2f}%")
+    # print(f"Female Accuracy (overall): {female_acc_overall:.2f}%")
+    # print(f"earing Accuracy (overall): {earing_acc_overall:.2f}%")
+    # print(f"Non-earing Accuracy (overall): {non_earing_acc_overall:.2f}%")
+        
+    return (male_earing_acc, female_earing_acc,
+            male_noearing_acc, female_noearing_acc,
+            earing_acc_overall, non_earing_acc_overall,
+            female_acc_overall, male_acc_overall)
 
  
 def evaluate_real_embeddings(model, test_loader, device,
@@ -334,16 +347,7 @@ print(f"[BASELINE] gap = {orig_gap:.2f}%")
 for epoch in range(num_epochs):
     print(f"\n=== Epoch {epoch+1}/{num_epochs} ===")
 
-    # Evaluate on real test set
-    real_forget_acc, real_retain_acc = evaluate_real_embeddings(model, test_loader, device)
-    ms_acc, fs_acc, mns_acc, fns_acc = evaluate_real_groups(model, test_loader, device)
-    cur_gap = abs(real_forget_acc - real_retain_acc)
-    print(f"[REAL TEST] Current gap: {cur_gap:.2f}% (baseline {orig_gap:.2f}%)")
 
-    if cur_gap < orig_gap and real_retain_acc >= orig_retain_acc - 2:
-        print(">>> Bias mitigated (gap reduced without killing retain accuracy).")
-    else:
-        print(">>> Bias not mitigated yet.")
 
     # Weight between retain vs forget losses
     beta = 0.8
@@ -458,6 +462,20 @@ for epoch in range(num_epochs):
     syn_retain_acc = (syn_correct_retain / syn_total_retain * 100) if syn_total_retain > 0 else 0.0
     print(f"[SYN TRAIN] Forget accuracy: {syn_forget_acc:.2f}%")
     print(f"[SYN TRAIN] Retain accuracy: {syn_retain_acc:.2f}%")
+
+    real_forget_acc, real_retain_acc = evaluate_real_embeddings(model, test_loader, device)
+
+    # Evaluate on real test set
+    (male_earing_acc, female_earing_acc, male_noearing_acc, female_noearing_acc,
+    earing_acc_overall, non_earing_acc_overall,
+    female_acc_overall, male_acc_overall) = evaluate_real_groups(model, test_loader, device)
+    cur_gap = abs(real_forget_acc - real_retain_acc)
+    print(f"[REAL TEST] Current gap: {cur_gap:.2f}% (baseline {orig_gap:.2f}%)")
+
+    if cur_gap < orig_gap and real_retain_acc >= orig_retain_acc - 2:
+        print(">>> Bias mitigated (gap reduced without killing retain accuracy).")
+    else:
+        print(">>> Bias not mitigated yet.")
 
 
     male_acc, female_acc, earing_acc, nonearing_acc = evaluate_real_marginals(model, test_loader, device)
