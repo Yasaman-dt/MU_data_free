@@ -81,12 +81,26 @@ CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
 
 The **Oracle** is the upper bound which is the retrained model from scratch with retainset.
 
+**single class unlearning:**
 ```bash
 CUDA_VISIBLE_DEVICES=0 python training_oracle.py \
   --model resnet18 \
   --dataset cifar10 \
   --mode CR \
   --run_rt_model
+```
+
+**multi classes unlearning:**
+```bash
+CUDA_VISIBLE_DEVICES=2 python training_oracle.py \
+  --model resnet18 \
+  --dataset cifar100 \
+  --mode CR \
+  --run_rt_model \
+  --num_workers 4 \
+  --bsize 256 \
+  --forget_mode multi \
+  --num_forget_classes 2
 ```
 
 ---
