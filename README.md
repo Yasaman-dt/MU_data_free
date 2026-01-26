@@ -156,7 +156,7 @@ Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 # Gaussian synthetic samples
 ./job_synth_cifar10.sh FT 0.01 1 5000 0 200 resnet18 gaussian
 ```
-**single class unlearning:**
+**multi classes unlearning:**
 ```bash
 # Gaussian synthetic samples
 ./job_multiclass_synth_cifar10.sh FT 0.01 1 500 0 200 resnet18 gaussian 10
