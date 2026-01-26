@@ -131,6 +131,7 @@ chmod +x job_multiclass_real_cifar100.sh job_multiclass_synth_cifar100.sh
 Runs FC-only unlearning using embeddings computed from real data.
 
 **Args:** `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL`
+
 **single class unlearning:**
 ```bash
 # CIFAR-10, ResNet-18, 5000 samples/class, 1 model, 200 epochs on GPU 0
@@ -149,6 +150,7 @@ Runs FC-only unlearning using embeddings computed from real data.
 Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 
 **Args:** `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL NOISE`
+
 **single class unlearning:**
 ```bash
 # Gaussian synthetic samples
