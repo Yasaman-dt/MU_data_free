@@ -112,11 +112,17 @@ CUDA_VISIBLE_DEVICES=2 python training_oracle.py \
 
 Make the job scripts executable once:
 
+**single class unlearning:**
 ```bash
 cd bash
 chmod +x job_real_cifar10.sh job_synth_cifar10.sh job_part_real_cifar10.sh job_part_synth_cifar10.sh
 chmod +x job_real_cifar100.sh job_synth_cifar100.sh job_part_real_cifar100.sh job_part_synth_cifar100.sh
 chmod +x job_real_tiny.sh job_synth_tiny.sh job_part_real_tiny.sh job_part_synth_tiny.sh
+```
+**multi classes unlearning:**
+```bash
+cd bash
+chmod +x job_multiclass_real_cifar100.sh job_multiclass_synth_cifar100.sh
 ```
 
 ### A) FC-only unlearning with **real** embeddings
@@ -124,10 +130,15 @@ chmod +x job_real_tiny.sh job_synth_tiny.sh job_part_real_tiny.sh job_part_synth
 Runs FC-only unlearning using embeddings computed from real data.
 
 **Args:** `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL`
-
+**single class unlearning:**
 ```bash
 # CIFAR-10, ResNet-18, 5000 samples/class, 1 model, 200 epochs on GPU 0
 ./job_real_cifar10.sh FT 0.01 1 5000 0 200 resnet18
+```
+**multi classes unlearning:**
+```bash
+# CIFAR-100, ResNet-18, 500 samples/class, 1 model, 200 epochs on GPU 0, number of forget classes=10
+./job_multiclass_real_cifar10.sh FT 0.01 1 500 0 200 resnet18 10
 ```
 
 ---
@@ -137,10 +148,15 @@ Runs FC-only unlearning using embeddings computed from real data.
 Uses synthetic embeddings/samples (e.g., Gaussian) for FC-only unlearning.
 
 **Args:** `METHOD LR N_MODEL SAMPLES_PER_CLASS GPU EPOCHS MODEL NOISE`
-
+**single class unlearning:**
 ```bash
 # Gaussian synthetic samples
 ./job_synth_cifar10.sh FT 0.01 1 5000 0 200 resnet18 gaussian
+```
+**single class unlearning:**
+```bash
+# Gaussian synthetic samples
+./job_multiclass_synth_cifar10.sh FT 0.01 1 500 0 200 resnet18 gaussian 10
 ```
 
 ---
