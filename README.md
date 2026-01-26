@@ -70,11 +70,14 @@ CUDA_VISIBLE_DEVICES=0 python create_embeddings.py
 ## 3) Evaluate originals → CSV
 
 Produces a CSV with baseline metrics for later comparison.
-
+**single class unlearning:**
 ```bash
-CUDA_VISIBLE_DEVICES=0 python test_originalmodel.py
+CUDA_VISIBLE_DEVICES=0 python test_originalmodel_singleclass.py
 ```
-
+**multi classes unlearning:**
+```bash
+CUDA_VISIBLE_DEVICES=0 python test_originalmodel_multiclass.py
+```
 ---
 
 ## 4) Train Oracle (retrained-from-scratch)
