@@ -556,7 +556,7 @@ the corresponding non-shaded rows use original embeddings with the same method.}
 \begin{tabular}{c|c|cc|ccc|ccc|ccc}   % ← added one extra “c” after the second 
 \toprule
 \toprule
-\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{{Embedding\\Distribution}}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
+\multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{Embedding\\Distribution}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
 \midrule
 \midrule
@@ -680,4 +680,5 @@ with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU
     f.write(latex_table)
 
 print("✅ LaTeX table saved to results_diff_sampling_resnet18.tex")
+
 
