@@ -422,7 +422,7 @@ for _, row in stats_df.iterrows():
     access_flags[key] = get_data_free_flags(method, source)
 
 # === Build LaTeX table
-latex_table = r"""\begin{table*}[h]
+latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
 \caption{Class unlearning performance using random samples generated from layer 4 (immediately before the last convolutional layer) of ResNet-18 as the base architecture. Rows highlighted in gray show results obtained with synthetic embeddings.}
@@ -564,4 +564,5 @@ with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU
     f.write(latex_table)
 
 print("✅ LaTeX table saved to results_layer4_1_conv2_resnet18.tex")
+
 
