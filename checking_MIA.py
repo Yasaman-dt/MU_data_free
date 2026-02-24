@@ -147,10 +147,15 @@ MIA2_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model", "cv_sco
 #                 "test_entropy_mean","test_entropy_std"]
 
 # Run once to create empty files with headers
-pd.DataFrame(columns=privacy_columns).to_csv(privacy_csv_path, index=False)
-pd.DataFrame(columns=efficacy_columns).to_csv(efficacy_csv_path, index=False)
-pd.DataFrame(columns=MIA2_columns).to_csv(MIA2_csv_path, index=False)
-#pd.DataFrame(columns=MIA3_columns).to_csv(MIA3_csv_path, index=False)
+def init_csv_if_missing(path, columns):
+    if not os.path.exists(path):
+        pd.DataFrame(columns=columns).to_csv(path, index=False)
+
+init_csv_if_missing(privacy_csv_path, privacy_columns)
+init_csv_if_missing(efficacy_csv_path, efficacy_columns)
+init_csv_if_missing(MIA2_csv_path, MIA2_columns)
+init_csv_if_missing(MIA3_csv_path, MIA3_columns)
+
 
 for forget_class in forget_classes:
     print(f"  - Forget class {forget_class}")
@@ -322,6 +327,7 @@ for forget_class in forget_classes:
         t_loader=test_loader,
         f_loader=train_fgt_loader,
         seed=42,
+        device="cpu",
     )
     
     # Wrap the score (which is a numpy array) into a dict
