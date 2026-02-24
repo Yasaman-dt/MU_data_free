@@ -129,7 +129,8 @@ columns_to_include = ["source", "Dataset", "Model", "Method",
                       f"{MIA1_confidence}_mean", f"{MIA1_confidence}_std",
                       #f"{MIA1_correctness}_mean", f"{MIA1_correctness}_std",
                       f"{MIA2}_mean", f"{MIA2}_std",
-                      f"{MIA3}_mean", f"{MIA3}_std"]
+                      #f"{MIA3}_mean", f"{MIA3}_std"
+                      ]
 latex_df = latex_df[columns_to_include]
 
 
@@ -140,10 +141,10 @@ latex_lines = [
     r"\caption{MIA performance of single-class unlearning on CIFAR10 using ResNet-18, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}",
     r"\label{tab:MIA_results}",
     r"\resizebox{0.7\textwidth}{!}{",
-    r"\begin{tabular}{c|cc|c|c|c}",
+    r"\begin{tabular}{c|cc|c|c}",
     #r"\begin{tabular}{c|cc|c|c|c|c}",
     r"\toprule",
-    r"Method & $\mathcal{D}_r$-free & $\mathcal{D}_f$-free & $\text{MIA}_{I}$ $\uparrow$ & $\text{MIA}_{II}$ $\downarrow$ & $\text{MIA}_{III}$ $\downarrow$\\",
+    r"Method & $\mathcal{D}_r$-free & $\mathcal{D}_f$-free & $\text{MIA}_{I}$ $\uparrow$ & $\text{MIA}_{II}$ $\downarrow$ \\",
     #r"Method & $\mathcal{D}_r$-free & $\mathcal{D}_f$-free & $\text{MIA}_{I}(\text{confidence})$ $\uparrow$ & $\text{MIA}_{I}(\text{correctness})$ $\uparrow$ & $\text{MIA}_{II}$ $\downarrow$ & $\text{MIA}_{III}$ $\downarrow$\\",
     r"\midrule"
     r"\midrule"
@@ -208,18 +209,18 @@ for method in method_order:
         mia2_std = r[f"{MIA2}_std"] * 100
         #mia2_str = f"{mia2_mean:.2f} $\\pm$ {mia2_std:.2f}"
 
-        mia3_mean = r[f"{MIA3}_mean"] * 100
-        mia3_std = r[f"{MIA3}_std"] * 100
+        #mia3_mean = r[f"{MIA3}_mean"] * 100
+        #mia3_std = r[f"{MIA3}_std"] * 100
         #mia3_str = f"{mia3_mean:.2f} $\\pm$ {mia3_std:.2f}"
         
         mia1_confidence_str = f"{truncate_to_2(mia1_confidence_mean)} $\\pm$ {truncate_to_2(mia1_confidence_std)}"
         #mia1_correctness_str = f"{truncate_to_2(mia1_correctness_mean)} $\\pm$ {truncate_to_2(mia1_correctness_std)}"
         mia2_str = f"{truncate_to_2(mia2_mean)} $\\pm$ {truncate_to_2(mia2_std)}"
-        mia3_str = f"{truncate_to_2(mia3_mean)} $\\pm$ {truncate_to_2(mia3_std)}"
+        #mia3_str = f"{truncate_to_2(mia3_mean)} $\\pm$ {truncate_to_2(mia3_std)}"
         
         
         
-        rows_for_method.append((dr_free, df_free, mia1_confidence_str, mia2_str, mia3_str, source))
+        rows_for_method.append((dr_free, df_free, mia1_confidence_str, mia2_str, source))
         #rows_for_method.append((dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str, source))
 
     # Insert midrule if base method changed
@@ -232,7 +233,7 @@ for method in method_order:
 
 
     #for i, (dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str, source) in enumerate(rows_for_method):
-    for i, (dr_free, df_free, mia1_confidence_str, mia2_str, mia3_str, source) in enumerate(rows_for_method):
+    for i, (dr_free, df_free, mia1_confidence_str, mia2_str, source) in enumerate(rows_for_method):
 
 
         
@@ -248,7 +249,7 @@ for method in method_order:
 
        
         #row = [method_cell, dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str]
-        row = [method_cell, dr_free, df_free, mia1_confidence_str, mia2_str, mia3_str]
+        row = [method_cell, dr_free, df_free, mia1_confidence_str, mia2_str]
 
         # Apply gray background for synth rows (but NOT the method column)
         if source == "synth":
