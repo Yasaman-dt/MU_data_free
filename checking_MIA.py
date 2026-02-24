@@ -11,6 +11,7 @@ import argparse
 from MIA_code.MIA2 import membership_inference_attack 
 from MIA_code.MIA_ECCV import get_MIA_SVC
 from MIA_code.SVC_MIA import SVC_MIA
+import torch.nn as nn
 
 # ------------------ Argparse ------------------
 parser = argparse.ArgumentParser(description="Run SVC MIA pipeline with model and method options.")
@@ -43,7 +44,8 @@ forget_classes = list(range(num_classes))  # or a subset if needed
 #n_model=1
 batch_size = 1024
 #method="original"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "cpu"
 seed=42
 
 if dataset_name.lower() in ["cifar10", "cifar100"]:
@@ -56,16 +58,45 @@ if dataset_name in ["cifar10", "cifar100"]:
 else:
     dataset_name_lower = dataset_name  # keep original capitalization for "tinyImagenet"
 
-          
+def get_classifier_layer(model: nn.Module) -> nn.Module:
+    """
+    Return the classification head module that maps embeddings -> logits.
+    Works for common torchvision/timm-style models.
+    """
+    # ResNet-style
+    if hasattr(model, "fc") and isinstance(model.fc, nn.Module):
+        return model.fc
+
+    # Swin (torchvision) typically has .head
+    if hasattr(model, "head") and isinstance(model.head, nn.Module):
+        return model.head
+
+    # ViT (torchvision) typically has .heads.head
+    if hasattr(model, "heads"):
+        heads = model.heads
+        if hasattr(heads, "head") and isinstance(heads.head, nn.Module):
+            return heads.head
+        if isinstance(heads, nn.Sequential) and len(heads) > 0:
+            return list(heads.children())[-1]
+
+    # timm-style often uses .classifier
+    if hasattr(model, "classifier") and isinstance(model.classifier, nn.Module):
+        return model.classifier
+
+    raise AttributeError(
+        f"Could not locate classifier head. Available attrs: {list(model.__dict__.keys())}"
+    )
+    
+    
 #for n_model in range(1, 6):
 print(f"Processing n_model = {n_model}")            
-train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{model_name}_train_m{n_model}.npz"
 
 if dataset_name_lower == "TinyImageNet":
-    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_val_m{n_model}.npz"
+    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{model_name}_val_m{n_model}.npz"
 else:
-    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_test_m{n_model}.npz"
-full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_full_m{n_model}.npz"
+    test_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{model_name}_test_m{n_model}.npz"
+full_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{model_name}_full_m{n_model}.npz"
 
 train_embeddings_data = np.load(train_path)
 test_embeddings_data = np.load(test_path)
@@ -95,7 +126,7 @@ os.makedirs(csv_output_dir, exist_ok=True)
 privacy_csv_path = os.path.join(csv_output_dir, f"SVC_MIA_training_privacy_{dataset_name}_{method}_m{n_model}.csv")
 efficacy_csv_path = os.path.join(csv_output_dir, f"SVC_MIA_forget_efficacy_{dataset_name}_{method}_m{n_model}.csv")
 MIA2_csv_path = os.path.join(csv_output_dir, f"SVC_MIA2_forget_efficacy_{dataset_name}_{method}_m{n_model}.csv")
-MIA3_csv_path = os.path.join(csv_output_dir, f"SVC_MIA3_efficacy_{dataset_name}_{method}_m{n_model}.csv")
+#MIA3_csv_path = os.path.join(csv_output_dir, f"SVC_MIA3_efficacy_{dataset_name}_{method}_m{n_model}.csv")
 
 evaluation_metric_names = ["correctness", "confidence", "entropy", "m_entropy", "prob"]
 
@@ -103,23 +134,23 @@ evaluation_metric_names = ["correctness", "confidence", "entropy", "m_entropy", 
 privacy_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model"] + evaluation_metric_names
 efficacy_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model"] + evaluation_metric_names
 MIA2_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model", "cv_score_mean", "cv_score_std"]
-MIA3_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model",
-                "accuracy_mean","accuracy_std",
-                "chance_mean","chance_std",
-                "acc_test_ex_mean","acc_test_ex_std",
-                "acc_train_ex_mean","acc_train_ex_std",
-                "precision_mean","precision_std",
-                "recall_mean","recall_std",
-                "F1_mean","F1_std",
-                "mutual_info_mean","mutual_info_std",
-                "train_entropy_mean","train_entropy_std",
-                "test_entropy_mean","test_entropy_std"]
+# MIA3_columns = ["Forget Class", "Method", "Dataset", "Model", "n_model",
+#                 "accuracy_mean","accuracy_std",
+#                 "chance_mean","chance_std",
+#                 "acc_test_ex_mean","acc_test_ex_std",
+#                 "acc_train_ex_mean","acc_train_ex_std",
+#                 "precision_mean","precision_std",
+#                 "recall_mean","recall_std",
+#                 "F1_mean","F1_std",
+#                 "mutual_info_mean","mutual_info_std",
+#                 "train_entropy_mean","train_entropy_std",
+#                 "test_entropy_mean","test_entropy_std"]
 
 # Run once to create empty files with headers
 pd.DataFrame(columns=privacy_columns).to_csv(privacy_csv_path, index=False)
 pd.DataFrame(columns=efficacy_columns).to_csv(efficacy_csv_path, index=False)
 pd.DataFrame(columns=MIA2_columns).to_csv(MIA2_csv_path, index=False)
-pd.DataFrame(columns=MIA3_columns).to_csv(MIA3_csv_path, index=False)
+#pd.DataFrame(columns=MIA3_columns).to_csv(MIA3_csv_path, index=False)
 
 for forget_class in forget_classes:
     print(f"  - Forget class {forget_class}")
@@ -133,16 +164,17 @@ for forget_class in forget_classes:
     
     else:
         if source == 'synth':
-            checkpoint_path_model = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt"
+            checkpoint_path_model = f"{DIR}/checkpoints_main/{dataset_name}/{method}/samples_per_class_5000/{model_name}_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt"
         elif source == 'real':
-            checkpoint_path_model = f"{DIR}/checkpoints_main_real/{dataset_name}/{method}/samples_per_class_5000/resnet18_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt"
+            checkpoint_path_model = f"{DIR}/checkpoints_main_real/{dataset_name}/{method}/samples_per_class_5000/{model_name}_best_checkpoint_seed[{seed}]_class[{forget_class}]_m{n_model}_lr{lr}.pt"
 
 
     model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
   
     model.eval()
-    fc_layer = model.fc.to(device)
-
+    fc_layer = get_classifier_layer(model).to(device)
+    fc_layer.eval()
+    
     # Dataloaders using full data (not filtering forget class)
     train_loader = DataLoader(TensorDataset(train_emb, train_labels), batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(TensorDataset(test_emb, test_labels), batch_size=batch_size, shuffle=False)
@@ -307,45 +339,45 @@ for forget_class in forget_classes:
 
 
     # ------------------ MIA3 ------------------
-    MIA3_forget_result = get_MIA_SVC(train_loader=train_loader,
-                                     test_loader=test_loader,
-                                     model=fc_layer,
-                                     fgt_loader=train_fgt_loader,
-                                     fgt_loader_t=test_fgt_loader,
-                                     device=device,
-                                     dataset=dataset_name)
+    # MIA3_forget_result = get_MIA_SVC(train_loader=train_loader,
+    #                                  test_loader=test_loader,
+    #                                  model=fc_layer,
+    #                                  fgt_loader=train_fgt_loader,
+    #                                  fgt_loader_t=test_fgt_loader,
+    #                                  device=device,
+    #                                  dataset=dataset_name)
     
     
-    # Wrap the score (which is a numpy array) into a dict
-    MIA3_row_efficacy = {
-        "Forget Class": forget_class,
-        "Method": method,
-        "Dataset": dataset_name,
-        "Model": model_name,
-        "n_model": n_model,
-        "accuracy_mean": float(MIA3_forget_result["accuracy"].mean()),
-        "accuracy_std": float(MIA3_forget_result["accuracy"].std()),
-        "chance_mean": float(MIA3_forget_result["chance"].mean()),
-        "chance_std": float(MIA3_forget_result["chance"].std()),
-        "acc_test_ex_mean": float(MIA3_forget_result["acc | test ex"].mean()),
-        "acc_test_ex_std": float(MIA3_forget_result["acc | test ex"].std()),
-        "acc_train_ex_mean": float(MIA3_forget_result["acc | train ex"].mean()),
-        "acc_train_ex_std": float(MIA3_forget_result["acc | train ex"].std()),
-        "precision_mean": float(MIA3_forget_result["precision"].mean()),
-        "precision_std": float(MIA3_forget_result["precision"].std()),
-        "recall_mean": float(MIA3_forget_result["recall"].mean()),
-        "recall_std": float(MIA3_forget_result["recall"].std()),
-        "F1_mean": float(MIA3_forget_result["F1"].mean()),
-        "F1_std": float(MIA3_forget_result["F1"].std()),
-        "mutual_info_mean": float(MIA3_forget_result["Mutual"].mean()),
-        "mutual_info_std": float(MIA3_forget_result["Mutual"].std()),
-        "train_entropy_mean": float(MIA3_forget_result["Train Entropy"].mean()),
-        "train_entropy_std": float(MIA3_forget_result["Train Entropy"].std()),
-        "test_entropy_mean": float(MIA3_forget_result["Test Entropy"].mean()),
-        "test_entropy_std": float(MIA3_forget_result["Test Entropy"].std()),
-    }
+    # # Wrap the score (which is a numpy array) into a dict
+    # MIA3_row_efficacy = {
+    #     "Forget Class": forget_class,
+    #     "Method": method,
+    #     "Dataset": dataset_name,
+    #     "Model": model_name,
+    #     "n_model": n_model,
+    #     "accuracy_mean": float(MIA3_forget_result["accuracy"].mean()),
+    #     "accuracy_std": float(MIA3_forget_result["accuracy"].std()),
+    #     "chance_mean": float(MIA3_forget_result["chance"].mean()),
+    #     "chance_std": float(MIA3_forget_result["chance"].std()),
+    #     "acc_test_ex_mean": float(MIA3_forget_result["acc | test ex"].mean()),
+    #     "acc_test_ex_std": float(MIA3_forget_result["acc | test ex"].std()),
+    #     "acc_train_ex_mean": float(MIA3_forget_result["acc | train ex"].mean()),
+    #     "acc_train_ex_std": float(MIA3_forget_result["acc | train ex"].std()),
+    #     "precision_mean": float(MIA3_forget_result["precision"].mean()),
+    #     "precision_std": float(MIA3_forget_result["precision"].std()),
+    #     "recall_mean": float(MIA3_forget_result["recall"].mean()),
+    #     "recall_std": float(MIA3_forget_result["recall"].std()),
+    #     "F1_mean": float(MIA3_forget_result["F1"].mean()),
+    #     "F1_std": float(MIA3_forget_result["F1"].std()),
+    #     "mutual_info_mean": float(MIA3_forget_result["Mutual"].mean()),
+    #     "mutual_info_std": float(MIA3_forget_result["Mutual"].std()),
+    #     "train_entropy_mean": float(MIA3_forget_result["Train Entropy"].mean()),
+    #     "train_entropy_std": float(MIA3_forget_result["Train Entropy"].std()),
+    #     "test_entropy_mean": float(MIA3_forget_result["Test Entropy"].mean()),
+    #     "test_entropy_std": float(MIA3_forget_result["Test Entropy"].std()),
+    # }
 
-    pd.DataFrame([MIA3_row_efficacy]).to_csv(MIA3_csv_path, mode='a', header=False, index=False)
+    # pd.DataFrame([MIA3_row_efficacy]).to_csv(MIA3_csv_path, mode='a', header=False, index=False)
 
 
 

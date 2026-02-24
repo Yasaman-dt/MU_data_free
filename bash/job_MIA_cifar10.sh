@@ -4,6 +4,7 @@ N_MODEL=$2
 SOURCE=$3
 LR=$4
 GPU=$5
+MODEL=$6
 
 SCREEN_NAME="${DATASET}_${METHOD}_${N_MODEL}_${SOURCE}"
 
@@ -14,7 +15,7 @@ cd /projets/Zdehghani/MU_data_free
 CUDA_VISIBLE_DEVICES=$GPU \
 python checking_MIA.py \
     --method $METHOD \
-    --model resnet18 \
+    --model $MODEL \
     --n_model $N_MODEL \
     --source $SOURCE \
     --lr $LR \
