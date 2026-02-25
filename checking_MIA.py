@@ -12,6 +12,7 @@ from MIA_code.MIA2 import membership_inference_attack
 from MIA_code.MIA_ECCV import get_MIA_SVC
 from MIA_code.SVC_MIA import SVC_MIA
 import torch.nn as nn
+import copy
 
 # ------------------ Argparse ------------------
 parser = argparse.ArgumentParser(description="Run SVC MIA pipeline with model and method options.")
@@ -44,8 +45,8 @@ forget_classes = list(range(num_classes))  # or a subset if needed
 #n_model=1
 batch_size = 1024
 #method="original"
-#device = 'cuda' if torch.cuda.is_available() else 'cpu'
-device = "cpu"
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#device = "cpu"
 seed=42
 
 if dataset_name.lower() in ["cifar10", "cifar100"]:
@@ -278,8 +279,6 @@ for forget_class in forget_classes:
     shadow_test_loader_MIA_training_privacy = DataLoader(shadow_test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     target_test_loader_MIA_training_privacy = DataLoader(target_test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     
-
-
 
     # ------------------ SVC_MIA: Training Privacy ------------------
     mia_training_result = SVC_MIA(
