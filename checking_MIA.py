@@ -154,7 +154,7 @@ def init_csv_if_missing(path, columns):
 init_csv_if_missing(privacy_csv_path, privacy_columns)
 init_csv_if_missing(efficacy_csv_path, efficacy_columns)
 init_csv_if_missing(MIA2_csv_path, MIA2_columns)
-init_csv_if_missing(MIA3_csv_path, MIA3_columns)
+#init_csv_if_missing(MIA3_csv_path, MIA3_columns)
 
 
 for forget_class in forget_classes:
@@ -301,7 +301,7 @@ for forget_class in forget_classes:
     pd.DataFrame([row_privacy]).to_csv(privacy_csv_path, mode='a', header=False, index=False)
     
     
-    #------------------ MIA1: SVC_MIA: Forget Efficacy ------------------
+    # #------------------ MIA1: SVC_MIA: Forget Efficacy ------------------
     mia_forget_result = SVC_MIA(
         shadow_train=train_retain_loader,
         shadow_test=test_loader,
@@ -327,7 +327,6 @@ for forget_class in forget_classes:
         t_loader=test_loader,
         f_loader=train_fgt_loader,
         seed=42,
-        device="cpu",
     )
     
     # Wrap the score (which is a numpy array) into a dict
