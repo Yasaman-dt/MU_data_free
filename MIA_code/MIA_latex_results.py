@@ -1,271 +1,374 @@
 import os
+import math
 import pandas as pd
+from decimal import Decimal, ROUND_DOWN
+from collections import defaultdict
+import re
 
-folders = {
-    'MIA_results_real': 'real',
-    'MIA_results_synth': 'synth'
-}
+# ============================================================
+# USER CONFIG
+# ============================================================
+REAL_DIR  = "MIA_results_real"
+SYNTH_DIR = "MIA_results_synth"
 
+dataset_to_show = "cifar10"  # e.g. "cifar10", "cifar100", "tinyimagenet"
 
+# canonical model keys used in the table:
+model_order   = ["resnet18", "resnet50", "vit", "swint"]
+model_display = {"resnet18": "ResNet-18", "resnet50": "ResNet-50", "vit": "ViT-B/16", "swint": "Swin-T"}
 
-# Loop through each folder
-for folder_name, label in folders.items():
-    folder_path = os.path.join(folder_name)
-    for filename in os.listdir(folder_path):
-        if filename.endswith('.csv'):
-            file_path = os.path.join(folder_path, filename)
+# metrics you want in the table
+MIA1_COL = "confidence"     # -> MIA_I
+MIA2_COL = "cv_score_mean"  # -> MIA_II
 
-            # Load CSV
-            df = pd.read_csv(file_path)
-
-            # Add source column
-            df['source'] = label
-
-            # Overwrite the file with the new column
-            df.to_csv(file_path, index=False)
-            print(f"Updated {file_path} with source = '{label}'")
-
-folders = ['MIA_results_real', 'MIA_results_synth']
-
-
-all_forget_dfs = []
-all_privacy_dfs = []
-all_MIA2_dfs = []
-all_MIA3_dfs = []
-
-for folder in folders:
-    for filename in os.listdir(folder):
-        if filename.endswith('.csv'):
-            file_path = os.path.join(folder, filename)
-            df = pd.read_csv(file_path)
-            if 'MIA_forget_efficacy' in filename:
-                all_forget_dfs.append(df)
-            elif 'training_privacy' in filename:
-                all_privacy_dfs.append(df)
-            elif 'MIA2_forget_efficacy' in filename:
-                all_MIA2_dfs.append(df)
-            elif 'MIA3_efficacy' in filename:
-                all_MIA3_dfs.append(df)                
-                
-# Combine
-df_forget = pd.concat(all_forget_dfs, ignore_index=True)
-df_privacy = pd.concat(all_privacy_dfs, ignore_index=True)
-df_MIA2 = pd.concat(all_MIA2_dfs, ignore_index=True)
-df_MIA3 = pd.concat(all_MIA3_dfs, ignore_index=True)
-
-# Grouping config
-group_cols = ['source', 'Dataset', 'Model', 'Method']
-value_cols_forget = [col for col in df_forget.columns if col not in group_cols]
-value_cols_privacy = [col for col in df_privacy.columns if col not in group_cols]
-value_cols_MIA2 = ['cv_score_mean']
-value_cols_MIA3 = ['F1_mean']
-
-# Compute mean and std, then merge with suffixes
-agg_forget_mean = df_forget.groupby(group_cols)[value_cols_forget].mean().reset_index()
-agg_forget_std = df_forget.groupby(group_cols)[value_cols_forget].std().reset_index()
-agg_forget = pd.merge(agg_forget_mean, agg_forget_std, on=group_cols, suffixes=('_mean', '_std'))
-
-agg_privacy_mean = df_privacy.groupby(group_cols)[value_cols_privacy].mean().reset_index()
-agg_privacy_std = df_privacy.groupby(group_cols)[value_cols_privacy].std().reset_index()
-agg_privacy = pd.merge(agg_privacy_mean, agg_privacy_std, on=group_cols, suffixes=('_mean', '_std'))
-
-agg_MIA2_mean = df_MIA2.groupby(group_cols)[value_cols_MIA2].mean().reset_index()
-agg_MIA2_std = df_MIA2.groupby(group_cols)[value_cols_MIA2].std().reset_index()
-agg_MIA2 = pd.merge(agg_MIA2_mean, agg_MIA2_std, on=group_cols, suffixes=('_mean', '_std'))
-
-agg_MIA3_mean = df_MIA3.groupby(group_cols)[value_cols_MIA3].mean().reset_index()
-agg_MIA3_std = df_MIA3.groupby(group_cols)[value_cols_MIA3].std().reset_index()
-agg_MIA3 = pd.merge(agg_MIA3_mean, agg_MIA3_std, on=group_cols, suffixes=('_mean', '_std'))
-
-
-# Save
-agg_forget.to_csv('aggregated_forget_efficacy_with_std.csv', index=False)
-agg_privacy.to_csv('aggregated_training_privacy_with_std.csv', index=False)
-agg_MIA2.to_csv('aggregated_MIA2_with_std.csv', index=False)
-agg_MIA3.to_csv('aggregated_MIA3_with_std.csv', index=False)
-
-
-latex_df = pd.merge(
-    pd.merge(
-        agg_forget,
-        agg_MIA2,
-        on=['source', 'Dataset', 'Model', 'Method'],
-        how='left'
-    ),
-    agg_MIA3,
-    on=['source', 'Dataset', 'Model', 'Method'],
-    how='left'
-)
-
-# === Define display names and references
+# method display names + order
 method_name_and_ref = {
-    "original": ("Original", "–"),
+    "original":  ("Original", "–"),
     "retrained": ("Retrained", "–"),
-    #"RE":        (r"\begin{tabular}{c}Retrained \\ (FC)\end{tabular}", "–"),
-    "FT": ("FT \citep{golatkar2020eternal}", "–"),
-    "NG": ("NG \citep{golatkar2020eternal}", "–"),
-    "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
-    "RL": ("RL \citep{hayase2020selective}", "–"),
-    "BS": ("BS \citep{chen2023boundary}", "–"),
-    "BE": ("BE \citep{chen2023boundary}", "–"),
-    "LAU": ("LAU \citep{kim2024layer}", "–"),
-    "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
-    "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
-    "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+    "FT":        ("FT \\citep{golatkar2020eternal}", "–"),
+    "NG":        ("NG \\citep{golatkar2020eternal}", "–"),
+    "NGFTW":     ("NG+ \\citep{kurmanji2023towards}", "–"),
+    "RL":        ("RL \\citep{hayase2020selective}", "–"),
+    "BS":        ("BS \\citep{chen2023boundary}", "–"),
+    #"BE":        ("BE \\citep{chen2023boundary}", "–"),
+    "LAU":       ("LAU \\citep{kim2024layer}", "–"),
+    "SCRUB":     ("SCRUB \\citep{kurmanji2023towards}", "–"),
+    "DUCK":      ("DUCK \\citep{cotogni2023duck}", "–"),
+    "SCAR":      ("SCAR \\citep{bonato2024retain}", "–"),
+    "DELETE":    ("DELETE \citep{zhou2025decoupled}", "–"),
 
 }
+method_order = ["original", "retrained", "FT", "NG", "RL", "BS", "DELETE", "NGFTW", "SCRUB", "SCAR"]
 
-# === Order
-method_order = ["original", "retrained", "FT", "NG", "RL","BS", "BE", "NGFTW", "SCRUB", "SCAR"]
+# ============================================================
+# HELPERS: normalization + safe aggregation
+# ============================================================
+def coalesce_columns(df, canonical, candidates):
+    """Create canonical column from candidates by taking first non-null across them. Drop extras."""
+    cols = [c for c in candidates if c in df.columns]
+    if not cols:
+        return df
+    if canonical not in df.columns:
+        df[canonical] = None
+    # take first non-null value left-to-right
+    df[canonical] = df[cols].bfill(axis=1).iloc[:, 0]
+    # drop non-canonical duplicates
+    drop_cols = [c for c in cols if c != canonical]
+    if drop_cols:
+        df = df.drop(columns=drop_cols)
+    return df
+
+def normalize_dataset_name(x):
+    if pd.isna(x):
+        return x
+    s = str(x).strip().lower()
+    # common variants
+    if s in ["cifar-10", "cifar10", "cifar_10"]:
+        return "cifar10"
+    if s in ["cifar-100", "cifar100", "cifar_100"]:
+        return "cifar100"
+    if s in ["tinyimagenet", "tiny_image_net", "tiny-image-net", "tiny_imageNet", "tinyimagenet200", "tiny-imagenet"]:
+        return "tinyimagenet"
+    return s
+
+def normalize_model_name(x):
+    if pd.isna(x):
+        return x
+    s = str(x).strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+    # resnet
+    if "resnet18" in s:
+        return "resnet18"
+    if "resnet50" in s:
+        return "resnet50"
+    # vit variants
+    if "vit" in s:
+        return "vit"
+    if "swint" in s:
+        return "swint"
+    return s  # fallback
+
+def normalize_method_name(x):
+    if pd.isna(x):
+        return x
+    return str(x).strip()
+
+def normalize_frame(df):
+    df = df.copy()
+    df.columns = [c.strip() for c in df.columns]
+
+    # coalesce common variants into canonical names
+    df = coalesce_columns(df, "ForgetClass", ["Forget Class", "ForgetClass", "forget_class", "forgetclass"])
+    df = coalesce_columns(df, "Dataset", ["Dataset", "dataset", "DATASET"])
+    df = coalesce_columns(df, "Model",   ["Model", "model", "MODEL", "Backbone", "backbone"])
+    df = coalesce_columns(df, "Method",  ["Method", "method", "METHOD"])
+    df = coalesce_columns(df, "source",  ["source", "Source", "SOURCE"])
+
+    # normalize key fields
+    if "Dataset" in df.columns:
+        df["Dataset"] = df["Dataset"].apply(normalize_dataset_name)
+    if "Model" in df.columns:
+        df["Model"] = df["Model"].apply(normalize_model_name)
+    if "Method" in df.columns:
+        df["Method"] = df["Method"].apply(normalize_method_name)
+
+    return df
+
+def agg_mean_std_numeric(df, group_cols, metric_allowlist=None):
+    """
+    Aggregate mean/std over numeric metric columns.
+    metric_allowlist: if provided, only these metrics are aggregated.
+    """
+    df = normalize_frame(df)
+
+    # decide which metric columns to aggregate
+    metric_cols = [c for c in df.columns if c not in group_cols]
+    if metric_allowlist is not None:
+        metric_cols = [c for c in metric_cols if c in metric_allowlist]
+
+    # coerce metrics to numeric (strings -> NaN)
+    for c in metric_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # keep numeric + not all NaN
+    metric_cols = [
+        c for c in metric_cols
+        if pd.api.types.is_numeric_dtype(df[c]) and df[c].notna().any()
+    ]
+
+    if not metric_cols:
+        # return empty but with expected columns
+        return pd.DataFrame(columns=group_cols)
+
+    mean_df = df.groupby(group_cols)[metric_cols].mean().reset_index()
+    std_df  = df.groupby(group_cols)[metric_cols].std().reset_index()
+    return mean_df.merge(std_df, on=group_cols, suffixes=("_mean", "_std"))
+
+# formatting
+def truncate_to_2(x):
+    return Decimal(str(x)).quantize(Decimal("1.00"), rounding=ROUND_DOWN)
+
+MISSING = "-"   # or r"\text{--}"
+
+def fmt_mean_std_percent(mean_val, std_val):
+    if mean_val is None or std_val is None:
+        return MISSING
+    if isinstance(mean_val, float) and math.isnan(mean_val):
+        return MISSING
+    if isinstance(std_val, float) and math.isnan(std_val):
+        return MISSING
+    return f"{truncate_to_2(mean_val)} $\\pm$ {truncate_to_2(std_val)}"
+
+def get_metrics_for(method, source, model_name):
+    row = latex_df[(latex_df["Method"] == method) &
+                   (latex_df["source"] == source) &
+                   (latex_df["Model"] == model_name)]
+    if row.empty:
+        return (MISSING, MISSING)
+
+    r = row.iloc[0]
+
+    mia1_mean = r.get(f"{MIA1_COL}_mean", float("nan")) * 100
+    mia1_std  = r.get(f"{MIA1_COL}_std",  float("nan")) * 100
+    mia2_mean = r.get(f"{MIA2_COL}_mean", float("nan")) * 100
+    mia2_std  = r.get(f"{MIA2_COL}_std",  float("nan")) * 100
+
+    mia1_str = fmt_mean_std_percent(mia1_mean, mia1_std)
+    mia2_str = fmt_mean_std_percent(mia2_mean, mia2_std)
+    return (mia1_str, mia2_str)
 
 
-# For forget efficacy table
-MIA1_confidence = "confidence"
-#MIA1_correctness = "correctness"
-MIA2 = "cv_score_mean"         
-MIA3 = "F1_mean"         
-
-columns_to_include = ["source", "Dataset", "Model", "Method",
-                      f"{MIA1_confidence}_mean", f"{MIA1_confidence}_std",
-                      #f"{MIA1_correctness}_mean", f"{MIA1_correctness}_std",
-                      f"{MIA2}_mean", f"{MIA2}_std",
-                      #f"{MIA3}_mean", f"{MIA3}_std"
-                      ]
-latex_df = latex_df[columns_to_include]
-
-
-latex_lines = [
-    r"\begin{table*}[ht]",
-    r"\centering",
-    r"\captionsetup{font=small}",
-    r"\caption{MIA performance of single-class unlearning on CIFAR10 using ResNet-18, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}",
-    r"\label{tab:MIA_results}",
-    r"\resizebox{0.7\textwidth}{!}{",
-    r"\begin{tabular}{c|cc|c|c}",
-    #r"\begin{tabular}{c|cc|c|c|c|c}",
-    r"\toprule",
-    r"Method & $\mathcal{D}_r$-free & $\mathcal{D}_f$-free & $\text{MIA}_{I}$ $\uparrow$ & $\text{MIA}_{II}$ $\downarrow$ \\",
-    #r"Method & $\mathcal{D}_r$-free & $\mathcal{D}_f$-free & $\text{MIA}_{I}(\text{confidence})$ $\uparrow$ & $\text{MIA}_{I}(\text{correctness})$ $\uparrow$ & $\text{MIA}_{II}$ $\downarrow$ & $\text{MIA}_{III}$ $\downarrow$\\",
-    r"\midrule"
-    r"\midrule"
-
-]
-
-# === Method formatting
+# your data-free flags logic
 def get_data_free_flags(method, source):
     if method in ["original", "retrained"]:
         return ("--", "--")
     elif method in ["MM"]:
-        return (r"\cmark", r"\cmark") 
-    elif method in ["FT","RE"]:
+        return (r"\cmark", r"\cmark")
+    elif method in ["FT", "RE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\cmark")
-    elif method in ["NG", "RL", "BS", "BE", "LAU"]:
+    elif method in ["NG", "RL", "BS", "BE", "LAU", "DELETE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\cmark", r"\xmark")
     elif method in ["NGFTW", "DUCK", "SCRUB", "SCAR"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
     return (r"\xmark", r"\xmark")
 
+# ============================================================
+# LOAD CSVs (no overwriting)
+# ============================================================
+def load_folder_csvs(folder_path, source_label):
+    out = []
+    for fn in os.listdir(folder_path):
+        if not fn.endswith(".csv"):
+            continue
+        fp = os.path.join(folder_path, fn)
+        df = pd.read_csv(fp, index_col=False)
+        df["source"] = source_label
+        df["_filename"] = fn
+        out.append(df)
+    return out
+
+real_dfs  = load_folder_csvs(REAL_DIR,  "real")
+synth_dfs = load_folder_csvs(SYNTH_DIR, "synth")
+all_dfs = real_dfs + synth_dfs
+
+if not all_dfs:
+    raise RuntimeError("No CSV files found in MIA_results_real/ or MIA_results_synth/")
+
+def has_tag(df, tag):
+    # df["_filename"] exists but may be empty => unique() could be empty
+    if "_filename" not in df.columns:
+        return False
+    u = df["_filename"].unique()
+    return len(u) > 0 and (tag in u[0])
+
+forget_dfs = [d for d in all_dfs if has_tag(d, "MIA_forget_efficacy")]
+mia2_dfs   = [d for d in all_dfs if has_tag(d, "MIA2_forget_efficacy")]
+mia3_dfs   = [d for d in all_dfs if has_tag(d, "MIA3_efficacy")]
+priv_dfs   = [d for d in all_dfs if has_tag(d, "training_privacy")]
 
 
-from collections import defaultdict
+# concat
+df_forget  = pd.concat(forget_dfs,  ignore_index=True) if forget_dfs  else pd.DataFrame()
+df_mia2    = pd.concat(mia2_dfs,    ignore_index=True) if mia2_dfs    else pd.DataFrame()
+df_mia3    = pd.concat(mia3_dfs,    ignore_index=True) if mia3_dfs    else pd.DataFrame()
+df_privacy = pd.concat(priv_dfs, ignore_index=True) if priv_dfs else pd.DataFrame()
 
-# Count how many times each method appears per base
+# ============================================================
+# AGGREGATE (ONLY NUMERIC METRICS)
+# ============================================================
+group_cols = ["source", "Dataset", "Model", "Method"]
+
+# only aggregate the two metrics we need for the table
+agg_forget = agg_mean_std_numeric(df_forget, group_cols, metric_allowlist=[MIA1_COL])
+agg_mia2   = agg_mean_std_numeric(df_mia2,   group_cols, metric_allowlist=[MIA2_COL])
+
+# merge into one frame for latex
+latex_df = agg_forget.merge(agg_mia2, on=group_cols, how="left")
+
+# filter dataset
+latex_df = normalize_frame(latex_df)
+latex_df = latex_df[latex_df["Dataset"] == normalize_dataset_name(dataset_to_show)].copy()
+
+# quick sanity prints (optional)
+print("Datasets found:", sorted(latex_df["Dataset"].dropna().unique().tolist()))
+print("Models found:", sorted(latex_df["Model"].dropna().unique().tolist()))
+print("Methods found:", sorted(latex_df["Method"].dropna().unique().tolist()))
+
+# ============================================================
+# BUILD LaTeX TABLE: backbones side-by-side with MIA_I / MIA_II
+# ============================================================
+
+
+# Count rows per method (real/synth) for multirow
 method_counts = defaultdict(int)
-for method in method_order:
-    for source in ["real", "synth"]:
-        row = latex_df[(latex_df["Method"] == method) & (latex_df["source"] == source)]
-        if not row.empty:
-            method_counts[method] += 1
+for m in method_order:
+    for src in ["real", "synth"]:
+        if not latex_df[(latex_df["Method"] == m) & (latex_df["source"] == src)].empty:
+            method_counts[m] += 1
+
+n_models = len(model_order)
+n_models = len(model_order)
+col_spec = "c|cc|" + "|".join(["cc"] * n_models)
+
+latex_lines = [
+    r"\begin{table*}[ht]",
+    r"\centering",
+    r"\captionsetup{font=small}",
+    rf"\caption{{MIA performance of single-class unlearning on CIFAR10 using ResNet-18, ResNet-50, ViT-B/16 and Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}}",
+    r"\label{tab:MIA_results_backbones}",
+    r"\resizebox{\textwidth}{!}{",
+    rf"\begin{{tabular}}{{{col_spec}}}",
+    r"\toprule",
+    r"\toprule",
+]
+
+# --- Header row 1: Method + Dr/Df + model groups (like your second example) ---
+header1 = [
+    r"\multirow{2}{*}{Method}",
+    r"\multirow{2}{*}{\shortstack{$\mathcal{D}_r$\\free}}",
+    r"\multirow{2}{*}{\shortstack{$\mathcal{D}_f$\\free}}",
+]
+
+for i, mk in enumerate(model_order):
+    disp = model_display.get(mk, mk)
+    header1.append(
+        rf"\multicolumn{{2}}{{c{'|' if i < len(model_order)-1 else ''}}}{{\textbf{{{disp}}}}}"
+    )
+
+latex_lines.append(" & ".join(header1) + r" \\")
+
+
+
+# --- Header row 2: only the metrics; first 3 cells are "covered" by the multirow ---
+header2 = ["", "", ""]
+for _ in model_order:
+    header2 += [r"$\text{MIA}_{I}\uparrow$", r"$\text{MIA}_{II}\downarrow$"]
+latex_lines.append(" & ".join(header2) + r" \\")
+
+latex_lines.append(r"\midrule")
+latex_lines.append(r"\midrule")
 
 prev_base_method = None
 
-from decimal import Decimal, ROUND_DOWN
-
-def truncate_to_2(x):
-    return Decimal(str(x)).quantize(Decimal('1.00'), rounding=ROUND_DOWN)
-
-
 for method in method_order:
-    base_method = method
     rows_for_method = []
 
     for source in ["real", "synth"]:
-        row = latex_df[(latex_df["Method"] == method) & (latex_df["source"] == source)]
-        if row.empty:
+        # Skip if method/source doesn't exist in this dataset for any model
+        exists_any = any(
+            not latex_df[(latex_df["Method"] == method) &
+                         (latex_df["source"] == source) &
+                         (latex_df["Model"] == mdl)].empty
+            for mdl in model_order
+        )
+        if not exists_any:
             continue
 
-        r = row.iloc[0]
         dr_free, df_free = get_data_free_flags(method, source)
-        mia1_confidence_mean = r[f"{MIA1_confidence}_mean"] * 100
-        mia1_confidence_std = r[f"{MIA1_confidence}_std"] * 100
-        #mia1_confidence_str = f"{mia1_confidence_mean:.2f} $\\pm$ {mia1_confidence_std:.2f}"
 
-        #mia1_correctness_mean = r[f"{MIA1_correctness}_mean"] * 100
-        #mia1_correctness_std = r[f"{MIA1_correctness}_std"] * 100
-        #mia1_correctness_str = f"{mia1_correctness_mean:.2f} $\\pm$ {mia1_correctness_std:.2f}"
+        metric_cells = []
+        for mdl in model_order:
+            mia1_str, mia2_str = get_metrics_for(method, source, mdl)
+            metric_cells += [mia1_str, mia2_str]
 
+        rows_for_method.append((dr_free, df_free, metric_cells, source))
 
-        mia2_mean = r[f"{MIA2}_mean"] * 100
-        mia2_std = r[f"{MIA2}_std"] * 100
-        #mia2_str = f"{mia2_mean:.2f} $\\pm$ {mia2_std:.2f}"
-
-        #mia3_mean = r[f"{MIA3}_mean"] * 100
-        #mia3_std = r[f"{MIA3}_std"] * 100
-        #mia3_str = f"{mia3_mean:.2f} $\\pm$ {mia3_std:.2f}"
-        
-        mia1_confidence_str = f"{truncate_to_2(mia1_confidence_mean)} $\\pm$ {truncate_to_2(mia1_confidence_std)}"
-        #mia1_correctness_str = f"{truncate_to_2(mia1_correctness_mean)} $\\pm$ {truncate_to_2(mia1_correctness_std)}"
-        mia2_str = f"{truncate_to_2(mia2_mean)} $\\pm$ {truncate_to_2(mia2_std)}"
-        #mia3_str = f"{truncate_to_2(mia3_mean)} $\\pm$ {truncate_to_2(mia3_std)}"
-        
-        
-        
-        rows_for_method.append((dr_free, df_free, mia1_confidence_str, mia2_str, source))
-        #rows_for_method.append((dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str, source))
-
-    # Insert midrule if base method changed
-    if base_method != prev_base_method:
-        if prev_base_method in ["original", "FT", "BE"]:
+    if prev_base_method is not None and method != prev_base_method:
+        if prev_base_method in ["original", "FT", "DELETE"]:
             latex_lines.append(r"\midrule")
             latex_lines.append(r"\midrule")
         else:
             latex_lines.append(r"\midrule")
 
-
-    #for i, (dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str, source) in enumerate(rows_for_method):
-    for i, (dr_free, df_free, mia1_confidence_str, mia2_str, source) in enumerate(rows_for_method):
-
-
-        
+    for i, (dr_free, df_free, metric_cells, source) in enumerate(rows_for_method):
+        # multirow method name if both real+synth exist
         if method_counts[method] > 1:
             if i == 0:
                 method_cell = rf"\multirow{{{method_counts[method]}}}{{*}}{{{method_name_and_ref.get(method, (method,))[0]}}}"
             else:
                 method_cell = ""
-
         else:
             method_cell = method_name_and_ref.get(method, (method,))[0]
 
+        row = [method_cell, dr_free, df_free] + metric_cells
 
-       
-        #row = [method_cell, dr_free, df_free, mia1_confidence_str, mia1_correctness_str, mia2_str, mia3_str]
-        row = [method_cell, dr_free, df_free, mia1_confidence_str, mia2_str]
-
-        # Apply gray background for synth rows (but NOT the method column)
+        # Gray shading for synth row (excluding method cell)
         if source == "synth":
             row = [row[0]] + [rf"\cellcolor{{gray!15}}{cell}" for cell in row[1:]]
 
         latex_lines.append(" & ".join(row) + r" \\")
 
-    prev_base_method = base_method
-
+    prev_base_method = method
 
 latex_lines += [
     r"\bottomrule",
+    r"\bottomrule",
     r"\end{tabular}}",
-    r"\end{table*}"
+    r"\end{table*}",
 ]
 
-# Save LaTeX
-with open("MIA_forget_efficacy_table.tex", "w") as f:
+out_tex = "MIA_backbones_table.tex"
+with open(out_tex, "w") as f:
     f.write("\n".join(latex_lines))
+
+print(f"Wrote: {out_tex}")
+
