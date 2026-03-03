@@ -236,7 +236,7 @@ def run_assumption_checks(
 
     ok_both = ok_true & ok_ret
 
-    print("\n=== Assumption (4)-style sign check on p_f ===")
+    print("\n=== Assumption (3)-style sign check on p_f ===")
     print(f"method={method}  CE-sign={sign_str}  N={N_use}")
     print(f"Fraction s_trueLabel>0:         {ok_true.float().mean().item():.6f}")
     print(f"Fraction all retain comps <0:  {ok_ret.float().mean().item():.6f}")
@@ -245,7 +245,7 @@ def run_assumption_checks(
     if len(retain_classes) > 0:
         print(f"max s_retain:    {s1[:, retain_classes].max().item():+.6e}  (should be < 0)")
 
-    # ------------------- Assumptions (5)(6) cheap estimator -------------------
+    # ------------------- Assumptions (5) cheap estimator -------------------
     mu = X2.float().mean(dim=0)  # [D]
     v = (s1.float().unsqueeze(-1) * X1.float().unsqueeze(1)).mean(dim=0)  # [C, D]
     A = v @ mu  # [C]
