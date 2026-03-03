@@ -19,6 +19,7 @@ sources = [
 
 # How to rename methods for the final tables
 method_map = {
+    "retrained": "retrained",
     "FineTuning": "FT",
     "BoundaryShrink": "BS",
     "BoundaryExpanding": "BE",
@@ -32,8 +33,8 @@ method_map = {
 
 # === Define display names and references (same style as your big table) ===
 method_name_and_ref = {
-    "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained}", "–"),
+    "original": (r"Original", "–"),
+    "retrained": (r"Retrained", "–"),
     "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \\citep{golatkar2020eternal}", "–"),
     "NG": ("NG \\citep{golatkar2020eternal}", "–"),
@@ -87,7 +88,7 @@ original_summary.columns = ['_'.join(col).strip() for col in original_summary.co
 
 original_summary = original_summary.reset_index()
 
-original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet18/original_averaged_results_resnet18.csv", index=False)
+original_summary.to_csv("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/multi_class/original_averaged_results_resnet18.csv", index=False)
 
 metrics = ['val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS']
 
@@ -98,6 +99,39 @@ df_original_grouped = original_df.groupby(['dataset', 'model', 'mode', 'Forget C
 df_original_grouped.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df_original_grouped.columns]
 
 
+
+
+# Load the uploaded CSV files
+retrained_df = pd.read_csv(
+    f"{parent_dir}/multi_class/results_real/samples_per_class_500/retrained/cifar100_resnet18_unlearning_summary.csv"
+)
+
+retrained_df = retrained_df.rename(columns={"class_removed": "Forget Class"})
+retrained_df = retrained_df.rename(columns={"best_val_acc": "val_test_retain_acc"})
+retrained_df = retrained_df.rename(columns={"train_acc": "train_retain_acc"})
+
+
+retrained_df["dataset"] = "cifar100"
+retrained_df["model"]   = "resnet18"
+retrained_df["method"]  = "retrained"
+retrained_df["source"]  = "real"
+
+# Add 'val_full_fgt_acc' column with all values set to 0
+retrained_df["val_test_fgt_acc"] = 0.0
+retrained_df["train_fgt_acc"] = 0.0
+retrained_df["val_full_fgt_acc"] = 0.0
+
+
+val_test_retain_acc_original = original_df['val_test_retain_acc']
+val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
+
+AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+
+retrained_df["AUS"] = AUS
+
+# Save the combined DataFrame
+output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/multi_class/results_retrained_resnet18.csv"
+retrained_df.to_csv(output_path, index=False)
 
 
 # === D_r-free / D_f-free flags (same logic as your FC table) ===
@@ -132,28 +166,30 @@ def infer_noise_type(path_or_name: str) -> str:
         return "gaussian"
     return "unknown"
 
-def make_red(text: str) -> str:
-    if text in ("", "-"):
-        return text
-    return rf"\textcolor{{red}}{{{text}}}"
 
 # ------------------------------------------------------------
 #  Helper: format mean ± std for LaTeX
 # ------------------------------------------------------------
 def fmt_pm(row: pd.Series, metric: str) -> str:
-    """Return 'mean ± std' LaTeX string for a metric in stats_df."""
     m = row.get(f"{metric}_mean", np.nan)
     s = row.get(f"{metric}_std", np.nan)
-    if pd.isna(m) or pd.isna(s):
+
+    if pd.isna(m):
         return "-"
 
-    # 3 decimals for AUS, 2 for all accuracy metrics
+    # formatting
     if metric == "AUS":
-        val = f"{m:.3f} $\\pm$ {s:.3f}"
+        m_str = f"{m:.3f}"
+        s_str = f"{s:.3f}" if not pd.isna(s) else None
     else:
-        val = f"{m:.2f} $\\pm$ {s:.2f}"
+        m_str = f"{m:.2f}"
+        s_str = f"{s:.2f}" if not pd.isna(s) else None
 
-    return make_red(val)
+    # if only one run -> std is NaN -> show mean only (so row won’t be dropped)
+    if s_str is None:
+        return m_str
+
+    return f"{m_str} $\\pm$ {s_str}"
 
 
 def count_forget(s):
@@ -179,7 +215,7 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     Writes a LaTeX table with column groups for each num_forget in forget_list.
     First columns: Method, D_r-free, D_f-free.
     """
-    method_order = ["original", "FT", "NG", "RL","BE", "DELETE", "NGFTW", "SCRUB"]  # Including "original"
+    method_order = ["original", "retrained" ,"FT", "NG", "RL","BE", "DELETE", "NGFTW", "SCRUB"]  # Including "original"
 
     method_display = {m: method_name_and_ref.get(m, (m, "–"))[0] for m in method_order}
 
@@ -199,25 +235,26 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
     lines.append(r"\begin{table}[t]")
     lines.append(r"\centering")
     caption_text = (
-        r"Multi class unlearning performance on CIFAR-100 using ResNet-18 as the base architecture. "
+        r"Multi-class unlearning performance for CIFAR-100 using ResNet-18 as the base architecture. "
         r"Rows highlighted in gray correspond to methods applied on synthetic embeddings, "
         r"while the non-shaded rows use original embeddings. "
-        r"Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates "
-        r"without access to the retain or forget set, respectively, with (\cmark) indicating data-free "
-        r"operation and (\xmark) indicating that the corresponding data is required."
+        r"Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false."
     )
 
-    lines.append(rf"\caption{{{make_red(caption_text)}}}")
+    lines.append(rf"\caption{{{(caption_text)}}}")
     lines.append(r"\label{tab:ResNet-18_cifar100_multi_class}")
     lines.append(r"\resizebox{0.99\linewidth}{!}{%")
-    lines.append(r"\begin{tabular}{c|cc|ccc|ccc|ccc}")
+    tabular_spec = "c|cc|" + ("ccc|" * (len(forget_list)-1)) + "ccc"
+    lines.append(rf"\begin{{tabular}}{{{tabular_spec}}}")
     lines.append(r"\toprule")
     lines.append(r"\toprule")
 
     # First header row: Method / D_r-free / D_f-free span two rows
     header1 = r"\multirow{2}{*}{Method} & \multirow{2}{*}{\makecell{$\mathcal{D}_r$\\free}} & \multirow{2}{*}{\makecell{$\mathcal{D}_f$\\free}}"
-    for nf in forget_list:
-        header1 += rf" & \multicolumn{{{n_cols_group}}}{{c}}{{\textbf{{{nf}-Classes}}}}"
+    for i, nf in enumerate(forget_list):
+        bar = "|" if i < len(forget_list) - 1 else ""
+        header1 += rf" & \multicolumn{{{n_cols_group}}}{{c{bar}}}{{\textbf{{{nf}-Classes}}}}"
+
     header1 += r" \\"
     lines.append(header1)
 
@@ -297,7 +334,7 @@ def make_multi_forget_table(stats_df: pd.DataFrame, out_path: str, dataset: str 
         lines.append(r"\midrule")
         if m in ["original", "FT", "DELETE"]:
             lines.append(r"\midrule")
-
+        
 
 
     lines.append(r"\bottomrule")
@@ -459,8 +496,16 @@ def main():
     "CIFAR10": "cifar10",
     "CIFAR100": "cifar100"
     })
+    
+    retrained_df["method"] = "retrained"
+    retrained_df["source"] = "real"
+    retrained_df["dataset"] = retrained_df["dataset"].replace({
+    "CIFAR10": "cifar10",
+    "CIFAR100": "cifar100"
+    })    
+    
     # combine everything (here only best_df)
-    combined_df = pd.concat([original_df, best_df], ignore_index=True)
+    combined_df = pd.concat([original_df, retrained_df, best_df], ignore_index=True)
 
     out_total = os.path.join(
         parent_dir, "multi_class/results_total_resnet18.csv"

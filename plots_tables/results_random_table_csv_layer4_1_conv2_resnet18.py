@@ -243,9 +243,38 @@ if all_data:
 
     print("✅ Merged original results with current best results.")
     
+    
+    
+    col = 'val_test_fgt_acc'
+    
+    if col in combined_df.columns:
+        # Exempt original model rows from filtering
+        is_original = combined_df.get('method', '').astype(str).str.lower().eq('original')
+    
+        # Apply >5 filter only to non-original rows
+        mask_bad = (~is_original) & combined_df[col].notna() & (combined_df[col] > 5)
+    
+        removed_rows = combined_df[mask_bad].copy()
+        kept_rows = combined_df[~mask_bad].copy()
+    
+        removed_path = os.path.join(parent_dir, "filtered_out_rows_over50_val_test_fgt_acc_swint.csv")
+        kept_path = os.path.join(parent_dir, "filtered_in_rows_over50_val_test_fgt_acc_swint.csv")
+        removed_rows.to_csv(removed_path, index=False)
+        kept_rows.to_csv(kept_path, index=False)
+    
+        print(f"🧹 Filtered out {len(removed_rows)} rows with {col} > 50 (excluding original). Kept {len(kept_rows)} rows for stats.")
+    else:
+        print(f"⚠️ Column '{col}' not found; proceeding without filtering.")
+
+    
+    #df_final = combined_df
+    df_final = kept_rows    
+    
+    
+       
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
-    numeric_cols = combined_df.select_dtypes(include='number').columns
-    stats_df = combined_df.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
+    numeric_cols = df_final.select_dtypes(include='number').columns
+    stats_df = df_final.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
 
     # Flatten multi-level column names
     stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]
@@ -284,7 +313,7 @@ def get_data_free_flags(method, source):
         return (r"\cmark", r"\cmark") 
     elif method in ["FT","RE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\cmark")
-    elif method in ["NG", "RL", "BS", "BE", "LAU"]:
+    elif method in ["NG", "RL", "BS", "BE", "LAU", "DELETE"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\cmark", r"\xmark")
     elif method in ["NGFTW", "DUCK", "SCRUB", "SCAR"]:
         return (r"\cmark", r"\cmark") if source == "synth" else (r"\xmark", r"\xmark")
@@ -296,8 +325,8 @@ datasets = stats_df["dataset"].unique()
 
 method_name_and_ref = {
     "original": ("Original", "–"),
-    "retrained": (r"\makecell{Retrained}", "–"),
-    #"RE":        (r"\makecell{Retrained (FC)}", "–"),
+    "retrained": (r"Retrained", "–"),
+    "RE":        (r"\makecell{Retrained (FC)}", "–"),
     "FT": ("FT \citep{golatkar2020eternal}", "–"),
     "NG": ("NG \citep{golatkar2020eternal}", "–"),
     "NGFTW": ("NG+ \citep{kurmanji2023towards}", "–"),
@@ -308,9 +337,10 @@ method_name_and_ref = {
     "SCRUB": ("SCRUB \citep{kurmanji2023towards}", "–"),
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
+    "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
 }
 
-method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
+method_order = ["original", "retrained", "RE", "FT", "NG", "RL","BS", "BE", "DELETE", "LAU", "NGFTW", "SCRUB", "DUCK", "SCAR"]
 
 
 # === Define displayed metrics
@@ -425,7 +455,8 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance using random samples generated from layer 4 (immediately before the last convolutional layer) of ResNet-18 as the base architecture. Rows highlighted in gray show results obtained with synthetic embeddings.}
+\caption{Single-class unlearning performance using synthetic embedding generated from layer 4 (immediately before the last convolutional layer) of ResNet-18 as the base architecture for CIFAR-10, CIFAR-100, and TinyImageNet. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
+         Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 
 \label{tab:results_layer4_1_conv2_resnet18}
 
@@ -435,7 +466,6 @@ latex_table = r"""\begin{table*}[ht]
 \toprule
 \multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
-\midrule
 \midrule
 """
 
@@ -475,9 +505,9 @@ for key in grouped_methods.keys():
 
 for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     base_method = key.split(" (")[0]
-
+    
     if base_method != prev_base_method:
-        if prev_base_method in ["FT", "BE", "RL"]:
+        if prev_base_method in ["FT", "BE", "DELETE"]:
             latex_table += r"\midrule" + "\n" + r"\midrule" 
         else:
             latex_table += r"\midrule" + "\n"
@@ -500,30 +530,30 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
     else:
         ref = default_ref  # Leave original method as-is
 
-    if base_method == "original":
-        method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
-        #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
-        dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
-        df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
+    # if base_method == "original":
+    #     method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
+    #     #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
+    #     dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
+    #     df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
-        values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
+    #     values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
-        row = [method_cell, dr_free, df_free] + values_multirow
+    #     row = [method_cell, dr_free, df_free] + values_multirow
 
-        #row = [method_cell, ref_cell, dr_free, df_free] + values_multirow
-        # Add gray background if synth
+    #     #row = [method_cell, ref_cell, dr_free, df_free] + values_multirow
+    #     # Add gray background if synth
 
-        latex_table += " & ".join(row) + r" \\" + "\n"
+    #     latex_table += " & ".join(row) + r" \\" + "\n"
     
-        # Now insert an empty second row for spacing and alignment
-        #row = ["", "", "", ""] + [""] * len(values)
-        row = ["", "", ""] + [""] * len(values)
+    #     # Now insert an empty second row for spacing and alignment
+    #     #row = ["", "", "", ""] + [""] * len(values)
+    #     row = ["", "", ""] + [""] * len(values)
         
-        latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
+    #     latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
                 
         
-        continue  # skip rest of loop
+    #     continue  # skip rest of loop
 
     if method_counts[base_method] > 1:
         if source == "real":
@@ -543,10 +573,12 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         # color from second column onward
         colored_row = [row[0]] + [rf"\cellcolor{{gray!15}}{cell}" for cell in row[1:]]
         latex_table += " & ".join(colored_row) + r" \\" + "\n"
+        prev_base_method = base_method
         continue 
 
     latex_table += " & ".join(row) + r" \\" + "\n"
-
+    if base_method == "original":
+        latex_table += r"\midrule" + "\n" 
     prev_base_method = base_method
     
     
@@ -564,5 +596,4 @@ with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU
     f.write(latex_table)
 
 print("✅ LaTeX table saved to results_layer4_1_conv2_resnet18.tex")
-
 
