@@ -3057,7 +3057,7 @@ class Delete(BaseMethod):
                 if aus > best_aus:
                     best_aus   = aus
                     best_epoch = epoch
-                    best_state = deepcopy(self.net.state_dict())
+                    best_model_state = deepcopy(self.net.state_dict())
                     best_acc_train_ret    = acc_train_ret
                     best_acc_train_fgt    = acc_train_fgt
                     best_acc_test_val_ret = acc_test_val_ret
@@ -3065,17 +3065,14 @@ class Delete(BaseMethod):
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
 
-                if getattr(opt, "save_model", False):  # <-- only save if enabled
-                    ckpt_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    ckpt_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(ckpt_dir, exist_ok=True)
                     ckpt_path = os.path.join(
                         ckpt_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{opt.n_model}_lr{opt.lr_unlearn}.pt"
                     )
-                    torch.save(best_state, ckpt_path)
+                    torch.save(best_model_state, ckpt_path)
                     print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
-                else:
-                    print(f"[Checkpoint NOT saved] AUS={aus:.4f} (kept in memory)")
 
                 # early-stops (like your NGFT_weighted)
                 if acc_test_val_fgt == 0.0:
