@@ -19,6 +19,7 @@ from Unlearning_methods import calculate_accuracy
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import torch.nn as nn
+from assumption_checks import run_assumption_checks
 
 DATASET_NUM_CLASSES = {
     "CIFAR10": 10,
@@ -201,6 +202,25 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         
         forget_loader_synth = DataLoader(TensorDataset(forgetfull_features_synth, forgetfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
         retain_loader_synth = DataLoader(TensorDataset(retainfull_features_synth, retainfull_labels_synth), batch_size=opt.batch_size, shuffle=False)
+        
+        
+
+        teacher_model = None
+        if opt.method.upper() in {"DELETE", "SCRUB"}:
+            teacher_model = deepcopy(pretr_model).eval()  # teacher = original (pre-unlearn) model
+
+              
+        run_assumption_checks(
+            net=pretr_model,
+            forget_loader=forget_loader_synth,
+            class_to_remove=class_to_remove,
+            method=opt.method,
+            device=opt.device,
+            N=50000,
+            seed=0,                 # use your seed_int, not 0
+            teacher_model=teacher_model,   # works for DELETE
+        )
+        print(0)
         
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
     

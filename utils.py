@@ -159,8 +159,8 @@ def get_resnet_trained():
 def get_ViT_trained():
     local_path = opt.or_model_weights_path
     
-    print(not os.path.exists(local_path),local_path)
-
+    #print(os.path.exists(local_path),local_path)
+    print('LOAD weights: ', local_path)
   
     weights_pretrained = torch.load(local_path)
     model = ViT_16_mod(n_classes=opt.num_classes)
@@ -170,7 +170,7 @@ def get_ViT_trained():
 
 def get_AllCNN_trained():
     local_path = opt.or_model_weights_path
-
+    print('LOAD weights: ', local_path)
     weights_pretrained = torch.load(local_path)
     model = AllCNN(num_classes=opt.num_classes,dropout_prob=0)
     model.load_state_dict(weights_pretrained)
@@ -178,6 +178,7 @@ def get_AllCNN_trained():
 
 def get_Swin_trained():
     local_path = opt.or_model_weights_path
+    print('LOAD weights: ', local_path)
     weights_pretrained = torch.load(local_path)
     model = swin_tiny_patch4_window7_224(pretrained=False, num_classes=opt.num_classes)
     model.load_state_dict(weights_pretrained)
