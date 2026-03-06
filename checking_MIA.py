@@ -45,8 +45,13 @@ forget_classes = list(range(num_classes))  # or a subset if needed
 #n_model=1
 batch_size = 1024
 #method="original"
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+#device = 'cuda' if torch.cuda.is_available() else 'cpu'
 #device = "cpu"
+device_cpu = torch.device("cpu")
+device_gpu = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+print("CPU device:", device_cpu)
+print("GPU device:", device_gpu)
+
 seed=42
 
 if dataset_name.lower() in ["cifar10", "cifar100"]:
@@ -177,9 +182,17 @@ for forget_class in forget_classes:
 
     model = get_model(model_name, dataset_name_upper, num_classes, checkpoint_path=checkpoint_path_model) 
   
+    # model.eval()
+    # fc_layer = get_classifier_layer(model).to(device)
+    # fc_layer.eval()
+        
     model.eval()
-    fc_layer = get_classifier_layer(model).to(device)
-    fc_layer.eval()
+    fc_layer = get_classifier_layer(model)
+
+    # Two copies of the head (head is small → copying is cheap)
+    fc_layer_cpu = copy.deepcopy(fc_layer).to(device_cpu).eval()
+    fc_layer_gpu = copy.deepcopy(fc_layer).to(device_gpu).eval()
+        
     
     # Dataloaders using full data (not filtering forget class)
     train_loader = DataLoader(TensorDataset(train_emb, train_labels), batch_size=batch_size, shuffle=False)
@@ -286,7 +299,7 @@ for forget_class in forget_classes:
         shadow_test=shadow_test_loader_MIA_training_privacy,
         target_train=target_train_loader_MIA_training_privacy,
         target_test=target_test_loader_MIA_training_privacy,
-        model=fc_layer,
+        model=fc_layer_cpu,
     )
     
     row_privacy = {
@@ -306,7 +319,7 @@ for forget_class in forget_classes:
         shadow_test=test_loader,
         target_train=None,
         target_test=train_fgt_loader,
-        model=fc_layer,
+        model=fc_layer_cpu,
     )
     
     row_efficacy = {
@@ -322,7 +335,7 @@ for forget_class in forget_classes:
 
     # ------------------ MIA2 ------------------
     MIA2_forget_result = membership_inference_attack(
-        model=fc_layer,
+        model=fc_layer_gpu,
         t_loader=test_loader,
         f_loader=train_fgt_loader,
         seed=42,
