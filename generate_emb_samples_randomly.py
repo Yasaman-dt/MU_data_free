@@ -60,7 +60,12 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
     class_features = {i: [] for i in range(num_classes)}
     class_soft_targets = {i: [] for i in range(num_classes)}
 
+    total_raw_draws = 0        # how many random feature vectors we generated in total
+    total_accepted  = 0        # how many we kept into per-class quotas
+    num_batches     = 0        # number of while-iterations (batches)
+    
     while any(class_counts[c] < samples_per_class for c in range(num_classes)):
+        num_batches += 1
         # Generate random synthetic samples in *feature space*
         if noise_type == "gaussian":
             feature_samples = torch.randn(batch_size, embedding_dim, device=device)
@@ -75,6 +80,8 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
         else:
             raise ValueError(f"Unsupported noise type: {noise_type}")
 
+        total_raw_draws += batch_size
+        
         # “probabilities” tracker (log-density under N(0, I))
         norm_squared = feature_samples.pow(2).sum(dim=1)
         log_prob = -0.5 * (embedding_dim * np.log(2 * np.pi) + norm_squared.detach().cpu().numpy())
@@ -91,9 +98,19 @@ def generate_emb_samples_balanced(num_classes, samples_per_class, net, noise_typ
                 class_features[class_name].append(feature_samples[i].unsqueeze(0))
                 class_soft_targets[class_name].append(soft_targets[i].unsqueeze(0))
                 class_counts[class_name] += 1
+                total_accepted += 1
                 all_sample_probs.append(probabilities[i])
 
         print(f"Current class counts: {class_counts}")
+
+
+    required = num_classes * samples_per_class
+    overhead_factor = total_raw_draws / required
+    print(
+        f"[Sampling overhead] required={required}, accepted={total_accepted}, "
+        f"raw_draws={total_raw_draws}, batches={num_batches}, "
+        f"overhead_factor(raw/required)={overhead_factor:.3f}"
+    )
 
     # Stitch per-class samples
     all_features, all_labels, all_soft_targets = [], [], []
