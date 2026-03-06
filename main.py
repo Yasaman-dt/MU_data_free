@@ -220,7 +220,6 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
             seed=0,                 # use your seed_int, not 0
             teacher_model=teacher_model,   # works for DELETE
         )
-        print(0)
         
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
     
