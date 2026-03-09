@@ -44,6 +44,20 @@ weights_folder = "weights"
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embeddings_folder = "embeddings"
 
+def get_forget_tag(class_to_remove):
+    if class_to_remove is None:
+        return "all"
+
+    if isinstance(class_to_remove, list):
+        if len(class_to_remove) > 10:
+            return f"multi_{len(class_to_remove)}_classes"
+        elif len(class_to_remove) == 1:
+            return str(class_to_remove[0])
+        else:
+            return "_".join(map(str, class_to_remove))
+
+    return str(class_to_remove)
+
 def select_n_per_class_numpy(embeddings, labels, num_per_class, num_classes):
     labels = labels.cpu().numpy() if torch.is_tensor(labels) else labels
     embeddings = embeddings.cpu().numpy() if torch.is_tensor(embeddings) else embeddings
@@ -116,6 +130,7 @@ def analyze_sample_probabilities(labels_tensor, probs_array, num_classes):
 
 def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_fgt_loader_real, test_retain_loader, test_fgt_loader, train_loader=None, test_loader=None, seed=0, class_to_remove=0):
    
+    forget_tag = get_forget_tag(class_to_remove)
     v_orig, v_unlearn, v_rt = None, None, None
     original_pretr_model = get_trained_model()
     original_model = deepcopy(original_pretr_model)
@@ -271,8 +286,10 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
-                unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
-
+                #unlearned_model_dict = torch.load(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{'_'.join(map(str, class_to_remove))}.pth")
+                unlearned_model_dict = torch.load(
+                    f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/models/unlearned_model_{opt.method}_seed_{seed}_m{n_model}_class_{forget_tag}.pth"
+                )
             unlearned_model = get_trained_model().to(opt.device)
             unlearned_model.load_state_dict(unlearned_model_dict)
             print("UNLEARNED MODEL LOADED")
@@ -333,7 +350,10 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
     if opt.run_unlearn:
         if opt.save_df:
             if opt.mode == "CR":
-                v_unlearn.to_csv(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                #v_unlearn.to_csv(f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{'_'.join(map(str, class_to_remove))}.csv")
+                v_unlearn.to_csv(
+                    f"{opt.root_folder}/out_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{opt.mode}/{opt.dataset}/{opt.method}/lr{opt.lr_unlearn}/dfs/{opt.method}_m{n_model}_seed_{seed}_class_{forget_tag}.csv"
+                )
     return v_orig, v_unlearn, v_rt
 
 if __name__ == "__main__":
@@ -591,11 +611,12 @@ if __name__ == "__main__":
                 all_train_loader = train_loader
                 all_test_loader = test_loader
 
-                
-                            
-                opt.RT_model_weights_path = opt.root_folder+f'weights/chks_{dataset_name_lower}/retrained/best_checkpoint_without_{class_to_remove[0]}.pth'
+                forget_tag = get_forget_tag(class_to_remove)
+                opt.RT_model_weights_path = (
+                    opt.root_folder
+                    + f'weights/chks_{dataset_name_lower}/retrained/best_checkpoint_{opt.model}_without_{forget_tag}.pth'
+                )
                 print(opt.RT_model_weights_path)
-                
                 
                 row_orig, row_unl, row_ret=main(all_features_synth=all_features_synth,
                                                 all_labels_synth=all_labels_synth,

@@ -20,7 +20,20 @@ from collections import defaultdict
 
 n_model = opt.n_model
  
-    
+def get_forget_tag(class_to_remove):
+    if class_to_remove is None:
+        return "all"
+
+    if isinstance(class_to_remove, list):
+        if len(class_to_remove) > 10:
+            return f"multi_{len(class_to_remove)}_classes"
+        elif len(class_to_remove) == 1:
+            return str(class_to_remove[0])
+        else:
+            return "_".join(map(str, class_to_remove))
+
+    return str(class_to_remove)
+
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
     return aus
@@ -348,9 +361,11 @@ class BaseMethod:
                     checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
 
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
                     checkpoint_path = os.path.join(
                         checkpoint_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                     )
 
                     torch.save(best_model_state, checkpoint_path)
@@ -810,9 +825,11 @@ class NGFT_weighted(BaseMethod):
                     checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
 
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
                     checkpoint_path = os.path.join(
                         checkpoint_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                     )
 
                     torch.save(best_model_state, checkpoint_path)
@@ -1237,9 +1254,11 @@ class SCAR(BaseMethod):
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
+                forget_tag = get_forget_tag(self.class_to_remove)
+
                 checkpoint_path = os.path.join(
                     checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                 )
 
                 torch.save(best_model_state, checkpoint_path)
@@ -1461,9 +1480,11 @@ class BoundaryShrink(BaseMethod):
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
+                forget_tag = get_forget_tag(self.class_to_remove)
+
                 checkpoint_path = os.path.join(
                     checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                 )
 
                 torch.save(best_model_state, checkpoint_path)
@@ -2015,9 +2036,11 @@ class SCRUB(BaseMethod):
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
+                forget_tag = get_forget_tag(self.class_to_remove)
+
                 checkpoint_path = os.path.join(
                     checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                 )
 
                 torch.save(best_model_state, checkpoint_path)
@@ -2529,11 +2552,12 @@ class RetrainedEmbedding(BaseMethod):
                 checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                 os.makedirs(checkpoint_dir, exist_ok=True)
 
+                forget_tag = get_forget_tag(self.class_to_remove)
+
                 checkpoint_path = os.path.join(
                     checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                 )
-
                 torch.save(best_model_state, checkpoint_path)
                 print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
                                         

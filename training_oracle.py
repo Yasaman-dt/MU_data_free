@@ -71,6 +71,20 @@ if opt.model in ('ViT', 'swint'):
     ])
 
 
+def get_forget_tag(class_to_remove):
+    if class_to_remove is None:
+        return "all"
+
+    if isinstance(class_to_remove, list):
+        if len(class_to_remove) > 10:
+            return f"multi_{len(class_to_remove)}_classes"
+        elif len(class_to_remove) == 1:
+            return str(class_to_remove[0])
+        else:
+            return "_".join(map(str, class_to_remove))
+
+    return str(class_to_remove)
+
 
 def log_epoch_to_csv(epoch, train_acc, train_loss, val_acc, val_loss, mode, dataset, model, class_to_remove, seed):
     os.makedirs(f'results/{mode}/epoch_logs', exist_ok=True)
@@ -234,7 +248,11 @@ def trainer(class_to_remove, seed):
                 best_val_loss = val_loss
                 patience_counter = 0  # Reset patience counter
                 os.makedirs(f'weights/chks_{opt.dataset}/retrained', exist_ok=True)
-                torch.save(model.state_dict(), f'weights/chks_{opt.dataset}/retrained/best_checkpoint_{opt.model}_without_{class_to_remove}.pth')
+                forget_tag = get_forget_tag(class_to_remove)
+                torch.save(
+                    model.state_dict(),
+                    f'weights/chks_{opt.dataset}/retrained/best_checkpoint_{opt.model}_without_{forget_tag}.pth'
+                )
                 print(f"New best model saved with Val Acc: {best_acc:.3f}")
             else:
                 patience_counter += 1  # No improvement
