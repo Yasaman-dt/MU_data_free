@@ -212,6 +212,9 @@ def run_assumption_checks(
         print("[SCAR] not applicable for logit-gradient assumptions.")
         return None
 
+    elif methodU == "FT":
+        return None
+
     else:
         raise NotImplementedError(...)
 

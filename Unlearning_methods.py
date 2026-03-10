@@ -193,24 +193,46 @@ def evaluate_embedding_accuracy(model, dataloader, device):
     return correct / total if total > 0 else 0
 
 
+def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc,
+                     val_test_retain_acc, val_test_fgt_acc,
+                     val_full_retain_acc, val_full_fgt_acc, AUS,
+                     mode, dataset, model, class_to_remove, seed,
+                     retain_count, forget_count, total_count):
 
-def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
-    os.makedirs(f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
+    os.makedirs(
+        f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}',
+        exist_ok=True
+    )
 
-    if isinstance(class_to_remove, list):
-        class_name = '_'.join(map(str, class_to_remove))
-    else:
-        class_name = class_to_remove if class_to_remove is not None else 'all'
+    forget_tag = get_forget_tag(class_to_remove)
 
-    csv_path = f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+    csv_path = (
+        f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/'
+        f'epoch_logs_m{n_model}_lr{opt.lr_unlearn}/'
+        f'{dataset}_{model}_epoch_results_seed{seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.csv'
+    )
+
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch', 'epoch_times', 'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
-        writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
-
+            writer.writerow([
+                'epoch', 'epoch_times', 'mode', 'Forget Class', 'seed',
+                'train_retain_acc', 'train_fgt_acc',
+                'val_test_retain_acc', 'val_test_fgt_acc',
+                'val_full_retain_acc', 'val_full_fgt_acc',
+                'AUS', 'retain_count', 'forget_count', 'total_count'
+            ])
+        writer.writerow([
+            epoch, epoch_times, mode, forget_tag, seed,
+            train_retain_acc, train_fgt_acc,
+            val_test_retain_acc, val_test_fgt_acc,
+            val_full_retain_acc, val_full_fgt_acc,
+            AUS, retain_count, forget_count, total_count
+        ])
+        
+        
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count, unlearning_time_until_best):
     os.makedirs(f'results_synth_{opt.noise_type}', exist_ok=True)
     summary_path = f'results_synth_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
@@ -2940,7 +2962,14 @@ class BadTeacher(BaseMethod):
 
                     checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
-                    checkpoint_path = os.path.join(checkpoint_dir, f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt")
+
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )
+
                     torch.save(best_model_state, checkpoint_path)
                     print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
 
@@ -2953,8 +2982,6 @@ class BadTeacher(BaseMethod):
                         f"Val Retain Full Acc: {acc_full_val_ret:.2f} | "
                         f"Val Forget Full Acc: {acc_full_val_fgt:.2f} | "
                         f"AUS: {aus_value:.4f}")
-
-
 
                 log_epoch_to_csv(epoch,
                                  duration,
@@ -3130,14 +3157,18 @@ class Delete(BaseMethod):
                     best_acc_full_val_fgt = acc_full_val_fgt
 
                 if getattr(opt, "save_model", False):  # <-- only save if enabled
-                    ckpt_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                    os.makedirs(ckpt_dir, exist_ok=True)
-                    ckpt_path = os.path.join(
-                        ckpt_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                    )
-                    torch.save(best_state, ckpt_path)
-                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
+                    checkpoint_dir = f"checkpoints_main/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )                            
+                    
+                    torch.save(best_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {checkpoint_path}")
                 else:
                     print(f"[Checkpoint NOT saved] AUS={aus:.4f} (kept in memory)")
 

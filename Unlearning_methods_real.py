@@ -146,23 +146,48 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             total += labels.size(0)
 
     return correct / total if total > 0 else 0
-def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
-    os.makedirs(f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}', exist_ok=True)
 
-    if isinstance(class_to_remove, list):
-        class_name = '_'.join(map(str, class_to_remove))
-    else:
-        class_name = class_to_remove if class_to_remove is not None else 'all'
 
-    csv_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}/{dataset}_{model}_epoch_results_m{n_model}_{class_name}.csv'
+def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc,
+                     val_test_retain_acc, val_test_fgt_acc,
+                     val_full_retain_acc, val_full_fgt_acc, AUS,
+                     mode, dataset, model, class_to_remove, seed,
+                     retain_count, forget_count, total_count):
+
+    os.makedirs(
+        f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/epoch_logs_m{n_model}_lr{opt.lr_unlearn}',
+        exist_ok=True
+    )
+
+    forget_tag = get_forget_tag(class_to_remove)
+
+    csv_path = (
+        f'results_real_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/'
+        f'epoch_logs_m{n_model}_lr{opt.lr_unlearn}/'
+        f'{dataset}_{model}_epoch_results_seed{seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.csv'
+    )
+
     file_exists = os.path.isfile(csv_path)
 
     with open(csv_path, 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
         if not file_exists:
-            writer.writerow(['epoch','epoch_times',  'mode', 'Forget Class', 'seed', 'train_retain_acc', 'train_fgt_acc', 'val_test_retain_acc', 'val_test_fgt_acc', 'val_full_retain_acc', 'val_full_fgt_acc', 'AUS', 'retain_count', 'forget_count','total_count'])
-        writer.writerow([epoch, epoch_times, mode, class_name, seed, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, retain_count, forget_count,total_count])
-
+            writer.writerow([
+                'epoch', 'epoch_times', 'mode', 'Forget Class', 'seed',
+                'train_retain_acc', 'train_fgt_acc',
+                'val_test_retain_acc', 'val_test_fgt_acc',
+                'val_full_retain_acc', 'val_full_fgt_acc',
+                'AUS', 'retain_count', 'forget_count', 'total_count'
+            ])
+        writer.writerow([
+            epoch, epoch_times, mode, forget_tag, seed,
+            train_retain_acc, train_fgt_acc,
+            val_test_retain_acc, val_test_fgt_acc,
+            val_full_retain_acc, val_full_fgt_acc,
+            AUS, retain_count, forget_count, total_count
+        ])
+        
+        
 def log_summary_across_classes(best_epoch, train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):
     os.makedirs('results_real', exist_ok=True)
     summary_path = f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/{dataset}_{model}_unlearning_summary_m{n_model}_lr{opt.lr_unlearn}.csv'
@@ -2898,7 +2923,14 @@ class BadTeacher(BaseMethod):
 
                     checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
                     os.makedirs(checkpoint_dir, exist_ok=True)
-                    checkpoint_path = os.path.join(checkpoint_dir, f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{n_model}_lr{opt.lr_unlearn}.pt")
+
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                    )    
+
                     torch.save(best_model_state, checkpoint_path)
                     print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={aus_value:.4f} to {checkpoint_path}")
 
@@ -3086,14 +3118,16 @@ class Delete(BaseMethod):
                     best_acc_full_val_ret = acc_full_val_ret
                     best_acc_full_val_fgt = acc_full_val_fgt
 
-                    ckpt_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                    os.makedirs(ckpt_dir, exist_ok=True)
-                    ckpt_path = os.path.join(
-                        ckpt_dir,
-                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class{self.class_to_remove}_m{opt.n_model}_lr{opt.lr_unlearn}.pt"
+                    checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                    os.makedirs(checkpoint_dir, exist_ok=True)
+                    forget_tag = get_forget_tag(self.class_to_remove)
+
+                    checkpoint_path = os.path.join(
+                        checkpoint_dir,
+                        f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
                     )
-                    torch.save(best_model_state, ckpt_path)
-                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {ckpt_path}")
+                    torch.save(best_model_state, checkpoint_path)
+                    print(f"[Checkpoint Saved] AUS={aus:.4f} -> {checkpoint_path}")
 
                 # early-stops (like your NGFT_weighted)
                 if acc_test_val_fgt == 0.0:
