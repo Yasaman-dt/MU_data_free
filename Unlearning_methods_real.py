@@ -162,7 +162,7 @@ def log_epoch_to_csv(epoch, epoch_times, train_retain_acc, train_fgt_acc,
     forget_tag = get_forget_tag(class_to_remove)
 
     csv_path = (
-        f'results_real_{opt.noise_type}/samples_per_class_{opt.samples_per_class}/{mode}/'
+        f'results_real/samples_per_class_{opt.samples_per_class}/{mode}/'
         f'epoch_logs_m{n_model}_lr{opt.lr_unlearn}/'
         f'{dataset}_{model}_epoch_results_seed{seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.csv'
     )
