@@ -1471,7 +1471,8 @@ class BoundaryExpanding(BaseMethod):
         self.retainfull_loader_real = retainfull_loader_real
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
-        
+        self.head_fc = get_classifier(self.net)
+
     def run(self):
  
         # Extract the last Linear layer from self.net.fc, whether it's Sequential or Linear
@@ -1484,7 +1485,7 @@ class BoundaryExpanding(BaseMethod):
                         return layer
             raise ValueError("No nn.Linear layer found in self.net.fc")
 
-        final_linear = find_final_linear(self.net.fc)
+        final_linear = find_final_linear(self.head_fc)
         embedding_dim = final_linear.in_features
         num_classes = final_linear.out_features
 
@@ -1511,7 +1512,7 @@ class BoundaryExpanding(BaseMethod):
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
 
-        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True) * 100
+        Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
         retain_count = count_samples(self.train_retain_loader)
         forget_count = count_samples(self.train_fgt_loader)
         total_count = retain_count + forget_count
@@ -1574,24 +1575,38 @@ class BoundaryExpanding(BaseMethod):
                 best_forget_acc = min(best_forget_acc, forgettest_val_acc)
                 
                 with torch.no_grad():
-                    self.net.fc.weight.copy_(widen_model.weight[:num_classes])
-                    self.net.fc.bias.copy_(widen_model.bias[:num_classes])
+                    head = get_classifier(self.net)
+                    def find_final_linear(module):
+                        if isinstance(module, nn.Linear):
+                            return module
+                        if isinstance(module, nn.Sequential):
+                            for layer in reversed(module):
+                                if isinstance(layer, nn.Linear):
+                                    return layer
+                        # generic fallback: walk all submodules, pick the last nn.Linear
+                        last_lin = None
+                        for m in module.modules():
+                            if isinstance(m, nn.Linear):
+                                last_lin = m
+                        if last_lin is None:
+                            raise ValueError("No nn.Linear layer found in classifier head")
+                        return last_lin
 
-                best_model_state = deepcopy(self.net.state_dict())
+                # best_model_state = deepcopy(self.net.state_dict())
 
 
-                checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
-                os.makedirs(checkpoint_dir, exist_ok=True)
+                # checkpoint_dir = f"checkpoints_main_real/{opt.dataset}/{opt.method}/samples_per_class_{opt.samples_per_class}"
+                # os.makedirs(checkpoint_dir, exist_ok=True)
 
-                forget_tag = get_forget_tag(self.class_to_remove)
+                # forget_tag = get_forget_tag(self.class_to_remove)
 
-                checkpoint_path = os.path.join(
-                    checkpoint_dir,
-                    f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
-                )
+                # checkpoint_path = os.path.join(
+                #     checkpoint_dir,
+                #     f"{opt.model}_best_checkpoint_seed{opt.seed}_class_{forget_tag}_m{n_model}_lr{opt.lr_unlearn}.pt"
+                # )
 
-                torch.save(best_model_state, checkpoint_path)
-                print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
+                # torch.save(best_model_state, checkpoint_path)
+                # print(f"[Checkpoint Saved] Best model saved at epoch {epoch} with AUS={best_aus:.4f} to {checkpoint_path}")
                 best_results = {
                     "Epoch": epoch + 1,
                     "Loss": round(loss.item(), 4),
@@ -1642,12 +1657,12 @@ class BoundaryExpanding(BaseMethod):
             log_epoch_to_csv(
                 epoch=epoch,
                 epoch_times=duration,
-                train_retain_acc=round(retain_accuracy / 100,4),
-                train_fgt_acc=round(forget_accuracy / 100,4),
-                val_test_retain_acc=round(retaintest_val_acc / 100,4),
-                val_test_fgt_acc=round(forgettest_val_acc / 100,4),
-                val_full_retain_acc=round(retainfull_val_acc / 100,4),
-                val_full_fgt_acc=round(forgetfull_val_acc / 100,4),
+                train_retain_acc=round(retain_accuracy,4),
+                train_fgt_acc=round(forget_accuracy,4),
+                val_test_retain_acc=round(retaintest_val_acc,4),
+                val_test_fgt_acc=round(forgettest_val_acc,4),
+                val_full_retain_acc=round(retainfull_val_acc ,4),
+                val_full_fgt_acc=round(forgetfull_val_acc,4),
                 AUS=round(AUS,4),
                 mode=opt.method,
                 dataset=opt.dataset,
@@ -1660,12 +1675,12 @@ class BoundaryExpanding(BaseMethod):
                 
         log_summary_across_classes(
             best_epoch=round(best_results["Epoch"],4),
-            train_retain_acc=round(best_results["Unlearning Train Retain Acc"] / 100,4),
-            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"] / 100,4),
-            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"] / 100,4),
-            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"] / 100,4),
-            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"] / 100,4),
-            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"] / 100,4),
+            train_retain_acc=round(best_results["Unlearning Train Retain Acc"],4),
+            train_fgt_acc=round(best_results["Unlearning Train Forget Acc"],4),
+            val_test_retain_acc=round(best_results["Unlearning Val Retain Test Acc"],4),
+            val_test_fgt_acc=round(best_results["Unlearning Val Forget Test Acc"],4),
+            val_full_retain_acc=round(best_results["Unlearning Val Retain Full Acc"],4),
+            val_full_fgt_acc=round(best_results["Unlearning Val Forget Full Acc"],4),
             AUS=round(best_results["AUS"],4),
             mode=opt.method,
             dataset=opt.dataset,
