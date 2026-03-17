@@ -222,19 +222,20 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
 
         teacher_model = None
         if opt.method.upper() in {"DELETE", "SCRUB"}:
-            teacher_model = deepcopy(pretr_model).eval()  # teacher = original (pre-unlearn) model
+            teacher_model = deepcopy(pretr_model).eval()
 
-              
-        run_assumption_checks(
-            net=pretr_model,
-            forget_loader=forget_loader_synth,
-            class_to_remove=class_to_remove,
-            method=opt.method,
-            device=opt.device,
-            N=50000,
-            seed=0,                 # use your seed_int, not 0
-            teacher_model=teacher_model,   # works for DELETE
-        )
+        # Only check before unlearning for methods where that is what you want
+        if opt.method.upper() not in {"BE", "SCRUB"}:
+            run_assumption_checks(
+                net=pretr_model,
+                forget_loader=forget_loader_synth,
+                class_to_remove=class_to_remove,
+                method=opt.method,
+                device=opt.device,
+                N=50000,
+                seed=seed,
+                teacher_model=teacher_model,
+            )
         
         data_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_full_m{n_model}.npz"
     

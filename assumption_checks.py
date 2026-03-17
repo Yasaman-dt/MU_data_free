@@ -12,8 +12,20 @@ def _last_linear(module: nn.Module) -> nn.Linear:
 def get_head_and_dims(net: nn.Module):
     """
     Returns (head_module, final_linear, D, C)
-    Works for ResNet (.fc), ViT (.head/.heads), Swin (.head), etc.
+    Works for:
+      - full models with .fc / .head / .heads / .classifier
+      - direct classifier heads (nn.Linear / nn.Sequential)
     """
+    # case 1: direct linear head
+    if isinstance(net, nn.Linear):
+        return net, net, net.in_features, net.out_features
+
+    # case 2: direct sequential head
+    if isinstance(net, nn.Sequential):
+        last = _last_linear(net)
+        return net, last, last.in_features, last.out_features
+
+    # case 3: normal full model
     for attr in ("heads", "head", "classifier", "fc", "classif"):
         if hasattr(net, attr):
             head = getattr(net, attr)
@@ -22,6 +34,7 @@ def get_head_and_dims(net: nn.Module):
             last = _last_linear(head)
             return head, last, last.in_features, last.out_features
 
+    # case 4: timm-style get_classifier
     if hasattr(net, "get_classifier"):
         head = net.get_classifier()
         if isinstance(head, nn.Linear):
@@ -29,7 +42,13 @@ def get_head_and_dims(net: nn.Module):
         last = _last_linear(head)
         return head, last, last.in_features, last.out_features
 
-    raise AttributeError("Could not locate classifier layer.")
+    # case 5: fallback: maybe net itself contains a linear
+    last = _last_linear(net)
+    return net, last, last.in_features, last.out_features
+
+
+
+
 
 # --------- helpers ----------
 def _as_forget_set(class_to_remove):
@@ -86,6 +105,10 @@ def _targets_used(method, logits, true_labels, forget_set, seed=0):
         "If this method uses CE/KL, we can add it."
     )
 
+
+
+
+
 def _ce_sign(method):
     method = method.upper()
     if method in {"NG", "NGFT", "NGFTW"}:
@@ -117,6 +140,7 @@ def run_assumption_checks(
     print_A=True,
     teacher_model=None,      # <- NEW
     be_shadow_bias=5.0,      # <- NEW (for BE approximation)
+    effective_num_classes=None,
 ):
     """
     Checks:
@@ -131,8 +155,12 @@ def run_assumption_checks(
 
     forget_set = _as_forget_set(class_to_remove)
 
-    head, _, D, C = get_head_and_dims(net)
+    head, _, D, C_raw = get_head_and_dims(net)
     head = head.to(device).eval()
+
+    C = C_raw if effective_num_classes is None else int(effective_num_classes)
+    if C > C_raw:
+        raise ValueError(f"effective_num_classes={C} cannot exceed model outputs={C_raw}")
 
     X_all, y_all = _get_pf_tensors(forget_loader)
     X_all = X_all.to(device)
@@ -160,12 +188,13 @@ def run_assumption_checks(
     X1, y1 = Xf[idx1], yf[idx1]
     X2, y2 = Xf[idx2], yf[idx2]
 
-    logits1 = head(X1)
+    logits1_full = head(X1)
     methodU = method.upper()
 
     sign = None  # <-- IMPORTANT: define sign for all methods
-
+    
     if methodU in {"NG","NGFT","NGFTW","RL","BS"}:
+        logits1 = logits1_full[:, :C]
         sign = _ce_sign(methodU)
         targets_used = _targets_used(methodU, logits1, y1, forget_set, seed=seed)
         if targets_used is None:
@@ -179,34 +208,45 @@ def run_assumption_checks(
         teacher_model = teacher_model.to(device).eval()
         head_t, _, _, _ = get_head_and_dims(teacher_model)
 
-        t_logits = head_t(X1).clone()
+        logits1 = logits1_full[:, :C]
+        t_logits = head_t(X1)[:, :C].clone()
         t_logits.scatter_(1, y1.view(-1, 1), -1e9)
         q = F.softmax(t_logits, dim=1)
         p = F.softmax(logits1, dim=1)
         s1 = p - q
 
     elif methodU == "SCRUB":
-        # In your SCRUB code, forget loss is: loss_kd_forget = -KD(student, teacher)
-        # KD is KL(q || p) with temperature T, so grad ~ -(p - q) = (q - p) (up to +T scale)
         if teacher_model is None:
-            raise ValueError("SCRUB check needs teacher_model (pass a frozen copy of the original net).")
+            raise ValueError("SCRUB check needs teacher_model")
 
         teacher_model = teacher_model.to(device).eval()
         head_t, _, _, _ = get_head_and_dims(teacher_model)
 
-        t_logits = head_t(X1)
+        logits1 = logits1_full[:, :C]
+        t_logits = head_t(X1)[:, :C]
         q = F.softmax(t_logits, dim=1)
         p = F.softmax(logits1, dim=1)
 
-        # grad scale is positive (≈ T), sign is what matters here:
         s1 = (q - p)
 
 
     elif methodU == "BE":
-        shadow_logit = torch.full((logits1.size(0), 1), float(be_shadow_bias), device=device)
-        logits_aug = torch.cat([logits1, shadow_logit], dim=1)
-        p_aug = F.softmax(logits_aug, dim=1)
-        s1 = p_aug[:, :logits1.size(1)]
+        # Case A: actual widened model after training, logits shape = [B, C+1]
+        if logits1_full.shape[1] == C + 1:
+            p_aug = F.softmax(logits1_full, dim=1)
+            s1 = p_aug[:, :C]
+
+        # Case B: original C-class model, approximate by adding shadow logit manually
+        elif logits1_full.shape[1] == C:
+            shadow_logit = torch.full((logits1_full.size(0), 1), float(be_shadow_bias), device=device)
+            logits_aug = torch.cat([logits1_full, shadow_logit], dim=1)
+            p_aug = F.softmax(logits_aug, dim=1)
+            s1 = p_aug[:, :C]
+
+        else:
+            raise ValueError(
+                f"BE check expected logits with C or C+1 outputs, got {logits1_full.shape[1]} while C={C}"
+            )
 
     elif methodU == "SCAR":
         print("[SCAR] not applicable for logit-gradient assumptions.")

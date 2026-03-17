@@ -17,6 +17,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
 import time
 from collections import defaultdict
+from assumption_checks import run_assumption_checks
 
 n_model = opt.n_model
  
@@ -480,6 +481,8 @@ class BaseMethod:
             forget_count=forget_count,
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
+
+
 
 
         self.net.eval()
@@ -1373,10 +1376,6 @@ class SCAR(BaseMethod):
             total_count=total_count,
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
-
-
-
-
         self.net.eval()
         return self.net
 
@@ -1621,7 +1620,7 @@ class BoundaryExpanding(BaseMethod):
         self.forgetfull_loader_real = forgetfull_loader_real
         self.class_to_remove = class_to_remove
         self.head_fc = get_classifier(self.net)
-
+        
     def run(self):
       
         # Extract the last Linear layer from self.head_fc, whether it's Sequential or Linear
@@ -1646,6 +1645,9 @@ class BoundaryExpanding(BaseMethod):
             widen_model.weight[:num_classes] = final_linear.weight
             widen_model.bias[:num_classes] = final_linear.bias
 
+        widen_model.eval()
+
+
         criterion = nn.CrossEntropyLoss()
         optimizer = torch.optim.SGD(widen_model.parameters(), lr=opt.lr_unlearn, momentum=0.9)
             
@@ -1658,7 +1660,8 @@ class BoundaryExpanding(BaseMethod):
         best_aus = float('-inf')  # Maximum AUS
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
-
+        best_widen_state = None
+        
         Aor = calculate_accuracy(self.net, self.test_retain_loader, use_fc_only=True)
 
         retain_count = count_samples(self.train_retain_loader)
@@ -1708,6 +1711,20 @@ class BoundaryExpanding(BaseMethod):
                 f"Val Retain full Acc: {retainfull_val_acc:.2f}% | Val Forget full Acc: {forgetfull_val_acc:.2f}%  | "
                 f"Val Retain Test Acc: {retaintest_val_acc:.2f}% | Val Forget Test Acc: {forgettest_val_acc:.2f}% | "
                 f"AUS: {AUS:.2f}"
+                )
+
+
+            if epoch == 0:
+                print("\n[Checking assumptions after 1 epoch for BE]")
+                run_assumption_checks(
+                    net=widen_model,                    # <- current widened classifier
+                    forget_loader=self.train_fgt_loader,  # or self.forgetfull_loader_real if you want real forget data
+                    class_to_remove=self.class_to_remove,
+                    method="BE",
+                    device=opt.device,
+                    N=50000,
+                    seed=opt.seed if isinstance(opt.seed, int) else 0,
+                    effective_num_classes=num_classes,  # <- ignore shadow class in sign/A checks
                 )
 
             # Update the best result
@@ -1845,15 +1862,20 @@ class BoundaryExpanding(BaseMethod):
             unlearning_time_until_best=round(unlearning_time_until_best,4))
 
                         
-        # Prune the shadow class to return a normal classifier
-        # Final pruning before return
-        with torch.no_grad():
-            self.net.fc.weight.copy_(widen_model.weight[:num_classes])
-            self.net.fc.bias.copy_(widen_model.bias[:num_classes])
+        # RESTORE BEST WIDENED MODEL BEFORE ASSUMPTION CHECK
+        if best_widen_state is not None:
+            widen_model.load_state_dict(best_widen_state)
+        widen_model.eval()
 
-        self.model = self.net
-        
-        return self.model
+        # Final pruning back to normal classifier
+        with torch.no_grad():
+            final_linear_orig = find_final_linear(get_classifier(self.net))
+            final_linear_orig.weight.copy_(widen_model.weight[:num_classes])
+            if final_linear_orig.bias is not None and widen_model.bias is not None:
+                final_linear_orig.bias.copy_(widen_model.bias[:num_classes])
+
+        self.net.eval()
+        return self.net
 
 class SCRUB(BaseMethod):
     def __init__(self, net, train_retain_loader, train_fgt_loader, test_retain_loader, test_fgt_loader, retainfull_loader_real, forgetfull_loader_real, class_to_remove=None):
@@ -1935,7 +1957,7 @@ class SCRUB(BaseMethod):
         best_aus = float('-inf')  # Maximum AUS
         best_retain_acc = float('-inf')  # Maximum retaintest_val_acc
         best_forget_acc = float('inf')  # Minimum forgettest_val_acc
-
+        
         # Evaluate student model before training (Epoch 0)
         student_fc.eval()
 
@@ -2007,6 +2029,7 @@ class SCRUB(BaseMethod):
             # Backpropagation
             loss.backward()
             optimizer.step()
+                
                         
             end_time = time.time()
             duration = end_time - start_time
@@ -2029,6 +2052,20 @@ class SCRUB(BaseMethod):
             #            "retaintest_val_acc": retaintest_val_acc, "forgettest_val_acc": forgettest_val_acc, "AUS": AUS})
 
             aus_history.append(AUS)
+
+            if epoch == 0:
+                print("\n[Checking assumptions after 1 epoch for SCRUB]")
+                run_assumption_checks(
+                    net=student_fc,                    # <- current updated student head
+                    forget_loader=forget_synth_loader_train,
+                    class_to_remove=self.class_to_remove,
+                    method="SCRUB",
+                    device=opt.device,
+                    N=50000,
+                    seed=opt.seed if isinstance(opt.seed, int) else 0,
+                    teacher_model=teacher_fc,          # <- frozen original teacher head
+                )
+
 
             print(f"Epoch {epoch+1}/{opt.epochs_unlearn} | "
                 f"Loss: {loss.item():.4f} | "
@@ -3121,6 +3158,24 @@ class Delete(BaseMethod):
                 self.optimizer.step()
 
             epoch_times.append(time.time() - t0)
+
+
+            # =========================
+            # Assumption check after 1 epoch
+            # =========================
+            if epoch == 0:
+                print("\n[Checking assumptions after 1 epoch for DELETE]")
+                run_assumption_checks(
+                    net=self.net,                     # current student after 1 epoch
+                    forget_loader=self.train_fgt_loader,   # or self.forgetfull_loader_real
+                    class_to_remove=self.class_to_remove,
+                    method="DELETE",
+                    device=opt.device,
+                    N=50000,
+                    seed=opt.seed if isinstance(opt.seed, int) else 0,
+                    teacher_model=self.teacher,       # frozen original teacher
+                )
+
 
             # ---- EVAL + AUS ----
             with torch.no_grad():
