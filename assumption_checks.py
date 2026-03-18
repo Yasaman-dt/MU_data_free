@@ -261,7 +261,7 @@ def run_assumption_checks(
     sign_str = f"{sign:+.0f}" if sign is not None else "N/A"
     print(f"method={method}  CE-sign={sign_str}  N={N_use}")
     
-    # ------------------- Assumption (4)-style check -------------------
+    # ------------------- Assumption (3)-style check -------------------
     # For each sample (true forget label y):
     #   require s_y > 0
     #   and for retain classes r (not in forget_set): s_r < 0
@@ -288,6 +288,25 @@ def run_assumption_checks(
     if len(retain_classes) > 0:
         print(f"max s_retain:    {s1[:, retain_classes].max().item():+.6e}  (should be < 0)")
 
+
+    # ------------------- Average-version of Assumption (3) -------------------
+    # Empirical average over forget samples:
+    #   (1/N) sum_i s_{c_f}(z_i)
+    avg_s_true = s_true.mean()
+
+    print("\n=== Assumption (3) average check on p_f ===")
+    print(f"mean s_trueLabel over forget samples: {avg_s_true.item():+.6e}  (should be > 0)")
+
+    # Optional: if you also want per-retain-class averages
+    if len(retain_classes) > 0:
+        avg_s_retain_all = s1[:, retain_classes].mean()
+        avg_s_retain_per_class = s1[:, retain_classes].mean(dim=0)
+
+        print(f"mean over all retain components:    {avg_s_retain_all.item():+.6e}")
+        for j, k in enumerate(retain_classes):
+            print(f"k={k:3d}  mean s_k={avg_s_retain_per_class[j].item():+.6e}  (retain)")
+            
+            
     # ------------------- Assumptions (5) cheap estimator -------------------
     mu = X2.float().mean(dim=0)  # [D]
     v = (s1.float().unsqueeze(-1) * X1.float().unsqueeze(1)).mean(dim=0)  # [C, D]
@@ -316,5 +335,6 @@ def run_assumption_checks(
         "frac_ok_true": ok_true.float().mean().item(),
         "frac_ok_retain": ok_ret.float().mean().item(),
         "frac_ok_both": ok_both.float().mean().item(),
+        "avg_s_true": avg_s_true.item(),  
         "A": A.detach().cpu(),
     }

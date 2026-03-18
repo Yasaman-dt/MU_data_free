@@ -267,8 +267,8 @@ if __name__ == "__main__":
 
         print(f"Seed {i}")
         
-        # N=50
-        # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/resnet18_train_m{n_model}.npz"
+        # N=500
+        # train_path = f"{DIR}/{embeddings_folder}/{dataset_name_upper}/{opt.model}_train_m{n_model}.npz"
         # train_embeddings_data = np.load(train_path)
         # real_embeddings = torch.tensor(train_embeddings_data["embeddings"])
         # real_labels = torch.tensor(train_embeddings_data["labels"])
@@ -277,7 +277,7 @@ if __name__ == "__main__":
         # print(real_embeddings_par.shape)  
         # print(real_labels_par.shape)      
         
-        # save_path = f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
+        # save_path = f"{opt.root_folder}/tsne/tsne_main_real/{opt.model}/{opt.dataset}/{opt.method}/real_embeddings_{dataset_name_lower}_seed_{i}_m{n_model}_n{N}.npz"
         # os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
         # np.savez_compressed(
@@ -286,7 +286,7 @@ if __name__ == "__main__":
         #     real_labels=real_labels_par
         # )
 
-        # os.makedirs(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots", exist_ok=True)
+        # os.makedirs(f"{opt.root_folder}/tsne/tsne_main_real/{opt.model}/{opt.dataset}/{opt.method}/plots", exist_ok=True)
 
         # # === Reduce to 2D using t-SNE ===
         # tsne = TSNE(n_components=2, perplexity=30, random_state=42)
@@ -300,7 +300,7 @@ if __name__ == "__main__":
         # plt.ylabel("Dimension 2")
         # plt.grid(True)
         # plt.tight_layout()
-        # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_real/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
+        # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_real/{opt.model}/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
         # plt.close()
     
         
