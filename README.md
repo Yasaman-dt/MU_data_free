@@ -1,4 +1,4 @@
-# A Universal Source-Free Class Unlearning Framework via Synthetic Embeddings
+[TMLR 2026] # A Universal Source-Free Class Unlearning Framework via Synthetic Embeddings
 
 A source-free framework for **class unlearning** in image classification with options for
 - **FC-only** unlearning using *real* or *synthetic* embeddings,
