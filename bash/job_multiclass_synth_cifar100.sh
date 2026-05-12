@@ -1,5 +1,5 @@
-RUN_MODEL="TinyImageNet_CR"
-DATASET="TinyImageNet"
+RUN_MODEL="cifar100_CR"
+DATASET="cifar100"
 METHOD=$1
 lr=$2
 N_MODEL=$3
@@ -8,6 +8,7 @@ gpu=$5
 epoch=$6
 MODEL=$7
 NOISE=$8
+N_class=$9
 
 SCREEN_NAME="SYNTH_${RUN_MODEL}_${METHOD}_${N_MODEL}_${lr}_${epoch}_${SAMPLE_PER_CLASS}_${MODEL}.sh"
 
@@ -31,7 +32,8 @@ python main.py  \
     --epochs $epoch  \
     --patience 50  \
     --samples_per_class $SAMPLE_PER_CLASS  \
-    --n_model $N_MODEL \
-    --forget_mode single \
-    --noise_type $NOISE
+    --n_model $N_MODEL\
+    --forget_mode multi \
+    --noise_type $NOISE \
+    --num_forget_classes $N_class
 "
