@@ -58,8 +58,6 @@ method_name_and_ref = {
     "DUCK": ("DUCK \citep{cotogni2023duck}", "–"),
     "SCAR": ("SCAR \citep{bonato2024retain}", "–"),
     "DELETE": ("DELETE \citep{zhou2025decoupled}", "–"),
-
-
 }
 
 
@@ -182,7 +180,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance comparison on CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
+\caption{Single-class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using ResNet-18 and ResNet-50 as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results_fc_CNN}
@@ -280,27 +278,28 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         ref = default_ref  # Leave original method as-is
 
 
-    if base_method == "original":
-        #arch_cell = rf""
-        method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
-        dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
-        df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
+    # if base_method == "original":
+    #     #arch_cell = rf""
+    #     method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
+    #     dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
+    #     df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
-        values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
+    #     values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
-        #row = [arch_cell, method_cell, dr_free, df_free] + values_multirow
-        row = [method_cell, dr_free, df_free] + values_multirow
-        latex_table += " & ".join(row) + r" \\" + "\n"
+    #     #row = [arch_cell, method_cell, dr_free, df_free] + values_multirow
+    #     row = [method_cell, dr_free, df_free] + values_multirow
+    #     latex_table += " & ".join(row) + r" \\" + "\n"
     
-        # Now insert an empty second row for spacing and alignment
+    #     # Now insert an empty second row for spacing and alignment
         
-        row = ["", "", ""] + [""] * len(values)
-        #row = ["","", "", ""] + [""] * len(values)
+    #     row = ["", "", ""] + [""] * len(values)
+    #     #row = ["","", "", ""] + [""] * len(values)
         
-        latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
+    #     latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
-        continue  # skip rest of loop
-        
+    #     continue  # skip rest of loop
+
+
     method_arch_key = (base_method, grouped_methods[key]["arch"])
     
     if method_counts[method_arch_key] > 1:
