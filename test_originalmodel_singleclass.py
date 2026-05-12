@@ -77,8 +77,6 @@ for dataset_name, num_classes in datasets.items():
 
 
 
-
-
             if dataset_name.lower() in ["cifar10", "cifar100"]:
                 dataset_name_upper = dataset_name.upper()
             else:
