@@ -526,7 +526,7 @@ latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
 \caption{
-Effect of embedding distribution on data-free class unlearning performance of some of
+Effect of embedding distribution on data-free single-class unlearning performance of some of
 methods on CIFAR-10, CIFAR-100, and TinyImageNet using ViT-B-16 as the backbone
 architecture. Rows highlighted in gray represent our results using synthetic embeddings, while
 the corresponding non-shaded rows use original embeddings with the same method.}
@@ -538,7 +538,6 @@ the corresponding non-shaded rows use original embeddings with the same method.}
 \toprule
 \multirow{2}{*}{Method} & \multirow{2}{*}{\shortstack{Embedding\\Distribution}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_r$ \\ free}} & \multirow{2}{*}{\shortstack{$\mathcal{D}_f$ \\ free}} & \multicolumn{3}{c|}{\textbf{CIFAR-10}} & \multicolumn{3}{c|}{\textbf{CIFAR-100}} & \multicolumn{3}{c}{\textbf{TinyImageNet}} \\
  &  &  &  & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$ & $\mathcal{A}_r^t \uparrow$ & $\mathcal{A}_f^t \downarrow$ & AUS $\uparrow$\\
-\midrule
 \midrule
 """
 
@@ -574,7 +573,7 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
         noise_cell = str(noise).capitalize()
 
     if base_method != prev_base_method:
-        if prev_base_method in ["retrained", "FT", "DELETE", "BE"]:
+        if prev_base_method in ["original", "retrained", "FT", "DELETE", "BE"]:
             latex_table += r"\midrule" + "\n" + r"\midrule" 
         else:
             latex_table += r"\midrule" + "\n"
@@ -604,25 +603,25 @@ for idx, key in enumerate(sorted(grouped_methods.keys(), key=sort_key)):
 
     ref_cell = ref
 
-    if base_method == "original":
-        method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
-        #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
-        dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
-        df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
+    # if base_method == "original":
+    #     method_cell = rf"\multirow{{2}}{{*}}{{{method_display_base}}}"
+    #     #ref_cell = rf"\multirow{{2}}{{*}}{{\centering {ref}}}"
+    #     dr_free = rf"\multirow{{2}}{{*}}{{{D_r_free}}}"
+    #     df_free = rf"\multirow{{2}}{{*}}{{{D_f_free}}}"
 
-        values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
+    #     values_multirow = [rf"\multirow{{2}}{{*}}{{{v}}}" for v in values]
 
-        #row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
+    #     #row = [method_cell, ref_cell, r"\text{--}", dr_free, df_free] + values_multirow
 
-        row = [method_cell, r"\multirow{2}{*}{--}", dr_free, df_free] + values_multirow
-        latex_table += " & ".join(row) + r" \\" + "\n"
+    #     row = [method_cell, r"\multirow{2}{*}{--}", dr_free, df_free] + values_multirow
+    #     latex_table += " & ".join(row) + r" \\" + "\n"
     
-        # Now insert an empty second row for spacing and alignment
-        #row = ["", "", "", ""] + [""] * len(values)
-        row = ["", "", ""] + [""] * len(values)
-        latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
+    #     # Now insert an empty second row for spacing and alignment
+    #     #row = ["", "", "", ""] + [""] * len(values)
+    #     row = ["", "", ""] + [""] * len(values)
+    #     latex_table += " & ".join(row) + r" \\" + "\n" +"\midrule"
         
-        continue  # skip rest of loop
+    #     continue  # skip rest of loop
 
     if base_method not in printed_methods:
         if method_counts[base_method] > 1:
@@ -661,5 +660,4 @@ with open("C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU
     f.write(latex_table)
 
 print("✅ LaTeX table saved to results_diff_sampling_ViT.tex")
-
 
