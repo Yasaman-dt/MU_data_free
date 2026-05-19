@@ -336,8 +336,8 @@ if all_data:
         # Exempt original model rows from filtering
         is_original = combined_df.get('method', '').astype(str).str.lower().eq('original')
     
-        # Apply >50 filter only to non-original rows
-        mask_bad = (~is_original) & combined_df[col].notna() & (combined_df[col] > 20)
+        # Apply >5 filter only to non-original rows
+        mask_bad = (~is_original) & combined_df[col].notna() & (combined_df[col] > 5)
     
         removed_rows = combined_df[mask_bad].copy()
         kept_rows = combined_df[~mask_bad].copy()
