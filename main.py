@@ -163,7 +163,6 @@ def main(all_features_synth, all_labels_synth, train_retain_loader_real, train_f
         # Step 1: Generate synthetic retain samples in feature space
         #samples_per_class = opt.samples_per_class
         
-        #sigma_range = np.linspace(0.5, 6, 3)
 
         #checkpoint_path = f"{DIR}/{files}/{dataset_name}/best_checkpoint_resnet18.pth"  # Set your actual checkpoint path
         #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
@@ -376,7 +375,6 @@ if __name__ == "__main__":
         if opt.mode == "CR":
             
             print("Generating synthetic embeddings ONCE...")
-            sigma_range = [5.0]
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
