@@ -6,6 +6,8 @@ import matplotlib.patches as patches
 from matplotlib.ticker import LogLocator, LogFormatterSciNotation
 import matplotlib
 from collections import OrderedDict
+import matplotlib as mpl
+
 
 matplotlib.rcParams.update({
     'text.usetex': False
@@ -335,7 +337,7 @@ for ds in ["cifar10", "cifar100", "tinyimagenet"]:
 
     
     ax_last = g_ds.axes[0, 1]
-    ax_last.legend(handles, labels, title="method",
+    ax_last.legend(handles, labels, title="Method",
                    loc="lower right", frameon=True, ncol=1)
     
     plot_with_black_box(g_ds, f"plot_n_sample_resnet18_{ds}")
