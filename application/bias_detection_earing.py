@@ -23,7 +23,7 @@ class DualHeadResNet18(nn.Module):
         self.fc = nn.Linear(self.fc_input_features, 512)  # 512 as the output feature size
         
         # earing classification head (binary: earing vs Not earing)
-        self.smiling_head = nn.Linear(512, 1)
+        self.earing_head = nn.Linear(512, 1)
         
         # Gender classification head (binary: Male vs Female)
         self.gender_head = nn.Linear(512, 2)
@@ -37,12 +37,12 @@ class DualHeadResNet18(nn.Module):
         x = self.fc(x)
         
         # Pass through the earing head
-        smiling_output = self.smiling_head(x)
+        earing_output = self.earing_head(x)
         
         # Pass through the Gender head
         gender_output = self.gender_head(x)
         
-        return smiling_output, gender_output
+        return earing_output, gender_output
 
 
 # Set device (GPU if available)

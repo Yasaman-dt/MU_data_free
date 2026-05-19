@@ -16,16 +16,16 @@ class DualHeadResNet18(nn.Module):
         self.resnet = nn.Sequential(*list(self.resnet.children())[:-1])
         self.fc_input_features = 512
         self.fc = nn.Linear(self.fc_input_features, 512)
-        self.smiling_head = nn.Linear(512, 1)
+        self.earing_head = nn.Linear(512, 1)
         self.gender_head = nn.Linear(512, 2)
 
     def forward(self, x):
         x = self.resnet(x)
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-        smiling_output = self.smiling_head(x)
+        earing_output = self.earing_head(x)
         gender_output = self.gender_head(x)
-        return smiling_output, gender_output
+        return earing_output, gender_output
 
 
 # Set device
@@ -69,11 +69,11 @@ def extract_real_embeddings(model, dataloader, device):
 def evaluate_synthetic_embeddings(model, forget_embeddings, retain_embeddings, predicted_earing, predicted_gender, forget_mask, retain_mask):
     model.eval()
     with torch.no_grad():
-        earing_logits_f = model.smiling_head(model.fc(forget_embeddings))
+        earing_logits_f = model.earing_head(model.fc(forget_embeddings))
         predicted_earing_f = torch.round(torch.sigmoid(earing_logits_f)).squeeze()
         correct_forget = predicted_earing_f.eq(torch.zeros_like(predicted_earing_f)).sum().item()
         accuracy_forget = correct_forget / len(predicted_earing_f) * 100 if len(predicted_earing_f) > 0 else 0
-        earing_logits_r = model.smiling_head(model.fc(retain_embeddings))
+        earing_logits_r = model.earing_head(model.fc(retain_embeddings))
         predicted_earing_r = torch.round(torch.sigmoid(earing_logits_r)).squeeze()
         correct_retain = predicted_earing_r.eq(predicted_earing[retain_mask].float()).sum().item()
         accuracy_retain = correct_retain / len(predicted_earing_r) * 100 if len(predicted_earing_r) > 0 else 0
@@ -249,7 +249,7 @@ real_embeddings, real_earing_labels, real_gender_labels = extract_real_embedding
 # Define loss and optimizer
 optimizer = optim.SGD([
     {'params': model.fc.parameters()},
-    {'params': model.smiling_head.parameters()},
+    {'params': model.earing_head.parameters()},
     {'params': model.gender_head.parameters()}
 ], lr=0.01)
 
@@ -284,7 +284,7 @@ for epoch in range(num_epochs):
     for step in range(steps_per_epoch):
         syn_feat = torch.randn(synthetic_batch_size, 512, device=device)
         z = model.fc(syn_feat)
-        earing_logits = model.smiling_head(z).squeeze(1)
+        earing_logits = model.earing_head(z).squeeze(1)
         gender_logits = model.gender_head(z)
 
         with torch.no_grad():

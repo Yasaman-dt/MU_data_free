@@ -21,7 +21,7 @@ def count_gender_earing(split):
                               download=False)
     loader = DataLoader(dataset, batch_size=512, shuffle=False)
 
-    fm = fn = mm = mn = 0  # female_smile, female_nosmile, male_smile, male_nosmile
+    fm = fn = mm = mn = 0  # female_earing, female_non_earing, male_earing, male_non_earing
 
     for _, attrs in loader:
         gender = attrs[:, male_idx]      # 0 = female, 1 = male
@@ -29,13 +29,13 @@ def count_gender_earing(split):
 
         female_mask = (gender == 0)
         male_mask   = (gender == 1)
-        smile_mask  = (earing == 1)
-        nosmile_mask = (earing == 0)
+        earing_mask  = (earing == 1)
+        noearing_mask = (earing == 0)
 
-        fm += (female_mask & smile_mask).sum().item()
-        fn += (female_mask & nosmile_mask).sum().item()
-        mm += (male_mask & smile_mask).sum().item()
-        mn += (male_mask & nosmile_mask).sum().item()
+        fm += (female_mask & earing_mask).sum().item()
+        fn += (female_mask & noearing_mask).sum().item()
+        mm += (male_mask & earing_mask).sum().item()
+        mn += (male_mask & noearing_mask).sum().item()
 
     print(f"=== {split.upper()} SPLIT ===")
     print(f"Males earing:       {mm}")
