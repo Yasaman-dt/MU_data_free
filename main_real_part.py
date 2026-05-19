@@ -123,8 +123,7 @@ def main(train_retain_loader_img,
         # Create DataLoaders for validation
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size, shuffle=False)
-            
-
+        
             
         if opt.mode == "CR":
             #set tollerance for stopping criteria

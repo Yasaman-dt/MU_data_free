@@ -12,7 +12,6 @@ import torch
 import numpy as np
 #from generate_emb_samples_randomly import generate_emb_samples_balanced
 from generate_part_samples_randomly_resnet18 import generate_emb_samples_balanced
-#from generate_emb_samples import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
 from torch.utils.data import TensorDataset, DataLoader
 from Unlearning_methods_part import calculate_accuracy
@@ -204,9 +203,6 @@ def main(train_retain_loader_img,
         # Step 1: Generate synthetic retain samples in feature space
         #samples_per_class = opt.samples_per_class
         
-        #sigma_range = np.linspace(0.5, 6, 3)
-
-
         #checkpoint_path = f"{DIR}/{files}/{dataset_name}/best_checkpoint_resnet18.pth"  # Set your actual checkpoint path
         #model = get_model(model_name, dataset_name, num_classes, checkpoint_path=checkpoint_path) 
         #fc_layer = model.fc
@@ -276,8 +272,6 @@ def main(train_retain_loader_img,
         forgetfull_loader_real = DataLoader(TensorDataset(forget_embeddings_real, forget_labels_real), batch_size=opt.batch_size, shuffle=False)
         retainfull_loader_real = DataLoader(TensorDataset(retain_embeddings_real, retain_labels_real), batch_size=opt.batch_size, shuffle=False)
 
-
-
             
         if opt.mode == "CR":
             #set tollerance for stopping criteria
@@ -297,7 +291,6 @@ def main(train_retain_loader_img,
                                                     class_to_remove=class_to_remove)  #generated samples
 
 
-        
         if opt.load_unlearned_model:
             print("LOADING UNLEARNED MODEL")
             if opt.mode == "CR":
@@ -386,8 +379,6 @@ if __name__ == "__main__":
         if opt.mode == "CR":
             
             print("Generating synthetic embeddings ONCE...")
-            #B_numpy = np.load(matrix_B_224)
-            sigma_range = [5.0]
             original_pretr_model = get_trained_model().to(device)
             original_pretr_model.eval()
 
@@ -400,18 +391,6 @@ if __name__ == "__main__":
             print("Synthetic Labels Shape:", all_labels_synth.shape)
             print("Synthetic Probabilities Shape:", all_probability_synth.shape)
 
-                        
-         
-                        
-
-            
-            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-            #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-            # )
-                
-            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples(
-            #    B_numpy, num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-            # )
             
             os.makedirs(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots", exist_ok=True)
 
@@ -446,11 +425,7 @@ if __name__ == "__main__":
             #     all_features_synth.cpu().numpy(), all_labels_synth.cpu().numpy(), num_per_class=50, num_classes=num_classes
             # )
 
-
-
-
             # print(f"Saved selected samples to {save_path}")
-
 
             # # Flatten if 4D (e.g., images)
             # if synthetic_embeddings.ndim == 4:
@@ -463,7 +438,6 @@ if __name__ == "__main__":
 
             # synthetic_embeddings_2d = tsne.fit_transform(synthetic_embeddings_flat.cpu().numpy())
 
-
             # plt.figure(figsize=(8, 6))
             # scatter = plt.scatter(synthetic_embeddings_2d[:, 0], synthetic_embeddings_2d[:, 1], c=synthetic_labels, cmap="tab10", s=20)
             # plt.colorbar(scatter, ticks=range(10))
@@ -474,8 +448,6 @@ if __name__ == "__main__":
             # plt.tight_layout()
             # plt.savefig(f"{opt.root_folder}/tsne/tsne_main_part/{opt.dataset}/{opt.method}/plots/tsne_synth_embeddings_layer4_1_conv2.png", dpi=300)
             # plt.close()
-
-
 
             from torchvision import transforms
 

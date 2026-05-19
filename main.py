@@ -10,7 +10,6 @@ from error_propagation import Complex
 import os
 import torch
 import numpy as np
-#from generate_emb_samples import generate_emb_samples_balanced
 from generate_emb_samples_randomly import generate_emb_samples_balanced
 #from generate_emb_samples_randomly_conf import generate_emb_samples_balanced
 from create_embeddings_utils import get_model
@@ -395,11 +394,7 @@ if __name__ == "__main__":
             #for class_name, s in prob_stats.items():
             #    print(f"Class {class_name}: mean={s['mean']:.2e}, max={s['max']:.2e}, min={s['min']:.2e}, std={s['std']:.2e}")
 
-
-            # all_features_synth, all_labels_synth, all_probability_synth = generate_emb_samples_balanced(
-            #     num_classes, opt.samples_per_class, sigma_range, original_pretr_model, device=device
-            # )
-                
+             
            
             # os.makedirs(f"{opt.root_folder}/plots", exist_ok=True)
             
@@ -504,9 +499,6 @@ if __name__ == "__main__":
             # plt.savefig(f"{opt.root_folder}/tsne/tsne_main/{opt.model}/{opt.dataset}/{opt.method}/plots/tsne_real_embeddings_fc.png", dpi=300)
             # plt.close()
                     
-            
-            
-            
             
             for class_to_remove in opt.class_to_remove:
                 print(f'------------class {class_to_remove}-----------')
