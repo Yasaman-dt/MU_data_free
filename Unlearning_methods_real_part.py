@@ -18,14 +18,11 @@ from itertools import cycle
 import time
 from random import choice
 import copy
-
 from generate_part_samples_randomly_resnet18 import TruncatedResNet, RemainingResNet
-
 
 
 n_model = opt.n_model
 
-    
     
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
@@ -47,6 +44,7 @@ def choose_method(name):
 
 def count_samples(dataloader):
     return sum(inputs.size(0) for inputs, _ in dataloader)
+
 def calculate_accuracy(net, dataloader, use_fc_only=False):
     net.eval()
     correct = 0
@@ -308,7 +306,7 @@ class BaseMethod:
                 #    if patience_counter >= patience_limit:
                 #        print("[Early Stopping Triggered]")
                 #        break
-#
+
                 
                 # Save a summary across all unlearning runs
                 log_epoch_to_csv(
@@ -425,15 +423,11 @@ class RandomLabels(BaseMethod):
         self.Truncatedmodel = TruncatedResNet(self.net).to(opt.device)
         self.Remainingmodel = RemainingResNet(self.net).to(opt.device)
         merged_model = copy.deepcopy(self.net)
-
-        
-        
+       
         
         if opt.mode == "CR":
             self.random_possible = torch.tensor([i for i in range(opt.num_classes) if i not in self.class_to_remove]).to(opt.device).to(torch.float32)
 
-
-       
         
         for images, labels in self.train_retain_loader_img:
             print("train_retain_loader_img:", images.shape, labels.shape)

@@ -17,14 +17,11 @@ from torch.utils.data import TensorDataset, DataLoader
 from itertools import cycle
 import time
 import copy
-
 from generate_part_samples_randomly_resnet18 import TruncatedResNet, RemainingResNet
 
 
-
-
-
 n_model = opt.n_model
+ 
     
 def AUS(a_t, a_or, a_f):
     aus=(Complex(1, 0)-(a_or-a_t))/(Complex(1, 0)+abs(a_f))
@@ -77,10 +74,6 @@ def evaluate_embedding_accuracy(model, dataloader, device):
             total += labels.size(0)
 
     return 100 * correct / total if total > 0 else 0
-
-
-
-
 
 
 def log_epoch_to_csv(epoch, epoch_times,train_retain_acc, train_fgt_acc, val_test_retain_acc, val_test_fgt_acc, val_full_retain_acc, val_full_fgt_acc, AUS, mode, dataset, model, class_to_remove, seed, retain_count, forget_count,total_count):

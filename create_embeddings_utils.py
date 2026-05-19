@@ -412,11 +412,3 @@ class CustomBackboneModel:
         else:
             return train_embeddings, train_labels, test_embeddings, test_labels, full_embeddings, full_labels
     
-    
-    
-
-
-
-
-
-
