@@ -99,12 +99,66 @@ retrained_df["val_test_fgt_acc"] = 0.0
 retrained_df["train_fgt_acc"] = 0.0
 retrained_df["val_full_fgt_acc"] = 0.0
 
-val_test_retain_acc_original = original_df['val_test_retain_acc']
-val_test_retain_acc_retrained = retrained_df['val_test_retain_acc']
 
-AUS = 1 - ((val_test_retain_acc_original - val_test_retain_acc_retrained)/100)
+retrained_df['Forget Class'] = pd.to_numeric(retrained_df['Forget Class'], errors='coerce')
+original_df['Forget Class']  = pd.to_numeric(original_df['Forget Class'], errors='coerce')
 
-retrained_df["AUS"] = AUS
+# --- Ensure retrained has model_num by broadcasting over originals ---
+
+# 1) Normalize/ensure model_num on originals
+if 'Model Num' in original_df.columns:
+    original_df.rename(columns={'Model Num': 'model_num'}, inplace=True)
+if 'n_model' in original_df.columns and 'model_num' not in original_df.columns:
+    original_df.rename(columns={'n_model': 'model_num'}, inplace=True)
+original_df['model_num'] = pd.to_numeric(original_df['model_num'], errors='coerce')
+
+# 2) If retrained already has model_num, keep it.
+#    Otherwise, replicate retrained rows across each original model_num per (dataset, Forget Class).
+if 'model_num' not in retrained_df.columns or retrained_df['model_num'].isna().all():
+    key_cols = ['dataset', 'Forget Class']
+
+    # All original seeds (model_num) available for each (dataset, Forget Class)
+    orig_models = (
+        original_df[key_cols + ['model_num']]
+        .dropna(subset=['model_num'])
+        .drop_duplicates()
+    )
+
+    # Cartesian/broadcast: one row per (dataset, Forget Class, model_num),
+    # copying the single retrained metrics across the original model_num's
+    retrained_df = orig_models.merge(retrained_df, on=key_cols, how='left')
+
+    # Optional sanity check: warn if some (dataset, Forget Class) in originals
+    # had no matching retrained entry
+    missing_pairs = retrained_df[retrained_df['val_test_retain_acc'].isna()]
+    if not missing_pairs.empty:
+        print("[WARN] Missing retrained rows for these (dataset, Forget Class):")
+        print(missing_pairs[key_cols].drop_duplicates().to_string(index=False))
+
+# Ensure numeric type after merge
+retrained_df['model_num'] = pd.to_numeric(retrained_df['model_num'], errors='coerce')
+
+key_cols = ['dataset', 'Forget Class', 'model_num']
+
+orig_baseline = (
+    original_df[key_cols + ['val_test_retain_acc']]
+    .dropna(subset=['val_test_retain_acc'])
+    .groupby(key_cols, as_index=False)['val_test_retain_acc']
+    .mean()
+    .rename(columns={'val_test_retain_acc': 'val_test_retain_acc_orig'})
+)
+
+retrained_df = retrained_df.merge(orig_baseline, on=key_cols, how='left')
+
+unmatched = retrained_df[retrained_df['val_test_retain_acc_orig'].isna()]
+if not unmatched.empty:
+    print("[WARN] No matching original baseline for these rows:")
+    print(unmatched[key_cols].drop_duplicates().to_string(index=False))
+
+retrained_df['AUS'] = 1 - (
+    (retrained_df['val_test_retain_acc_orig'] - retrained_df['val_test_retain_acc']) / 100.0
+)
+# retrained_df['AUS'] = retrained_df['AUS'].clip(0, 1)  # optional
 
 # Save the combined DataFrame
 output_path = "C:/Users/AT56170/Desktop/Codes/Machine Unlearning - Classification/MU_data_free/results_fc_resnet50/results_retrained_resnet50.csv"
@@ -268,11 +322,36 @@ if all_data:
     print("✅ Mean and std of all numeric columns saved.")
 
 
-    print("✅ Merged original results with current best results.")
+    col = 'val_test_fgt_acc'
+    
+    if col in combined_df.columns:
+        # Exempt original model rows from filtering
+        is_original = combined_df.get('method', '').astype(str).str.lower().eq('original')
+    
+        # Apply >10 filter only to non-original rows
+        mask_bad = (~is_original) & combined_df[col].notna() & (combined_df[col] > 5)
+    
+        removed_rows = combined_df[mask_bad].copy()
+        kept_rows = combined_df[~mask_bad].copy()
+    
+        removed_path = os.path.join(parent_dir, "filtered_out_rows_over50_val_test_fgt_acc_swint.csv")
+        kept_path = os.path.join(parent_dir, "filtered_in_rows_over50_val_test_fgt_acc_swint.csv")
+        removed_rows.to_csv(removed_path, index=False)
+        kept_rows.to_csv(kept_path, index=False)
+    
+        print(f"🧹 Filtered out {len(removed_rows)} rows with {col} > 5 (excluding original). Kept {len(kept_rows)} rows for stats.")
+    else:
+        print(f"⚠️ Column '{col}' not found; proceeding without filtering.")
+
+    
+    #df_final = combined_df
+    df_final = kept_rows    
+
+
     
     # === Compute mean and std for all numeric columns, grouped by dataset/method/model/source
-    numeric_cols = combined_df.select_dtypes(include='number').columns
-    stats_df = combined_df.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
+    numeric_cols = df_final.select_dtypes(include='number').columns
+    stats_df = df_final.groupby(["dataset", "method", "model", "source"])[numeric_cols].agg(['mean', 'std']).reset_index()
 
     # Flatten multi-level column names
     stats_df.columns = ['_'.join(col).strip('_') for col in stats_df.columns.values]
