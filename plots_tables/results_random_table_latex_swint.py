@@ -170,7 +170,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using Swin-T as the base architecture.
+\caption{Single-class unlearning performance for CIFAR-10, CIFAR-100, and TinyImageNet using Swin-T as the base architecture.
          Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.
          Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 \label{tab:main_results_head_swint}
@@ -523,7 +523,7 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance for CIFAR-10 using Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\caption{Single-class unlearning performance for CIFAR-10 using Swin-T, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}")
 latex.append(r"\label{tab:CIFAR-10_forget_swint}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
