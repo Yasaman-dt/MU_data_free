@@ -169,7 +169,7 @@ for _, row in stats_df.iterrows():
 latex_table = r"""\begin{table*}[ht]
 \centering
 \captionsetup{font=small}
-\caption{Performance comparison on CIFAR10, CIFAR100, and TinyImageNet using ResNet-50 as the base architecture. Reported metrics are the mean and standard deviation computed across all classes and model seeds. Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
+\caption{Single-class unlearning performance for CIFAR10, CIFAR100, and TinyImageNet using ResNet-50 as the base architecture. Reported metrics are the mean and standard deviation computed across all classes and model seeds. Columns $\mathcal{D}_r$-free and $\mathcal{D}_f$-free indicate whether the method operates without access to the retain or forget set, respectively, with (\cmark) denoting true and (\xmark) denoting false.}
 
 
 \label{tab:main_results_resnet50}
@@ -460,7 +460,7 @@ latex = []
 latex.append(r"\begin{table*}[ht]")
 latex.append(r"\centering")
 latex.append(r"\captionsetup{font=small}")
-latex.append(r"\caption{Class unlearning performance on CIFAR-10 using ResNet-50, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic data, while the corresponding non-shaded rows use original embeddings with the same method.}")
+latex.append(r"\caption{Single-class unlearning performance for CIFAR-10 using ResNet-50, averaged over 5 random trials. Rows highlighted in gray represent our results using synthetic embeddings, while the corresponding non-shaded rows use original embeddings with the same method.}")
 latex.append(r"\label{tab:CIFAR-10_forget_resnet50}")
 latex.append(r"\resizebox{\textwidth}{!}{%")
 latex.append(r"\begin{tabular}{" + column_format + "}")
